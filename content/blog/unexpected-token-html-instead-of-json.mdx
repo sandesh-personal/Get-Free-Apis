@@ -1,0 +1,199 @@
+---
+title: "When an API returns HTML instead of JSON"
+description: "\"Unexpected token < in JSON at position 0\" means you parsed an error page as data. Here is how to find what the server actually sent, and why it sent it."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-25"
+updatedAt: "2026-09-25"
+relatedApis:
+  - dummyjson
+  - randomuser
+  - postcodes-io
+relatedPosts:
+  - failed-to-fetch-javascript
+  - http-status-codes-that-matter
+sources:
+  - label: "MDN — Response.json()"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Response/json"
+  - label: "MDN — Content-Type header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Type"
+  - label: "RFC 9110 — Content negotiation"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-content-negotiation"
+faq:
+  - q: "What does 'Unexpected token < in JSON at position 0' mean?"
+    a: "The response body starts with a less-than sign, which almost always means it begins with <!DOCTYPE html> or <html>. You asked to parse JSON and received an HTML page, usually an error page, a login redirect or a proxy notice."
+  - q: "How do I see what the server actually sent?"
+    a: "Read the body as text instead of JSON. Call response.text() and log the first few hundred characters. The HTML page will normally state the real problem in its title or heading."
+  - q: "Why does this happen only in production?"
+    a: "Production sits behind more infrastructure. Load balancers, WAFs, CDNs and authentication proxies all return HTML error pages, and none of them exist on your laptop."
+  - q: "Can a 200 response still be an HTML error page?"
+    a: "Yes. Single-page app hosting often returns index.html with a 200 for any unmatched path, so a mistyped API route yields a successful status and a page of HTML. Checking response.ok is not enough on its own."
+  - q: "How do I prevent this in my own code?"
+    a: "Check the Content-Type header before parsing, and include a snippet of the body in the error you throw. That turns an opaque parser error into a message that names the real problem."
+---
+
+```text
+SyntaxError: Unexpected token '<', "<!DOCTYPE "... is not valid JSON
+```
+
+Older browsers phrase it as `Unexpected token < in JSON at position 0`. Either way, the meaning is the same and it is not really a JSON problem.
+
+<Answer>
+The response body begins with `<`, so it is HTML rather than JSON. Your code called `response.json()` on an error page, a login redirect or a proxy notice. Read the body with `response.text()` instead and log the first few hundred characters. The HTML will normally tell you exactly what went wrong.
+</Answer>
+
+## See what actually arrived
+
+Stop guessing and read the body as text:
+
+```js
+const response = await fetch(url);
+const body = await response.text();
+
+console.log('status:', response.status);
+console.log('content-type:', response.headers.get('content-type'));
+console.log('body starts:', body.slice(0, 300));
+```
+
+<Callout type="warning" title="A body can only be read once">
+`response.json()` and `response.text()` both consume the stream. Calling one after the other throws "body stream already read". Read as text once, then `JSON.parse` it yourself if it turns out to be JSON.
+</Callout>
+
+That single log usually ends the investigation. The HTML almost always names the problem in its `<title>` or first heading.
+
+## What the HTML is telling you
+
+### A 404 page
+
+```html
+<!DOCTYPE html><html><head><title>404 Not Found</title>
+```
+
+The URL is wrong. A typo, a missing version prefix such as `/v1`, a doubled slash from string concatenation, or a trailing slash the router treats as a different route.
+
+```js
+// Concatenation hides these. new URL does not.
+const url = new URL('/v1/items', 'https://api.example.com');
+```
+
+### A login page
+
+```html
+<!DOCTYPE html><html><head><title>Sign in</title>
+```
+
+The request was unauthenticated and the server redirected to a login form rather than returning 401. `fetch` follows redirects by default, so you end up parsing the login page.
+
+This is a server-side design flaw, but you have to cope with it. Send `Accept: application/json` so a well-behaved server returns a JSON error, and check for the redirect:
+
+```js
+const response = await fetch(url, {
+  headers: { Accept: 'application/json' },
+  redirect: 'manual', // surface the redirect instead of following it
+});
+
+if (response.type === 'opaqueredirect' || response.status === 0) {
+  throw new Error('Request was redirected, probably to a login page');
+}
+```
+
+### A gateway error
+
+```html
+<html><head><title>502 Bad Gateway</title></head>
+<body><center><h1>502 Bad Gateway</h1></center><hr><center>nginx</center>
+```
+
+The API's own infrastructure failed before reaching the application. Nothing on your side caused this and nothing on your side will fix it. Retry with backoff, and if it persists the API is down.
+
+### A rate limit or firewall page
+
+Cloudflare and similar services return full HTML pages for blocked requests, often mentioning a challenge or a ray ID. If this appears only from your server and not your laptop, your deployment platform's IP range is probably being treated as suspicious. A descriptive `User-Agent` sometimes resolves it.
+
+### Your own SPA's index.html
+
+The sneakiest case, because the status is `200`:
+
+```html
+<!DOCTYPE html><html><head><title>My App</title>
+```
+
+Static hosts configured for client-side routing serve `index.html` for any unmatched path. A request to `/api/items` when no such route exists returns your app shell with a success status. Everything looks fine until the parser runs.
+
+This is why `response.ok` alone is insufficient.
+
+## Parsing defensively
+
+A small wrapper turns every one of these into a message that names the real problem:
+
+```ts title="lib/fetch-json.ts"
+export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: { Accept: 'application/json', ...init?.headers },
+  });
+
+  const contentType = response.headers.get('content-type') ?? '';
+  const body = await response.text();
+
+  if (!contentType.includes('json')) {
+    const preview = body.trim().slice(0, 200).replace(/\s+/g, ' ');
+    throw new Error(
+      `Expected JSON from ${url} but received ${contentType || 'no content type'} ` +
+        `(HTTP ${response.status}). Body starts: ${preview}`,
+    );
+  }
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} from ${url}: ${body.slice(0, 200)}`);
+  }
+
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    throw new Error(`Malformed JSON from ${url}: ${body.slice(0, 200)}`);
+  }
+}
+```
+
+Three things this does that the naive version does not:
+
+**Checks `Content-Type` before parsing.** A server that returns HTML almost always labels it `text/html`, so this catches the problem before the parser does.
+
+**Includes a body preview in the error.** The difference between `Unexpected token <` and `received text/html (HTTP 404). Body starts: 404 Not Found` is the difference between ten minutes of debugging and none.
+
+**Sends `Accept: application/json`.** Many servers honour it and return a JSON error instead of an HTML page. Note this header is CORS-safelisted, so it does not trigger a preflight.
+
+## Check the content type before writing the integration
+
+You can find out in one command whether an endpoint returns JSON at all:
+
+```bash
+curl -sS -D - -o /dev/null -H "Accept: application/json" \
+  https://api.example.com/v1/items | grep -i content-type
+```
+
+```http
+content-type: application/json; charset=utf-8
+```
+
+If that says `text/html`, you have either the wrong URL or an endpoint that is not an API.
+
+<Tested date="2026-09-25" endpoint="Catalogue-wide probe following redirects" result="Some listed documentation URLs now redirect to marketing pages or parked domains rather than to API documentation.">
+This is one of the things our daily checks catch. When an API is retired, its endpoint often keeps returning 200 while serving a holding page, so a naive uptime check calls it healthy. We record the redirect chain, which is what distinguishes a working API from a domain that has been quietly repurposed.
+</Tested>
+
+Every listing shows whether it currently responds and where it redirects to, so a dead endpoint is visible before you write any code against it.
+
+## Quick reference
+
+| Body starts with | Status | Likely cause |
+| --- | --- | --- |
+| `<!DOCTYPE html>` with "404" | 404 | Wrong URL or missing version prefix |
+| `<!DOCTYPE html>` with a sign-in form | 200 | Redirected to login; request was unauthenticated |
+| `<html>` with "502" or "504" | 502/504 | Upstream infrastructure failure; retry |
+| Cloudflare challenge page | 403/503 | Firewall blocked your IP or user agent |
+| Your own app shell | 200 | SPA fallback; the API route does not exist |
+| Empty string | 204 | No content, and `JSON.parse('')` throws |
+
+That last row is worth noting separately: a `204 No Content` has an empty body, and parsing an empty string throws a similar-looking error. Check for `response.status === 204` before parsing anything.

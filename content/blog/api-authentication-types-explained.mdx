@@ -1,0 +1,178 @@
+---
+title: "API authentication explained: API key, OAuth 2.0, JWT and Basic"
+description: "Four schemes, what each actually proves, where each goes wrong, and how to tell from documentation which one you are dealing with."
+cluster: fundamentals
+author: editorial
+publishedAt: "2026-09-30"
+updatedAt: "2026-09-30"
+relatedApis:
+  - randomuser
+  - open-meteo-ensemble
+  - postcodes-io
+relatedPosts:
+  - 401-vs-403-api-authentication
+  - hide-api-key-frontend
+sources:
+  - label: "RFC 6749 — The OAuth 2.0 Authorization Framework"
+    url: "https://www.rfc-editor.org/rfc/rfc6749"
+  - label: "RFC 7519 — JSON Web Token"
+    url: "https://www.rfc-editor.org/rfc/rfc7519"
+  - label: "OWASP — Authentication Cheat Sheet"
+    url: "https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html"
+faq:
+  - q: "What is the difference between an API key and a JWT?"
+    a: "An API key is an opaque identifier the server looks up in its own store. A JWT is a signed token that carries claims inside it, so the server can validate it without a database lookup. Keys are typically long-lived, JWTs short-lived."
+  - q: "Is an API key secure enough?"
+    a: "For server-to-server calls over HTTPS, usually yes. The weakness is that a key is a bearer credential: anyone who has it can use it. That is why keys must never reach client-side code, where every visitor can read them."
+  - q: "Do I need OAuth for my own API?"
+    a: "Only if third-party applications will act on behalf of your users. If you control both sides, OAuth adds significant complexity for no benefit. API keys or your own token scheme are usually the right answer."
+  - q: "Why do access tokens expire so quickly?"
+    a: "To limit the damage if one leaks. A token valid for an hour is far less useful to an attacker than a key valid indefinitely. The refresh token, which is longer-lived, is exchanged less often and can be revoked centrally."
+  - q: "Can I avoid authentication entirely?"
+    a: "For public read-only data, often yes. Around 1,051 of the 2,712 APIs in our catalogue need no credential at all, which makes them ideal for prototypes, tutorials and client-side projects."
+---
+
+Authentication answers one question: who is making this request. Four schemes dominate, and they differ in what they prove, how long they last, and how badly they fail when leaked.
+
+<Answer>
+**API key**: one opaque string, long-lived, simple, must stay server-side. **Basic**: username and password, base64-encoded, largely legacy. **JWT**: a signed token carrying claims, verifiable without a database lookup, short-lived. **OAuth 2.0**: a flow that gets you a token on behalf of a user, for when a third party needs delegated access. Pick the simplest one that covers your case.
+</Answer>
+
+## API keys
+
+The most common scheme in free public APIs, and the simplest. One string identifies your application.
+
+```bash
+# In a header, most commonly
+curl -H "Authorization: Bearer sk_live_abc123" https://api.example.com/data
+curl -H "X-API-Key: abc123" https://api.example.com/data
+
+# Or in a query parameter, which is worse but widespread
+curl "https://api.example.com/data?api_key=abc123"
+```
+
+**What it proves:** that the caller possesses the key. Nothing more. There is no user identity and no expiry unless the provider adds one.
+
+**Where it goes wrong:**
+
+A key in a query parameter ends up in server logs, browser history, and `Referer` headers sent to third parties. Prefer a header whenever the API supports one.
+
+A key in client-side JavaScript is visible to every visitor in DevTools. It will be found and abused. This is the single most common serious mistake in API integration, and the fix is always to proxy the call through your own server.
+
+<Callout type="danger" title="Keys in frontend code are public">
+Bundlers do not hide anything. A key in your JavaScript bundle is as public as if you posted it. If the API only supports a key and you need it in a browser app, you need a server-side proxy. There is no build configuration that changes this.
+</Callout>
+
+## Basic authentication
+
+Username and password, base64-encoded:
+
+```bash
+curl -u username:password https://api.example.com/data
+# equivalent to:
+# Authorization: Basic dXNlcm5hbWU6cGFzc3dvcmQ=
+```
+
+**Base64 is encoding, not encryption.** Anyone who intercepts the header can decode it instantly. Basic auth is only acceptable over HTTPS, and even then it is dated.
+
+You still meet it in older enterprise APIs and in some payment providers, which often use the API key as the username with an empty password.
+
+## JWT
+
+A JSON Web Token is three base64 segments separated by dots: header, payload, signature.
+
+```text
+eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMiLCJleHAiOjE3NTgxMjQ4MDB9.abc123signature
+```
+
+Decode the middle segment and you get claims:
+
+```json
+{
+  "sub": "user_123",
+  "scope": "read:items write:items",
+  "exp": 1758124800
+}
+```
+
+**What makes it different:** the server does not need a database lookup. It verifies the signature, reads the claims, and trusts them. That makes JWTs efficient at scale and well suited to distributed systems.
+
+**Two things people get wrong:**
+
+The payload is **encoded, not encrypted**. Anyone holding the token can read every claim. Never put anything sensitive in it.
+
+Revocation is genuinely hard. A stateless token is valid until it expires, so you cannot simply delete it server-side. This is exactly why expiry times are short, typically fifteen minutes to an hour.
+
+```js
+// Read the expiry without a library, for debugging only.
+const [, payload] = token.split('.');
+const claims = JSON.parse(atob(payload));
+console.log('expires:', new Date(claims.exp * 1000));
+```
+
+Never make an authorisation decision from a client-side decode. Only the server can verify the signature, and an unverified token is just a string someone typed.
+
+## OAuth 2.0
+
+OAuth exists for one situation: a third-party application needs to act on behalf of a user without ever seeing that user's password.
+
+When you click "Sign in with GitHub" and grant an app access to your repositories, that is OAuth. GitHub authenticates you; the app receives a scoped token; your password is never shared.
+
+The authorization code flow, which is the one you will normally use:
+
+1. Redirect the user to the provider's authorisation page, with your client ID and the scopes you want
+2. The user signs in and approves
+3. The provider redirects back to you with a short-lived **code**
+4. Your **server** exchanges that code plus your client secret for an access token
+5. You call the API with that token
+
+```js title="Step 4, server-side only"
+const response = await fetch('https://provider.com/oauth/token', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    client_id: process.env.CLIENT_ID,
+    client_secret: process.env.CLIENT_SECRET, // never in a browser
+    redirect_uri: process.env.REDIRECT_URI,
+  }),
+});
+
+const { access_token, refresh_token, expires_in } = await response.json();
+```
+
+Step 4 must happen on your server. The client secret is exactly what its name says.
+
+**Refresh tokens** are the other half. Access tokens expire quickly; the refresh token exchanges for a new one without sending the user through the flow again. Handle the refresh transparently, or your users will be signed out every hour.
+
+**Scopes** are the permission model. A token granted `read:user` cannot write, and existing tokens cannot gain scopes. Adding a feature that needs more access means re-running the flow.
+
+## Telling them apart from documentation
+
+| You see | Scheme | Where the credential lives |
+| --- | --- | --- |
+| "Get your API key from the dashboard" | API key | Server-side environment variable |
+| `Authorization: Basic` or `-u user:pass` | Basic | Server-side, HTTPS only |
+| A token with two dots in it | JWT | Memory or an httpOnly cookie |
+| "Redirect the user to /authorize" | OAuth 2.0 | Server-side, with refresh handling |
+| No credentials mentioned at all | None | Nothing to protect |
+
+## Choosing for your own API
+
+Do not reach for OAuth by default. It is the right answer to a specific question, and the wrong answer to most others.
+
+- **Public read-only data?** No authentication. Rate limit by IP.
+- **Server-to-server, you control both ends?** API keys. Simple, adequate, easy to rotate.
+- **Your own frontend talking to your own backend?** Session cookies, `httpOnly` and `SameSite`. Not JWTs in `localStorage`.
+- **Third parties acting for your users?** OAuth 2.0. This is what it is for.
+
+## The option people forget
+
+For prototypes, tutorials, coding exercises and client-side demos, the best authentication is frequently none at all.
+
+<Tested date="2026-09-30" endpoint="Full catalogue probe" result="1,051 of 2,712 indexed APIs require no authentication. 274 of those also send CORS headers, run over HTTPS and are currently responding.">
+That second figure is the one that matters for front-end work. Those 274 can be called directly from browser JavaScript with no key to leak, no proxy to maintain, and no credential rotation to think about.
+</Tested>
+
+Our [no-key collection](/collections/no-api-key) lists every API in the catalogue that needs no credential, and the [browser-ready collection](/collections/browser-ready) narrows that to the ones you can call straight from client-side code.

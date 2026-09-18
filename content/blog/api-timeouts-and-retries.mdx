@@ -1,0 +1,226 @@
+---
+title: "Handling API timeouts and retries without making things worse"
+description: "fetch has no default timeout, so a hung request waits forever. Here is how to set one properly, and which failures are safe to retry without duplicating work."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-26"
+updatedAt: "2026-09-26"
+relatedApis:
+  - open-meteo-ensemble
+  - opensensemap
+  - aviationweather
+relatedPosts:
+  - fix-429-too-many-requests
+  - api-500-error-third-party
+sources:
+  - label: "MDN — AbortSignal.timeout()"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static"
+  - label: "MDN — AbortController"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/AbortController"
+  - label: "RFC 9110 — Idempotent methods"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-idempotent-methods"
+faq:
+  - q: "Does fetch have a default timeout?"
+    a: "Not in the specification. Browsers impose their own limits, often around 300 seconds, which is far too long to be useful. Node's fetch behaves similarly. You must set your own."
+  - q: "What is a reasonable timeout for a third-party API?"
+    a: "Between 5 and 10 seconds for interactive requests. Base it on measured latency rather than instinct: take the API's typical response time and allow generous headroom, then treat anything beyond that as failed."
+  - q: "Is it safe to retry a POST request?"
+    a: "Not by default. A timeout does not tell you whether the server processed the request, so retrying may duplicate it. Use an idempotency key if the API supports one, otherwise only retry requests that are naturally idempotent."
+  - q: "What is the difference between a timeout and an abort?"
+    a: "Mechanically nothing, since AbortSignal.timeout is built on the same machinery. The distinction is intent: a timeout is the deadline expiring, while an abort is usually your own code cancelling because the result is no longer wanted."
+  - q: "Should I retry a 4xx error?"
+    a: "Almost never. A 400, 401, 403 or 404 will fail identically every time. The exceptions are 408 Request Timeout and 429 Too Many Requests, which are both explicitly about timing."
+---
+
+This request can hang for minutes:
+
+```js
+const response = await fetch('https://api.example.com/data');
+```
+
+`fetch` has no timeout in the specification. Browsers apply their own ceiling, often around five minutes, and Node behaves similarly. If the server accepts your connection and then goes quiet, your code waits.
+
+<Answer>
+Set an explicit timeout with `AbortSignal.timeout()`. Choose the value from the API's measured latency rather than a guess. Retry only failures that retrying can fix, meaning timeouts, network errors, 5xx, 408 and 429. Never blind-retry a POST, because a timeout does not tell you whether the server already processed it.
+</Answer>
+
+## Setting a timeout
+
+The modern approach is one line:
+
+```js
+const response = await fetch(url, {
+  signal: AbortSignal.timeout(8000),
+});
+```
+
+When the deadline passes, the fetch rejects with a `TimeoutError`. Distinguish it from other failures:
+
+```js
+try {
+  const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  return await response.json();
+} catch (error) {
+  if (error.name === 'TimeoutError') {
+    throw new Error('The API did not respond within 8 seconds');
+  }
+  if (error.name === 'AbortError') {
+    return; // our own code cancelled; not an error
+  }
+  throw error;
+}
+```
+
+If you also need to cancel manually, for example when a component unmounts, combine the two signals:
+
+```js
+const controller = new AbortController();
+
+const response = await fetch(url, {
+  signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)]),
+});
+
+// Later: controller.abort();
+```
+
+<Callout type="warning" title="A timeout does not stop the server">
+Aborting closes your side of the connection. The server may well finish processing the request anyway. For a GET that is harmless; for a POST it means the work may have happened even though you saw a failure. This is the whole reason retrying writes is dangerous.
+</Callout>
+
+## Choosing the number
+
+Guessing produces two failure modes: too short and you abandon requests that would have succeeded, too long and your users stare at a spinner.
+
+Measure instead. We record response times for every API in the catalogue, which makes the decision concrete:
+
+<Tested date="2026-09-26" endpoint="Full catalogue probe, 2,712 APIs" result="Response times vary by more than an order of magnitude between APIs. Open-Meteo Ensemble answers in 282 ms; openSenseMap takes 2,142 ms; AviationWeather takes 1,464 ms.">
+A single global timeout across a dozen integrations is almost always wrong for most of them. An 8-second ceiling is generous for a 282 ms API and tight for one that routinely takes over 2 seconds under load. Per-API timeouts derived from measured latency are worth the small amount of extra configuration.
+</Tested>
+
+A reasonable rule: take the typical response time, multiply by four to five, and floor it at about 3 seconds. That tolerates normal variance while still failing fast when something is genuinely wrong.
+
+| Request type | Suggested timeout |
+| --- | --- |
+| Interactive, user is waiting | 5 to 8 seconds |
+| Background job | 30 seconds |
+| Health check | 2 to 3 seconds |
+| File upload or report generation | 60 seconds or more, ideally async |
+
+## What is safe to retry
+
+This is where retry logic goes wrong. The question is not "did it fail" but "can the same request be sent again without causing harm".
+
+**Safe by definition.** `GET`, `HEAD`, `PUT` and `DELETE` are idempotent: sending them twice has the same effect as sending them once. Retry freely.
+
+**Not safe by default.** `POST` usually creates something. A timeout leaves you genuinely unable to tell whether the resource was created, so retrying risks a duplicate order, payment or record.
+
+**Made safe with an idempotency key.** Many APIs that handle money support this:
+
+```js
+await fetch('https://api.example.com/charges', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Idempotency-Key': crypto.randomUUID(), // reuse this exact value on retry
+  },
+  body: JSON.stringify({ amount: 2000 }),
+});
+```
+
+The critical detail is generating the key **once per logical operation**, not once per attempt. Reusing it on the retry is what lets the server recognise the duplicate and return the original result.
+
+## What to retry, by status
+
+| Outcome | Retry? | Why |
+| --- | --- | --- |
+| Timeout, network error | Yes, if idempotent | Likely transient |
+| 408 Request Timeout | Yes | Explicitly about timing |
+| 429 Too Many Requests | Yes, after `Retry-After` | Explicitly about timing |
+| 500, 502, 503, 504 | Yes | Server-side, often transient |
+| 400, 422 | No | Malformed; will fail identically |
+| 401, 403 | No | Credentials or permissions |
+| 404 | No | Resource does not exist |
+| 409 Conflict | No | State conflict needing a decision |
+
+Retrying a 400 four times turns one failure into four, consumes quota, and delays the error your user sees.
+
+## Putting it together
+
+```ts title="lib/resilient-fetch.ts"
+const RETRYABLE_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
+type Options = {
+  timeoutMs?: number;
+  maxAttempts?: number;
+  /** Only set true for requests that are safe to send twice. */
+  idempotent?: boolean;
+};
+
+export async function resilientFetch(
+  url: string,
+  init: RequestInit = {},
+  { timeoutMs = 8000, maxAttempts = 3, idempotent = true }: Options = {},
+): Promise<Response> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!RETRYABLE_STATUS.has(response.status)) return response;
+      if (!idempotent || attempt === maxAttempts - 1) return response;
+
+      await sleep(delayFrom(response, attempt));
+    } catch (error) {
+      lastError = error;
+
+      // Our own cancellation is not a failure to retry.
+      if ((error as Error).name === 'AbortError') throw error;
+      if (!idempotent || attempt === maxAttempts - 1) break;
+
+      await sleep(backoff(attempt));
+    }
+  }
+
+  throw lastError ?? new Error(`Failed after ${maxAttempts} attempts`);
+}
+
+function delayFrom(response: Response, attempt: number): number {
+  const retryAfter = Number(response.headers.get('retry-after'));
+  return Number.isFinite(retryAfter) && retryAfter > 0
+    ? Math.min(retryAfter * 1000, 30_000)
+    : backoff(attempt);
+}
+
+/** Exponential with full jitter, so simultaneous failures do not retry in unison. */
+function backoff(attempt: number): number {
+  return Math.random() * Math.min(500 * 2 ** attempt, 30_000);
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+```
+
+Note `idempotent` defaults to `true` because most calls are GETs, and that writes must opt out explicitly. Making the dangerous case the one you have to type is worth the small awkwardness.
+
+## Retries multiply your timeout budget
+
+Three attempts at 8 seconds each, plus backoff, is potentially half a minute before your user sees anything. If they are waiting, that is far too long.
+
+Cap the total rather than only the individual attempt:
+
+```js
+const deadline = AbortSignal.timeout(12_000); // whole operation
+
+await resilientFetch(url, { signal: deadline }, { timeoutMs: 4000, maxAttempts: 3 });
+```
+
+Now each attempt gets 4 seconds and the entire operation is capped at 12, regardless of how the retries fall.
+
+## The failure you cannot retry away
+
+Retries help with transient problems: a dropped packet, a restarting instance, a brief overload. They do nothing for an API that has been shut down.
+
+Our daily checks found 487 of 2,712 listed APIs failing to respond at all. No amount of backoff recovers those. This is why the catalogue publishes current status on every listing: the fastest way to fix a persistent timeout is often to discover the service no longer exists and pick a different one.

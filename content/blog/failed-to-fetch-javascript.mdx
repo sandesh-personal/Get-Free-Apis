@@ -1,0 +1,199 @@
+---
+title: "\"Failed to fetch\" in JavaScript: the seven real causes"
+description: "TypeError: Failed to fetch tells you almost nothing, because the browser deliberately withholds the detail. Here is how to work out which of the seven causes you actually have."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-22"
+updatedAt: "2026-09-22"
+relatedApis:
+  - open-meteo-ensemble
+  - postcodes-io
+  - zippopotam-us
+relatedPosts:
+  - fix-cors-error-public-api
+  - mixed-content-http-api-https-page
+sources:
+  - label: "MDN — Using the Fetch API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+  - label: "Fetch Standard — network errors"
+    url: "https://fetch.spec.whatwg.org/#concept-network-error"
+  - label: "MDN — Mixed content"
+    url: "https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content"
+faq:
+  - q: "Why is the 'Failed to fetch' error message so vague?"
+    a: "Deliberately. A detailed message would let any page probe your private network and infer what exists behind your firewall from the different error types. The browser collapses several distinct failures into one opaque message to prevent that."
+  - q: "Does 'Failed to fetch' mean the server is down?"
+    a: "Not necessarily. It means the browser could not complete the request and produce a readable response. The server may have answered perfectly and been blocked by CORS at the last step."
+  - q: "How do I see the real reason?"
+    a: "Open the Network tab rather than the Console. The failed request row shows a status and a reason. Check the Console too, because CORS failures log a second, much more specific message alongside the TypeError."
+  - q: "Can an ad blocker cause this?"
+    a: "Yes, and it is underdiagnosed. Blocking extensions abort requests to URLs matching their filter lists, including anything containing words like analytics, tracking or ads. Test in a private window with extensions disabled."
+  - q: "Why does it only fail in the browser and not in Node?"
+    a: "Node does not enforce CORS or mixed-content rules, and is not subject to browser extensions. Those three restrictions are browser-specific, so the same code hitting the same URL behaves differently."
+---
+
+```text
+TypeError: Failed to fetch
+```
+
+That is the entire message. No status code, no URL, no reason. In Firefox it reads `NetworkError when attempting to fetch resource`, which is no more helpful.
+
+The vagueness is intentional. If the browser explained precisely why a cross-origin request failed, any page you visited could map your internal network by timing the different errors. So it collapses several unrelated failures into one opaque `TypeError`.
+
+<Answer>
+`Failed to fetch` means the request never produced a readable response. It is not one bug. Open the **Network tab**, not the Console, and look at the failed row: it will show whether the request was blocked by CORS, blocked as mixed content, blocked by an extension, aborted, or never connected at all. The Console will also log a second, far more specific message for CORS failures.
+</Answer>
+
+## First, understand what fetch treats as failure
+
+This trips people up constantly:
+
+```js
+const response = await fetch('/api/thing');
+// A 404 does NOT throw. A 500 does NOT throw.
+console.log(response.ok, response.status); // false 404
+```
+
+`fetch` rejects only when no response could be obtained. Any HTTP response, including a 500, is a success as far as the promise is concerned. So if you are seeing `Failed to fetch`, the problem is at the network or policy layer, below HTTP.
+
+Always check `response.ok`:
+
+```js
+const response = await fetch(url);
+if (!response.ok) {
+  throw new Error(`${response.status} ${response.statusText}`);
+}
+```
+
+## The seven causes
+
+### 1. CORS
+
+The most common by a wide margin. The server responded, and the browser refused to hand the response to your code because the `Access-Control-Allow-Origin` header was missing or did not match.
+
+**How to confirm:** the Console shows a second message naming CORS explicitly. The Network tab shows the request with a status, sometimes 200, marked as blocked.
+
+**Fix:** use an API that sends CORS headers, or proxy the call through your own server. There is no client-side fix. We cover this fully in [fixing CORS errors](/blog/fix-cors-error-public-api).
+
+<Tested date="2026-09-22" endpoint="Catalogue-wide probe with an Origin header" result="Of currently responding free APIs that need no key, 274 send CORS headers and 571 do not.">
+Roughly two thirds of no-key APIs will produce this error if called directly from the browser. If you picked an API at random and hit `Failed to fetch`, this is the overwhelmingly likely cause.
+</Tested>
+
+### 2. Mixed content
+
+An HTTPS page cannot make plain HTTP requests. The browser blocks it before anything leaves the machine.
+
+**How to confirm:** the Console says the request was blocked because it is not secure. Look at your URL: does it start with `http://`?
+
+**Fix:** use the `https://` version. If the API has no HTTPS endpoint, you must proxy it, because no browser will make that request from a secure page.
+
+### 3. The URL is wrong
+
+A typo, a doubled slash, an unresolvable hostname, or a relative path that resolved somewhere unexpected.
+
+**How to confirm:** the Network tab shows the fully resolved URL. Read it carefully, especially if it was built by string concatenation.
+
+```js
+// A missing slash silently produces a different path.
+const url = `${base}${path}`;      // https://api.comusers
+const url = new URL(path, base);   // resolves correctly
+```
+
+### 4. A browser extension blocked it
+
+Ad blockers, privacy extensions and some corporate security tools abort requests matching their filter lists. URLs containing `analytics`, `track`, `ads`, `pixel` or `collect` are frequently caught, including on your own domain.
+
+**How to confirm:** open a private window with extensions disabled, or check the Network tab for a status like `blocked:other`.
+
+**Fix:** rename the path if it is yours. This is why analytics endpoints are so often called `/api/event` rather than anything descriptive.
+
+### 5. The request was aborted
+
+If a component unmounts, a controller aborts, or the user navigates away, in-flight requests are cancelled and surface as a fetch failure.
+
+**How to confirm:** check for an `AbortError` specifically.
+
+```js
+try {
+  const response = await fetch(url, { signal: controller.signal });
+} catch (error) {
+  if (error.name === 'AbortError') return; // expected, not a bug
+  throw error;
+}
+```
+
+In React Strict Mode during development, effects run twice, so the first request is aborted by design. This produces a `Failed to fetch` in the console that does not happen in production.
+
+### 6. There is genuinely no network
+
+Offline, DNS failure, connection refused, or the server is down.
+
+**How to confirm:** `navigator.onLine` is a weak signal but free. The Network tab will show the request failing to connect rather than being blocked.
+
+```js
+if (!navigator.onLine) {
+  // Definitely offline. Note that true does not guarantee connectivity.
+}
+```
+
+### 7. A local server that is not running
+
+In development, fetching `http://localhost:8080` when nothing is listening on 8080 gives exactly this error. So does hitting the wrong port after a config change.
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/health
+```
+
+If curl cannot connect either, the problem is the server, not your frontend.
+
+## A decision tree
+
+Work through this in order and you will identify the cause quickly.
+
+| Check | If yes |
+| --- | --- |
+| Console shows a CORS message alongside the TypeError | Cause 1 |
+| Page is HTTPS and the URL is `http://` | Cause 2 |
+| The resolved URL in the Network tab looks wrong | Cause 3 |
+| It works in a private window with extensions off | Cause 4 |
+| `error.name === 'AbortError'` | Cause 5 |
+| curl from your terminal also fails | Cause 6 or 7 |
+| curl succeeds but the browser fails | Cause 1, 2 or 4 |
+
+That last row is the important one. **If curl works and the browser does not, the problem is a browser policy, not the server.** That narrows seven causes to three immediately.
+
+## Writing errors that are actually useful
+
+Since the browser will not tell your users what happened, catch and classify it yourself:
+
+```ts title="lib/safe-fetch.ts"
+export async function safeFetch(url: string, init?: RequestInit) {
+  try {
+    const response = await fetch(url, init);
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status} for ${url}`);
+    }
+
+    return response;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      // fetch only throws TypeError for network-layer failures.
+      throw new Error(
+        `Could not reach ${url}. Likely CORS, mixed content, an offline ` +
+          `connection, or a blocking browser extension.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
+}
+```
+
+Distinguishing a `TypeError` from everything else matters: `fetch` throws `TypeError` specifically for network errors, so that check reliably separates "could not reach the server" from "the server said no".
+
+## Avoiding it in the first place
+
+Two of the seven causes, CORS and mixed content, are decided entirely by which API you choose. Both disappear if you pick one that supports HTTPS and sends CORS headers.
+
+Our [browser-ready collection](/collections/browser-ready) filters the catalogue to exactly that set: no key required, CORS confirmed by our own probes, HTTPS, and currently responding. Every entry is re-checked daily, so the list reflects what works today rather than what worked when a README was last edited.

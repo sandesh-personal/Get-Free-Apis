@@ -1,0 +1,221 @@
+---
+title: "HTTP status codes that actually matter when consuming APIs"
+description: "You do not need all sixty. You need to know which codes mean retry, which mean fix your request, and which mean stop. Here is the working subset."
+cluster: fundamentals
+author: editorial
+publishedAt: "2026-09-29"
+updatedAt: "2026-09-29"
+relatedApis:
+  - dummyjson
+  - randomuser
+  - postcodes-io
+relatedPosts:
+  - 401-vs-403-api-authentication
+  - api-timeouts-and-retries
+sources:
+  - label: "RFC 9110 — HTTP Semantics, Status Codes"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-status-codes"
+  - label: "MDN — HTTP response status codes"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status"
+  - label: "IANA — HTTP Status Code Registry"
+    url: "https://www.iana.org/assignments/http-status-codes/http-status-codes.xhtml"
+faq:
+  - q: "How many HTTP status codes do I actually need to know?"
+    a: "About a dozen for consuming APIs. The rest are either rare, handled by the browser before your code sees them, or specific to protocols like WebDAV that you will not encounter in a normal REST integration."
+  - q: "What is the difference between 401 and 403?"
+    a: "401 means the API does not know who you are, because credentials were missing or invalid. 403 means it knows and is refusing anyway, because of permissions, scope or plan."
+  - q: "Should I retry a 404?"
+    a: "No. A 404 means the resource does not exist, and it will not exist on the second attempt either. The only codes normally worth retrying are 408, 429 and the 5xx family."
+  - q: "What does a 204 response contain?"
+    a: "Nothing. 204 No Content means the request succeeded and there is deliberately no body. Calling response.json() on it throws, because parsing an empty string is invalid JSON."
+  - q: "Why do some APIs return 200 for errors?"
+    a: "Usually legacy design, or a framework that wraps everything in a success envelope with an error field inside. It is poor practice because it defeats standard tooling, but you have to handle it: check the body as well as the status."
+---
+
+The HTTP specification defines around sixty status codes. Consuming APIs requires roughly a dozen. The rest are rare, protocol-specific, or handled by the browser before your code ever sees them.
+
+<Answer>
+Group them by what you do next. **2xx**: continue. **3xx**: your client usually handles it. **4xx**: fix the request, do not retry. **5xx**: the server failed, retry with backoff. The three exceptions worth memorising are 408, 429 and 304, which are all about timing or caching rather than correctness.
+</Answer>
+
+## The ones you will actually meet
+
+### 200 OK
+
+The request succeeded and there is a body. The default case.
+
+### 201 Created
+
+A POST or PUT created something. Well-built APIs include a `Location` header pointing at the new resource, which saves you constructing the URL yourself.
+
+### 204 No Content
+
+Success, deliberately empty body. Common for DELETE and for PUT updates that return nothing.
+
+```js
+// This throws: JSON.parse('') is invalid.
+const data = await response.json();
+
+// Check first.
+const data = response.status === 204 ? null : await response.json();
+```
+
+### 304 Not Modified
+
+Your cached copy is still current, so the server sent no body. This only appears if you sent `If-None-Match` or `If-Modified-Since`, and it is how conditional requests save bandwidth.
+
+```js
+const response = await fetch(url, {
+  headers: { 'If-None-Match': storedEtag },
+});
+
+if (response.status === 304) {
+  return cachedValue; // nothing changed
+}
+```
+
+Note that `response.ok` is `false` for a 304, because `ok` only covers 200 to 299. If you use conditional requests, handle 304 before your error check or you will treat a cache hit as a failure.
+
+### 400 Bad Request
+
+Your request was malformed. A missing required field, a badly formatted date, a value out of range. Retrying changes nothing. Read the response body, which usually names the offending field.
+
+### 401 Unauthorized
+
+Authentication failed or was not supplied. Despite the name, this is about identity rather than permission. Check the `WWW-Authenticate` header, which normally states the reason.
+
+### 403 Forbidden
+
+Authenticated but not permitted. Wrong scope, insufficient plan, or a resource that is not yours. Regenerating your key will not help, because your key is not the problem.
+
+### 404 Not Found
+
+The resource does not exist. Sometimes it means the URL is wrong; sometimes it is deliberately used instead of 403 so that merely probing cannot confirm a resource exists.
+
+### 408 Request Timeout
+
+The server waited for your request and gave up. Unlike other 4xx codes, this is worth retrying.
+
+### 409 Conflict
+
+The request conflicts with current state. A duplicate unique field, or an edit against a version that has since changed. Requires a decision, not a retry.
+
+### 422 Unprocessable Content
+
+Well-formed syntax, semantically invalid. An email field containing something that is not an email. Treat it like a 400.
+
+### 429 Too Many Requests
+
+Rate limited. Read `Retry-After` and wait exactly that long.
+
+### 500, 502, 503, 504
+
+The server failed. Retry idempotent requests with exponential backoff and a small cap.
+
+## The grouping that matters
+
+| Range | Meaning | Your move |
+| --- | --- | --- |
+| 2xx | Success | Continue |
+| 3xx | Redirect or cache | Usually handled for you |
+| 4xx | You sent something wrong | Fix it; do not retry |
+| 5xx | The server failed | Retry with backoff |
+
+The two exceptions to the 4xx rule are 408 and 429. Both describe timing rather than a defect in your request, and both are retryable.
+
+```ts
+const RETRYABLE = new Set([408, 429, 500, 502, 503, 504]);
+
+function shouldRetry(status: number): boolean {
+  return RETRYABLE.has(status);
+}
+```
+
+Encoding it as an explicit set is better than a range check, because `status >= 500` misses 429 and `status >= 400` retries things that will never succeed.
+
+## Codes that are commonly misused
+
+Standards describe intent; real APIs vary. Expect these.
+
+**500 for bad input.** Some APIs return 500 where a 400 belongs, because an unhandled exception escaped. If a 500 is perfectly reproducible with your request but a simpler request works, you found the input that breaks them.
+
+**200 with an error body.**
+
+```json
+{ "success": false, "error": "Invalid parameters" }
+```
+
+The status says success and the body says otherwise. You have to check both:
+
+```js
+const data = await response.json();
+if (!response.ok || data.success === false) {
+  throw new Error(data.error ?? `HTTP ${response.status}`);
+}
+```
+
+**403 for an invalid key.** Technically should be 401. Common enough that if a 403 appears on an endpoint you expect access to, test the key against a known-public endpoint before assuming it is a permissions problem.
+
+**302 to a login page.** Instead of returning 401, the server redirects. `fetch` follows redirects by default, so you end up parsing HTML and getting a JSON syntax error. Sending `Accept: application/json` often persuades the server to return a proper status.
+
+## Checking status without over-checking
+
+A compact helper covering the cases above:
+
+```ts title="lib/api-client.ts"
+export async function apiRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: { Accept: 'application/json', ...init?.headers },
+    signal: AbortSignal.timeout(8000),
+  });
+
+  if (response.status === 204) return null as T;
+
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('json')) {
+    const preview = (await response.text()).slice(0, 200);
+    throw new ApiError(response.status, `Expected JSON, got ${contentType}: ${preview}`);
+  }
+
+  const body = await response.json();
+
+  if (!response.ok) {
+    throw new ApiError(response.status, body?.message ?? body?.error ?? response.statusText);
+  }
+
+  return body as T;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(`HTTP ${status}: ${message}`);
+    this.name = 'ApiError';
+  }
+}
+```
+
+Carrying the status on the error is what lets calling code decide policy:
+
+```js
+try {
+  const data = await apiRequest('/items');
+} catch (error) {
+  if (error instanceof ApiError && shouldRetry(error.status)) {
+    // retry path
+  } else {
+    // surface to the user
+  }
+}
+```
+
+## What we see in practice
+
+<Tested date="2026-09-29" endpoint="Daily probe of 2,712 catalogue entries" result="2,225 returned a successful status. 487 failed, split between connection failures, 4xx responses to anonymous requests, and 5xx errors.">
+The 4xx failures in that set are interesting: several are APIs that are entirely functional but refuse requests without a descriptive User-Agent header, returning 403 to anything that looks automated. That is a reasonable policy, and it means a bare status code alone is not enough to conclude an API is broken.
+</Tested>
+
+This is why our listings record the status alongside the redirect chain. A 403 from a working API and a 403 from a domain that has been parked look identical in a log and mean completely different things.

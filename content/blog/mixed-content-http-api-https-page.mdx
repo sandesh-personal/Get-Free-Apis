@@ -1,0 +1,173 @@
+---
+title: "Mixed content errors: calling an HTTP API from an HTTPS page"
+description: "Your page is secure, the API is not, and the browser refuses to connect them. Why there is no client-side fix, and what to do when the API has no HTTPS endpoint."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-24"
+updatedAt: "2026-09-24"
+relatedApis:
+  - open-meteo-ensemble
+  - zippopotam-us
+  - newton
+relatedPosts:
+  - failed-to-fetch-javascript
+  - fix-cors-error-public-api
+sources:
+  - label: "MDN — Mixed content"
+    url: "https://developer.mozilla.org/en-US/docs/Web/Security/Mixed_content"
+  - label: "W3C — Mixed Content specification"
+    url: "https://www.w3.org/TR/mixed-content/"
+  - label: "MDN — Content-Security-Policy: upgrade-insecure-requests"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy/upgrade-insecure-requests"
+faq:
+  - q: "What is a mixed content error?"
+    a: "It happens when a page loaded over HTTPS tries to load a resource over plain HTTP. Browsers block active content such as scripts and fetch requests outright, because an attacker who can modify the insecure request can compromise the secure page."
+  - q: "Can I disable mixed content blocking for my users?"
+    a: "No. A visitor can override it for themselves in browser settings, but you cannot do it on their behalf, and you should not rely on it. Any fix must work for a default browser configuration."
+  - q: "Does upgrade-insecure-requests fix this?"
+    a: "Only when the API actually supports HTTPS. The directive rewrites http:// to https:// before the request is made. If the server has no TLS listener, the upgraded request fails to connect instead of being blocked."
+  - q: "Why does it work in development but not production?"
+    a: "Locally your page is usually served over http://localhost, so both are insecure and no mixing occurs. Localhost is also treated as a secure context by browsers. Deploy to HTTPS and the mismatch appears."
+  - q: "What if the API genuinely has no HTTPS endpoint?"
+    a: "Proxy it through your own HTTPS server. Your browser talks to you over TLS, and your server talks to the API over HTTP. That is the only approach that works in a default browser."
+---
+
+Your site is on HTTPS. Your API call is not. The console says:
+
+```text
+Mixed Content: The page at 'https://yourapp.com/' was loaded over HTTPS,
+but requested an insecure resource 'http://api.example.com/data'.
+This request has been blocked; the content must be served over HTTPS.
+```
+
+The request never left the machine. Unlike a CORS error, where the server responded and the browser withheld the result, here the browser refused before opening a connection.
+
+<Answer>
+A secure page cannot make insecure requests. There is no client-side fix and no flag you can set for your users. Either use the API's `https://` endpoint, or, if it has none, proxy the call through your own HTTPS server. Everything else is a workaround that only helps on your own machine.
+</Answer>
+
+## Why browsers are absolute about this
+
+A page served over HTTPS makes a promise: what you see was not tampered with in transit. One plain HTTP request breaks that promise entirely.
+
+Anyone positioned between your user and the API, on public Wi-Fi, at an ISP, or anywhere along the path, can read and rewrite an HTTP response. If that response is JSON your page renders, they control what your users see. If it is a script, they control the page.
+
+The padlock would be a lie. So browsers refuse, and they do not offer a developer-facing escape hatch, because any escape hatch would be used to ship insecure sites.
+
+<Callout type="note" title="Passive versus active content">
+Images, video and audio over HTTP are downgraded rather than blocked: they load, and the padlock is removed. Scripts, stylesheets, iframes, and anything from `fetch` or `XMLHttpRequest` are blocked outright. API calls are always in the blocked category.
+</Callout>
+
+## Check whether HTTPS already works
+
+Most APIs support TLS and simply document the wrong URL, or their documentation predates their certificate. Test before doing anything else:
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" https://api.example.com/data
+```
+
+A `200` means you are finished. Change the scheme in your code and move on.
+
+Watch for redirects, which will not save you:
+
+```bash
+curl -sS -o /dev/null -w "%{http_code} -> %{redirect_url}\n" \
+  http://api.example.com/data
+```
+
+If the HTTP endpoint 301s to HTTPS, that is good for curl and useless in the browser: the initial insecure request is blocked before the redirect is ever seen. You must start from `https://`.
+
+## When HTTPS genuinely is not available
+
+Some APIs, particularly older government, academic and municipal services, have no TLS listener at all. The only approach that works is to put your own HTTPS server in the middle.
+
+```ts title="app/api/legacy/route.ts"
+export const revalidate = 300;
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const station = searchParams.get('station');
+
+  if (!station || !/^[a-z0-9-]{1,32}$/i.test(station)) {
+    return Response.json({ error: 'invalid station' }, { status: 400 });
+  }
+
+  // Server-to-server. No browser, so no mixed content rule applies.
+  const upstream = await fetch(
+    `http://legacy.example.gov/api?station=${encodeURIComponent(station)}`,
+    { signal: AbortSignal.timeout(8000) },
+  );
+
+  if (!upstream.ok) {
+    return Response.json({ error: 'upstream unavailable' }, { status: 502 });
+  }
+
+  return Response.json(await upstream.json());
+}
+```
+
+Your browser talks to your origin over TLS. Your server talks to the legacy API over HTTP. The browser never sees an insecure request, so nothing is blocked.
+
+<Callout type="warning" title="Validate the parameters you forward">
+The regex above is not decoration. A proxy that passes arbitrary input into an upstream URL is a server-side request forgery risk, and one that accepts a full URL from the client is an open proxy. Accept named parameters with known shapes.
+</Callout>
+
+This is worth being clear-eyed about: the connection between your server and the API is still unencrypted, and still interceptable. Proxying moves the risk rather than removing it. For public, non-sensitive data such as weather observations or timetables, that trade is usually fine. For anything involving credentials or personal data, an API with no TLS in 2026 is one you should not be using.
+
+## What does not work
+
+### `upgrade-insecure-requests`
+
+```http
+Content-Security-Policy: upgrade-insecure-requests
+```
+
+This rewrites `http://` to `https://` before the request is made. It is genuinely useful when migrating a site whose resources all support TLS. It does nothing when the target has no HTTPS endpoint: you swap a blocked request for a failed connection.
+
+### Protocol-relative URLs
+
+```js
+fetch('//api.example.com/data'); // inherits the page's scheme
+```
+
+On an HTTPS page this resolves to `https://`, so if the API has no TLS you are back to a connection failure. The pattern is also deprecated.
+
+### Telling users to allow insecure content
+
+Browsers do let a visitor permit insecure content per site. Relying on that means asking every user to weaken their own security to use your site, which they will not do, and which support will not enjoy explaining.
+
+### Disabling security locally
+
+Running Chrome with security flags disabled makes the error disappear on your machine only. Your users run normal browsers.
+
+## Why it worked in development
+
+Almost always because your dev server runs on `http://localhost`. Both the page and the API are insecure, so nothing is mixed. Browsers additionally treat `localhost` as a secure context, so some behaviour differs there regardless.
+
+To catch this before deploying, run local HTTPS:
+
+```bash
+next dev --experimental-https
+```
+
+Then a mixed content problem shows up on your machine rather than in production.
+
+## Choosing an API that avoids this
+
+The simplest fix is to select for it up front. Every listing in our catalogue records whether the API is served over HTTPS, and you can filter on it.
+
+<Tested date="2026-09-24" endpoint="Full catalogue probe" result="Of 2,712 indexed APIs, the overwhelming majority now serve over HTTPS. Those that do not are flagged on their listing with an explicit warning.">
+Plain-HTTP APIs are now a small minority, concentrated in older institutional services. Where we find one, the listing says so directly and explains that a browser will refuse the call from a secure page, rather than leaving you to discover it at deploy time.
+</Tested>
+
+## Summary
+
+| Situation | What to do |
+| --- | --- |
+| HTTPS endpoint exists | Change the scheme. Done. |
+| HTTP redirects to HTTPS | Use the HTTPS URL directly; the redirect is never reached |
+| No TLS at all, public data | Proxy through your own HTTPS server |
+| No TLS at all, sensitive data | Use a different API |
+| Works locally, fails deployed | Your dev server is HTTP; test with local HTTPS |
+
+Mixed content blocking is not an obstacle to route around. It is the one guarantee HTTPS makes, enforced. When you hit it, the question to ask is not how to bypass it but why you are sending user data over a channel anyone can read.

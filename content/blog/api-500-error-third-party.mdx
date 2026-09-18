@@ -1,0 +1,183 @@
+---
+title: "Reading a 500 from someone else's API: what you can and cannot do"
+description: "A 5xx is the provider's bug, not yours. Here is how to confirm that, what to do while it lasts, and how to keep your own product usable when a dependency fails."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-27"
+updatedAt: "2026-09-27"
+relatedApis:
+  - open-meteo-ensemble
+  - frankfurter
+  - us-weather
+relatedPosts:
+  - api-timeouts-and-retries
+  - check-if-api-is-alive
+sources:
+  - label: "RFC 9110 — Server error 5xx"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-server-error-5xx"
+  - label: "MDN — 503 Service Unavailable"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503"
+  - label: "Google SRE Book — Handling overload"
+    url: "https://sre.google/sre-book/handling-overload/"
+faq:
+  - q: "Does a 500 error mean I did something wrong?"
+    a: "Usually not. The 5xx class means the server failed to fulfil an apparently valid request. The exception is that some APIs incorrectly return 500 for malformed input that should have been a 400, so it is worth testing a known-good request before concluding it is entirely their problem."
+  - q: "What is the difference between 500, 502, 503 and 504?"
+    a: "500 is an unhandled error inside the application. 502 means a gateway got an invalid response from upstream. 503 means the service is deliberately unavailable, often overloaded or in maintenance. 504 means a gateway waited for upstream and gave up."
+  - q: "Should I retry a 500?"
+    a: "Yes for idempotent requests, with exponential backoff and a small attempt cap. If every attempt fails over several minutes, the outage is real and retrying only adds load to a struggling service."
+  - q: "How do I know whether it is the API or my network?"
+    a: "Call the same endpoint from a different network and from a service like a status page. If it fails everywhere, it is the provider. If it fails only from your infrastructure, suspect your egress IP, DNS or a proxy."
+  - q: "What should my app show users during a third-party outage?"
+    a: "Stale cached data with a visible timestamp, or a clear message naming what is unavailable and what still works. A generic error page that hides which dependency failed makes your product look broken rather than partially degraded."
+---
+
+```json
+{ "error": "Internal Server Error" }
+```
+
+Status 500. Your request was well formed, your credentials were fine, and the API fell over anyway.
+
+The unwelcome truth is that you cannot fix this. What you can do is confirm it is genuinely theirs, decide how long to keep trying, and make sure your own product degrades gracefully rather than collapsing alongside it.
+
+<Answer>
+A 5xx means the server failed, not your request. Confirm it with a known-good request and a check from a second network, then retry idempotent calls with backoff and a small cap. Beyond that, the fix is architectural: cache aggressively so you can serve stale data, and fail in a way that tells users what is unavailable rather than hiding it behind a generic error.
+</Answer>
+
+## Which 5xx you got tells you something
+
+The codes are not interchangeable, and each points at a different layer.
+
+| Code | Meaning | What it implies |
+| --- | --- | --- |
+| 500 | Unhandled application error | A bug in their code, possibly triggered by your input |
+| 501 | Not implemented | The method is not supported at all; retrying is pointless |
+| 502 | Bad gateway | A proxy reached the app and got garbage back |
+| 503 | Service unavailable | Deliberate: overloaded, rate limited or in maintenance |
+| 504 | Gateway timeout | A proxy gave up waiting for the app |
+
+**503 is the most informative.** It is usually generated deliberately and often carries a `Retry-After` header, which makes it the one 5xx that tells you exactly how long to wait.
+
+**502 and 504 point at infrastructure.** The application tier is unreachable or too slow, which typically means a deploy in progress, a crash loop, or an overloaded backend. These are often brief.
+
+**500 is ambiguous.** It can mean their database is down, or it can mean your input hit a code path they never handled.
+
+<Callout type="warning" title="Sometimes a 500 really is your fault">
+Plenty of APIs return 500 for input that should have produced a 400. A date in an unexpected format, an oversized page size, an unusual character in a query parameter. If the 500 is reproducible with your exact request but a simpler request succeeds, you have probably found the input that breaks them.
+</Callout>
+
+## Confirm it is theirs
+
+Three checks, each taking under a minute.
+
+**Does a minimal request work?**
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" https://api.example.com/v1/health
+curl -sS -o /dev/null -w "%{http_code}\n" https://api.example.com/v1/items?limit=1
+```
+
+If the simplest possible call succeeds and yours fails, your request is triggering it. Bisect your parameters until you find which one.
+
+**Does it fail from elsewhere?**
+
+Run the same call from your laptop, from a different network, and from a server in another region. A failure everywhere is an outage. A failure only from your infrastructure suggests your egress IP is blocked, your DNS is resolving somewhere stale, or a proxy is interfering.
+
+**What do they say?**
+
+Check the provider's status page and their public issue tracker or social account. Many outages are acknowledged within minutes, which saves you from debugging something already known.
+
+## Retry, but bound it
+
+Retries are correct here, within limits. A 5xx is exactly the transient class that backoff exists for.
+
+```ts
+const RETRYABLE = new Set([500, 502, 503, 504]);
+
+async function withRetry(url: string, init?: RequestInit, maxAttempts = 3) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const response = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(8000),
+    });
+
+    if (!RETRYABLE.has(response.status)) return response;
+    if (attempt === maxAttempts - 1) return response;
+
+    // Honour Retry-After when a 503 provides it.
+    const retryAfter = Number(response.headers.get('retry-after'));
+    const delay = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(retryAfter * 1000, 30_000)
+      : Math.random() * Math.min(500 * 2 ** attempt, 15_000);
+
+    await new Promise((r) => setTimeout(r, delay));
+  }
+
+  throw new Error('unreachable');
+}
+```
+
+Two boundaries matter. Cap attempts at three or four, because a service that has failed four times over thirty seconds is having a real outage rather than a blip. And never retry `501`, which is a permanent statement that the method does not exist.
+
+There is an ethical dimension too. A 503 often means overload. Aggressive retries from every client simultaneously are precisely what keeps an overloaded service down, turning a brief degradation into a sustained outage.
+
+## Design so an outage is survivable
+
+This is the part actually within your control, and it matters more than the retry logic.
+
+### Serve stale data rather than nothing
+
+For anything that is not real-time, a cached copy from an hour ago is far better than an error.
+
+```ts title="app/api/rates/route.ts"
+export async function GET() {
+  try {
+    const response = await fetch('https://api.frankfurter.app/latest', {
+      next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) throw new Error(`upstream ${response.status}`);
+
+    const data = await response.json();
+    await cache.set('rates', data);
+    return Response.json({ data, stale: false });
+  } catch {
+    // Upstream is down. Serve the last good copy and say so.
+    const stale = await cache.get('rates');
+    if (stale) {
+      return Response.json({ data: stale, stale: true }, { status: 200 });
+    }
+    return Response.json({ error: 'rates unavailable' }, { status: 503 });
+  }
+}
+```
+
+The `stale` flag lets the UI show "rates as of 14:20" instead of pretending the number is current. Users tolerate slightly old data. They do not tolerate a blank screen.
+
+### Fail one feature, not the page
+
+If a weather widget cannot load, the weather widget should say so while the rest of the page works normally. In React, that is an error boundary around the component rather than around the route.
+
+### Name what broke
+
+"Something went wrong" tells a user nothing and makes your product look unreliable. "Live exchange rates are temporarily unavailable, showing yesterday's figures" tells them what happened, that you know, and that the rest of the product is fine.
+
+## Knowing before your users do
+
+<Tested date="2026-09-27" endpoint="Daily catalogue probe, 2,712 APIs" result="487 of 2,712 listed APIs failed to respond. Median response time among the healthy 2,225 was well under a second.">
+Roughly 18% of publicly listed free APIs are not working at any given time. That is the background rate for this ecosystem, and it is why treating a dependency as permanently available is a design error rather than an optimistic assumption.
+</Tested>
+
+Two practical conclusions follow. First, monitor your own dependencies rather than waiting for user reports, because a provider's status page often lags the actual outage. Second, prefer APIs with a track record: every listing in our catalogue shows current status and measured reliability, and [the status page](/status) lists what is failing right now.
+
+## When it never recovers
+
+Sometimes a 5xx is not transient. Free APIs get shut down, domains lapse, and side projects stop being maintained without announcement. The signals that an outage is permanent:
+
+- Failures for days rather than minutes
+- The documentation URL now redirects to a parked domain or a marketing page
+- The status page is also gone
+- No response to support contact
+
+At that point the engineering problem becomes a sourcing problem. Our catalogue records these transitions, including the redirect chain, which is what distinguishes a service having a bad afternoon from a domain that has quietly been sold.

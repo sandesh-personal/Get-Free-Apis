@@ -1,0 +1,212 @@
+---
+title: "401 vs 403: diagnosing API authentication failures"
+description: "A 401 means the API does not know who you are. A 403 means it knows and is refusing anyway. Telling them apart points you at completely different fixes."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-20"
+updatedAt: "2026-09-20"
+relatedApis:
+  - randomuser
+  - open-meteo-ensemble
+  - postcodes-io
+relatedPosts:
+  - api-key-stopped-working
+  - api-authentication-types-explained
+sources:
+  - label: "RFC 9110 — HTTP Semantics, 401 Unauthorized"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-401-unauthorized"
+  - label: "RFC 9110 — 403 Forbidden"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-403-forbidden"
+  - label: "MDN — WWW-Authenticate header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate"
+faq:
+  - q: "What is the difference between 401 and 403?"
+    a: "A 401 means authentication failed or was not supplied, so the API does not know who you are. A 403 means authentication succeeded but you are not permitted to do this, so the API knows who you are and is refusing anyway. One is an identity problem, the other a permission problem."
+  - q: "Why does the spec call 401 'Unauthorized' when it means unauthenticated?"
+    a: "It is a naming mistake preserved for compatibility. RFC 9110 acknowledges it directly, noting that 401 is about authentication while 403 is about authorisation. Read 401 as 'unauthenticated' and the confusion disappears."
+  - q: "Can a 403 ever mean my key is wrong?"
+    a: "Yes. Some APIs return 403 for an invalid key instead of 401, which is technically incorrect but common. If you get a 403 on an endpoint that should be available to you, test your key against a known-public endpoint before assuming it is a permissions issue."
+  - q: "My key works in curl but returns 401 in my app. Why?"
+    a: "Nearly always the key is not arriving as you think. Common causes are a trailing newline from reading a file, an unexpanded environment variable placing the literal string in the header, or a proxy stripping the Authorization header."
+  - q: "Should my own API return 401 or 403 for an unknown user?"
+    a: "Return 401 with a WWW-Authenticate header when credentials are missing or invalid. Return 403 when they are valid but insufficient. For resources whose existence is itself sensitive, 404 is often the better choice."
+---
+
+Two status codes, constantly confused, pointing at entirely different problems:
+
+```http
+HTTP/2 401
+www-authenticate: Bearer realm="api", error="invalid_token"
+```
+
+```http
+HTTP/2 403
+content-type: application/json
+
+{"error": "insufficient_scope", "required": "read:analytics"}
+```
+
+Which one you received determines where to look. Treat them as interchangeable and you will spend an hour regenerating a key that was never the problem.
+
+<Answer>
+**401** means the API does not know who you are. Credentials were missing, malformed, expired or wrong. **403** means the API knows exactly who you are and is refusing anyway. Your identity is fine; your permissions, plan or scope are not. Regenerating a key fixes 401s. It almost never fixes 403s.
+</Answer>
+
+## The naming is genuinely wrong
+
+The confusion is not your fault. HTTP names `401` as "Unauthorized" when it actually signals a failure of *authentication*. RFC 9110 admits this in the spec text itself, noting that 401 concerns authentication while 403 concerns authorisation.
+
+Substitute the accurate words and it becomes obvious:
+
+| Code | Official name | What it actually means | The question it answers |
+| --- | --- | --- | --- |
+| 401 | Unauthorized | Unauthenticated | Who are you? |
+| 403 | Forbidden | Unauthorised | You are X, and X cannot do this |
+
+A 401 is a bouncer who cannot find your name on any list. A 403 is a bouncer who found your name, and your name is on a different list.
+
+## Diagnosing a 401
+
+The API did not accept your credentials. In practice this is nearly always one of six things, listed roughly by how often they turn out to be the cause.
+
+### 1. The key never arrived
+
+More common than a wrong key. Print exactly what you are sending:
+
+```js
+const key = process.env.API_KEY;
+
+console.log('length:', key?.length);
+console.log('first 4:', key?.slice(0, 4));
+console.log('has whitespace:', key !== key?.trim());
+```
+
+If the length is `undefined`, the environment variable is not loaded. In Next.js, a variable without the `NEXT_PUBLIC_` prefix is unavailable in client components, which produces a 401 that only appears in the browser.
+
+### 2. Trailing whitespace
+
+Reading a key from a file or pasting from a terminal often carries a newline:
+
+```js
+// A trailing \n makes this header invalid.
+headers: { Authorization: `Bearer ${key}` }
+
+// Trim at the boundary, once.
+headers: { Authorization: `Bearer ${key.trim()}` }
+```
+
+<Callout type="tip" title="Check for this first">
+A trailing newline is invisible in every log you will look at, survives copy and paste, and produces a 401 identical to a genuinely wrong key. Check `key !== key.trim()` before you regenerate anything.
+</Callout>
+
+### 3. The wrong scheme
+
+`Bearer`, `Basic`, `Token` and `ApiKey` are not interchangeable, and the header is case-sensitive about the value:
+
+```http
+Authorization: Bearer sk_live_abc123
+Authorization: Basic dXNlcjpwYXNz
+Authorization: Token abc123
+X-API-Key: abc123
+```
+
+Read the documentation for the exact form. Some APIs want the key in a query parameter instead, and sending it in a header there yields a 401 no matter how valid the key is.
+
+### 4. The token expired
+
+OAuth access tokens are short-lived, often an hour. A request that worked this morning and fails this afternoon with no other change is almost certainly this. You need the refresh flow, not a new key.
+
+### 5. Wrong environment
+
+Test keys against production endpoints, or the reverse, return 401. A key prefixed `sk_test_` sent to a live endpoint will not work.
+
+### 6. The key was rotated or revoked
+
+If someone regenerated the key in a dashboard, every copy elsewhere died at that moment. Check the dashboard before debugging your code.
+
+## Diagnosing a 403
+
+Your identity was accepted. Something about what you are permitted to do was not. Regenerating credentials is almost never the answer.
+
+### Missing scope
+
+OAuth tokens carry a set of scopes. A token granted `read:user` cannot write, and the failure appears only when you call the endpoint that needs more:
+
+```json
+{
+  "error": "insufficient_scope",
+  "scope": "repo:write"
+}
+```
+
+The fix is to re-run the authorisation flow requesting the additional scope. Existing tokens cannot gain scopes.
+
+### Plan restrictions
+
+Free tiers commonly authenticate fine and then refuse specific endpoints. Historical data, bulk export and higher-resolution results are the usual ones. The response often says so:
+
+```json
+{ "error": "This endpoint requires a Pro subscription." }
+```
+
+### Origin, referrer or IP restrictions
+
+Keys can be locked to specific referrers or IP addresses. A key restricted to `yourapp.com` returns 403 from `localhost`, which produces the maddening pattern of working in production and failing in development. Check the key's restrictions in the provider's dashboard.
+
+### Missing a required header
+
+Some APIs require an identifying `User-Agent` and return 403 without one. The US National Weather Service is a well-known example: it is entirely free and needs no key, but it refuses anonymous clients.
+
+<Tested date="2026-09-20" endpoint="GET https://api.weather.gov/points/39.7456,-97.0892" result="Returns 200 with a descriptive User-Agent. Omitting the header returns 403.">
+This catches people constantly, because every other signal suggests the API is open. It is open. It just declines to serve clients that will not identify themselves, which is a reasonable position for a government service funding bandwidth from taxes.
+</Tested>
+
+### The resource is not yours
+
+Requesting a record belonging to another account returns 403 on a well-built API. Your credentials are valid, the resource exists, and it is not yours.
+
+## A diagnostic you can run in a minute
+
+```bash
+# 1. Does the endpoint work with no credentials at all?
+curl -s -o /dev/null -w "no auth: %{http_code}\n" \
+  https://api.example.com/public
+
+# 2. Does your key authenticate anywhere?
+curl -s -o /dev/null -w "with key: %{http_code}\n" \
+  -H "Authorization: Bearer $API_KEY" \
+  https://api.example.com/me
+
+# 3. What does the failing endpoint actually say?
+curl -s -D - \
+  -H "Authorization: Bearer $API_KEY" \
+  https://api.example.com/the-failing-endpoint
+```
+
+Read it like this:
+
+- Step 2 returns **401** → the key is the problem. Work through the six causes above.
+- Step 2 returns **200**, step 3 returns **403** → the key is fine. This is scope, plan or ownership.
+- Step 3 returns **401** while step 2 returned **200** → the endpoint needs a different credential, such as a separate token for that product.
+
+The `WWW-Authenticate` header on a 401 usually names the reason directly. It is the single most useful header in this whole process, and almost nobody reads it.
+
+## Sidestepping the problem entirely
+
+For prototypes, demos and teaching material, the fastest fix is often to remove authentication from the equation.
+
+<Tested date="2026-09-20" endpoint="Full catalogue probe" result="1,051 of 2,712 indexed APIs need no authentication at all.">
+Roughly two in five free public APIs require no key, no token and no sign-up. For a tutorial, a coding exercise or a proof of concept, choosing one of those removes an entire category of failure before you write any code.
+</Tested>
+
+Our [no-key collection](/collections/no-api-key) lists them, and every one is health-checked daily.
+
+## If you are designing an API
+
+Be precise, because your users are debugging against your choices:
+
+- **401** when credentials are absent, malformed or invalid. Always include `WWW-Authenticate`.
+- **403** when credentials are valid but insufficient. Say what is missing.
+- **404** instead of 403 when merely confirming a resource exists would leak information.
+
+A 403 that says `{"error": "Forbidden"}` and nothing else forces every one of your users through the entire checklist above. One extra sentence in that body saves thousands of hours across your user base.

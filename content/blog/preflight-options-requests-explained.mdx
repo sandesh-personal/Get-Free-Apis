@@ -1,0 +1,198 @@
+---
+title: "Preflight OPTIONS requests explained, with real traces"
+description: "Why the browser sends an OPTIONS request you never wrote, what turns a simple request into a preflighted one, and how to stop doubling your request count."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-23"
+updatedAt: "2026-09-23"
+relatedApis:
+  - open-meteo-ensemble
+  - dwd-api
+  - postcodes-io
+relatedPosts:
+  - fix-cors-error-public-api
+  - failed-to-fetch-javascript
+sources:
+  - label: "MDN — Preflight request"
+    url: "https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request"
+  - label: "Fetch Standard — CORS-preflight request"
+    url: "https://fetch.spec.whatwg.org/#cors-preflight-request"
+  - label: "MDN — Access-Control-Max-Age"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age"
+faq:
+  - q: "Why does the browser send an OPTIONS request I did not write?"
+    a: "It is a CORS preflight. Before sending a cross-origin request that could change server state or carries unusual headers, the browser asks the server whether that request is permitted. Your actual request only goes out if the answer is yes."
+  - q: "How do I avoid a preflight entirely?"
+    a: "Keep the request simple: use GET, HEAD or POST, send only safelisted headers, and use a Content-Type of application/x-www-form-urlencoded, multipart/form-data or text/plain. Sending application/json on a POST triggers a preflight on its own."
+  - q: "Does the preflight double my rate limit usage?"
+    a: "Usually not, because most APIs do not count OPTIONS against quota, but it does double the round trips. Setting Access-Control-Max-Age lets the browser cache the answer and skip the preflight on subsequent requests."
+  - q: "Why does my preflight succeed but the real request still fail?"
+    a: "They are separate requests and both must pass CORS. A common cause is a server that handles OPTIONS in middleware but omits Access-Control-Allow-Origin on the actual response."
+  - q: "Can I make the preflight faster?"
+    a: "Set Access-Control-Max-Age so the result is cached. Browsers cap this: Chromium honours up to 2 hours and Firefox up to 24 hours, regardless of a larger value."
+---
+
+You wrote one `fetch` call. The Network tab shows two requests, and the first one is an `OPTIONS` you never wrote:
+
+```text
+OPTIONS  https://api.example.com/items   204   42ms
+POST     https://api.example.com/items   201   88ms
+```
+
+That first request is a **CORS preflight**. The browser is asking the server for permission before sending your actual request.
+
+<Answer>
+The browser sends a preflight before any cross-origin request that is not "simple". Your request becomes non-simple if it uses a method other than GET, HEAD or POST, sends a header outside the safelist, or sets `Content-Type: application/json`. The server must answer the OPTIONS request with matching `Access-Control-Allow-*` headers before the real request is sent. Cache that answer with `Access-Control-Max-Age`.
+</Answer>
+
+## Why this exists
+
+CORS was added to a web that already had decades of servers written before it. Those servers assumed that any request reaching them came from their own pages.
+
+A plain HTML form could already POST to any origin, so allowing simple cross-origin POSTs changed nothing. But allowing arbitrary methods and headers would have been new, and could have let a malicious page issue a `DELETE` against an old server that never anticipated cross-origin traffic.
+
+So the browser asks first. The preflight means: *I am about to send a DELETE with an Authorization header. Is that acceptable?* Only on a yes does the real request go out.
+
+## What makes a request "simple"
+
+A request skips the preflight only if **all** of these hold:
+
+**Method** is `GET`, `HEAD` or `POST`.
+
+**Headers** are limited to the CORS-safelisted set: `Accept`, `Accept-Language`, `Content-Language`, `Content-Type`, `Range`, and a few the browser controls itself. Any custom header, including `Authorization` or `X-Requested-With`, forces a preflight.
+
+**Content-Type**, if present, is one of `application/x-www-form-urlencoded`, `multipart/form-data` or `text/plain`.
+
+That third rule catches almost everyone:
+
+```js
+// Simple. No preflight.
+fetch(url, { method: 'POST', body: 'a=1&b=2' });
+
+// Preflighted, purely because of the Content-Type.
+fetch(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ a: 1, b: 2 }),
+});
+```
+
+<Callout type="warning" title="The most common accidental trigger">
+Adding `Content-Type: application/json` to a GET request. A GET has no body, so the header is meaningless, but its presence still makes the request non-simple and adds a round trip to every call. Use `Accept: application/json` instead, which is safelisted.
+</Callout>
+
+## A real trace
+
+Here is what the browser sends for a preflighted request. The preflight first:
+
+```http
+OPTIONS /items HTTP/1.1
+Host: api.example.com
+Origin: https://yourapp.com
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: authorization,content-type
+```
+
+Note there is no body and no credentials. It is purely a question, described by those two `Access-Control-Request-*` headers.
+
+The server's answer:
+
+```http
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: https://yourapp.com
+Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS
+Access-Control-Allow-Headers: Authorization, Content-Type
+Access-Control-Max-Age: 86400
+```
+
+The browser checks that the method and every requested header appear in that response. If anything is missing, the real request is never sent and you get a CORS error naming the specific header that was not allowed.
+
+Only then does the actual request go:
+
+```http
+POST /items HTTP/1.1
+Host: api.example.com
+Origin: https://yourapp.com
+Authorization: Bearer abc123
+Content-Type: application/json
+
+{"name":"example"}
+```
+
+And its response **must also** carry `Access-Control-Allow-Origin`. This is the detail that catches people out.
+
+## The preflight passes, the real request fails
+
+A very common failure mode, and the cause is nearly always structural. Many frameworks handle OPTIONS in a middleware layer that short-circuits before the route runs, so the preflight gets its headers and the actual response does not.
+
+```js
+// Broken: the CORS headers only reach the OPTIONS response.
+app.options('*', (req, res) => {
+  res.set('Access-Control-Allow-Origin', 'https://yourapp.com');
+  res.sendStatus(204);
+});
+
+app.post('/items', (req, res) => {
+  res.json({ ok: true }); // no CORS header, so the browser blocks it
+});
+```
+
+Use a middleware that applies to every response instead:
+
+```js
+import cors from 'cors';
+
+app.use(cors({ origin: 'https://yourapp.com' }));
+```
+
+Both responses need the header. The preflight asks permission; the real response proves permission still applies.
+
+## Caching the answer
+
+Without caching, the browser preflights every single request, doubling your round trips. `Access-Control-Max-Age` tells it how long to remember the answer:
+
+```http
+Access-Control-Max-Age: 86400
+```
+
+Browsers cap this regardless of what you send. Chromium honours up to 2 hours, Firefox up to 24 hours. Setting 86400 is still sensible: each browser takes what it will accept.
+
+The cache key includes the origin, the URL, the method and the header set, so a preflight for `POST /items` does not cover `DELETE /items`.
+
+<Tested date="2026-09-23" endpoint="Catalogue-wide OPTIONS probe" result="Among APIs that send CORS headers, Access-Control-Max-Age is frequently absent, so browsers re-run the preflight on every call.">
+When an API feels slower from the browser than from your server, an uncached preflight is a likely reason. You are paying two round trips for every request rather than one, and on a mobile connection that is easily an extra 200 to 300 ms per call.
+</Tested>
+
+## Avoiding preflights where you can
+
+For read-only public data, staying inside the simple-request rules removes the extra round trip entirely:
+
+```js
+// Preflighted: the custom header forces it.
+fetch(url, { headers: { 'X-Client': 'myapp' } });
+
+// Simple: no preflight, one round trip.
+fetch(`${url}?client=myapp`);
+```
+
+This only works for APIs that need no credentials, since `Authorization` always triggers a preflight. Which is another reason no-key APIs are pleasant to work with from the browser: they can stay simple, and simple requests are measurably faster.
+
+Every API in our [browser-ready collection](/collections/browser-ready) needs no key and sends CORS headers, so a plain GET against them is a single round trip with no preflight at all.
+
+## Debugging checklist
+
+| Symptom | Cause |
+| --- | --- |
+| OPTIONS appears for a GET | A custom header or `Content-Type` made it non-simple |
+| Preflight returns 404 | The server has no OPTIONS handler for that route |
+| Preflight returns 405 | The route exists but rejects OPTIONS |
+| CORS error naming a header | That header is missing from `Access-Control-Allow-Headers` |
+| Preflight passes, real request blocked | The actual response is missing `Access-Control-Allow-Origin` |
+| Preflight on every request | No `Access-Control-Max-Age` |
+| Works without auth, fails with it | `Authorization` forces a preflight the server does not handle |
+
+## Worth remembering
+
+The preflight is not an error. It is the browser doing exactly what the specification requires, and seeing one in the Network tab tells you your request is non-simple rather than that something is broken.
+
+When it does fail, the error message names the specific method or header that was rejected. That message is precise, unlike most CORS errors, so read it carefully before changing anything.

@@ -113,6 +113,52 @@ kbd {
   border-radius: 4px;
 }
 
+/*
+ * Shiki emits both themes as CSS variables on every token, so code blocks follow the
+ * site theme with no client-side highlighter and no flash on load.
+ */
+code[data-theme] span,
+pre[data-theme] span {
+  color: var(--shiki-light);
+}
+
+.dark code[data-theme] span,
+.dark pre[data-theme] span {
+  color: var(--shiki-dark);
+}
+
+/* Line numbers for blocks that opt in with showLineNumbers. */
+code[data-line-numbers] {
+  counter-reset: line;
+}
+
+code[data-line-numbers] > [data-line]::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 1.25rem;
+  margin-right: 1.25rem;
+  text-align: right;
+  color: var(--muted);
+}
+
+[data-rehype-pretty-code-title] {
+  border: 1px solid var(--border);
+  border-bottom: 0;
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: var(--surface);
+  padding: 0.5rem 1rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+[data-rehype-pretty-code-title] + pre {
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

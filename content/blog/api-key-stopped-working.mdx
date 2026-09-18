@@ -1,0 +1,185 @@
+---
+title: "Why your API key suddenly stopped working"
+description: "The key you have not touched in weeks started returning 401. Here are the causes, ordered by how often they turn out to be the real one, and how to confirm each in under a minute."
+cluster: errors
+author: editorial
+publishedAt: "2026-09-21"
+updatedAt: "2026-09-21"
+relatedApis:
+  - randomuser
+  - frankfurter
+  - dummyjson
+relatedPosts:
+  - 401-vs-403-api-authentication
+  - hide-api-key-frontend
+sources:
+  - label: "MDN — Authorization header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization"
+  - label: "OWASP — Secrets Management Cheat Sheet"
+    url: "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
+  - label: "GitHub Docs — About secret scanning"
+    url: "https://docs.github.com/en/code-security/secret-scanning/about-secret-scanning"
+faq:
+  - q: "Why would a working API key stop working on its own?"
+    a: "Keys rarely fail on their own. Something changed: the key was rotated or revoked, a quota reset boundary passed, a trial expired, the key was auto-revoked after being detected in a public repository, or the environment your code reads it from changed."
+  - q: "How do I check whether the key or my code is at fault?"
+    a: "Send the same key with curl from your terminal. If curl succeeds and your application fails, the key is fine and the problem is how your code loads or sends it. If curl fails too, the key itself is the problem."
+  - q: "Can pushing a key to GitHub get it revoked?"
+    a: "Yes. GitHub scans public repositories for credential patterns and notifies the provider, and many providers revoke automatically within minutes. If your key died shortly after a push, check whether it appears anywhere in the repository history."
+  - q: "Why does my key work locally but not in production?"
+    a: "Usually the production environment does not have the variable set, or has an older value. Keys can also be restricted by IP or referrer, which permits your machine but not your deployment platform."
+  - q: "Does a trailing newline really break an API key?"
+    a: "Yes. A newline is part of the header value, so the credential does not match. It is invisible in logs and survives copy and paste, which is why it is worth checking before anything else."
+---
+
+Nothing changed. You did not touch the integration. This morning it returns:
+
+```json
+{ "error": "Invalid API key" }
+```
+
+Keys do not decay. Something changed, and it is usually one of a small set of things. Here they are in the order they actually turn out to be the cause, with a quick way to confirm each.
+
+<Answer>
+Run the key through curl first. If curl works and your app does not, the key is fine and your code is not sending what you think it is, usually because of a missing environment variable or a trailing newline. If curl fails too, the key itself was rotated, revoked, expired, quota-exhausted, or auto-revoked after being committed to a public repository.
+</Answer>
+
+## Start here: isolate the key from your code
+
+One command splits the problem in half:
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" \
+  -H "Authorization: Bearer $API_KEY" \
+  https://api.example.com/v1/me
+```
+
+- **200** → the key is valid. Skip to *Your code is not sending what you think*.
+- **401 or 403** → the key is genuinely rejected. Continue below.
+
+Make sure your shell actually has the variable set. `echo ${#API_KEY}` prints its length, which tells you it is loaded without printing the secret into your scrollback.
+
+## The key itself is rejected
+
+### 1. Someone rotated it
+
+By far the most common cause on a team. A colleague regenerated the key in the provider's dashboard, which instantly invalidates every existing copy. The person who rotated it updated their own environment and forgot the deployment, the CI secret, or the shared staging config.
+
+Check the dashboard for a "last created" timestamp. If it is recent and you did not create it, this is your answer.
+
+### 2. It was committed and auto-revoked
+
+Push a key to a public repository and it can be dead before you finish reading the push output. GitHub scans public repos for credential patterns and notifies the provider, and many providers revoke immediately.
+
+```bash
+# Search the entire history, not just the working tree.
+git log -p --all -S 'sk_live' -- . | head -40
+```
+
+<Callout type="danger" title="Removing the file does not remove the key">
+Deleting a secret in a later commit leaves it fully readable in history. Anyone can recover it, and scanners already have. Rotate the key, then clean history if the repository must stay public. Rotation is the part that matters; history rewriting is housekeeping.
+</Callout>
+
+A `.env` file that was never in `.gitignore` is the classic route. So is a committed test fixture, a Postman export, or a screenshot in a README.
+
+### 3. The free trial ended
+
+Many providers issue a key with full access for a trial period, then silently downgrade it. The key stays valid, and specific endpoints start returning 403 while others keep working. If some calls succeed and others do not, this is likely, and it is a plan problem rather than a key problem.
+
+### 4. A quota boundary passed
+
+Daily quotas reset on the provider's clock, not yours. A job that runs at 00:30 local time may be landing before or after the reset depending on the season, because daylight saving shifts your offset while UTC stays fixed. An integration that breaks on the last Sunday of March or October is almost always this.
+
+### 5. The key has an expiry
+
+Some providers issue keys that expire after 90 days or a year. This is increasingly common for security reasons and is usually announced by email to whoever created the key, which may be someone who has since left.
+
+### 6. Restrictions were tightened
+
+Keys can be scoped to referrers, origins or IP ranges. If your deployment platform changed its egress addresses, or someone added a restriction to tighten security, valid credentials start being refused from the wrong network. The dashboard shows the restrictions; compare them against where your code actually runs.
+
+## Your code is not sending what you think
+
+curl worked, the app did not. The key is not reaching the API in the form you expect.
+
+### Trailing whitespace
+
+```js
+const key = process.env.API_KEY;
+console.log(JSON.stringify(key)); // "sk_live_abc123\n"  <- there it is
+```
+
+A newline arrives from reading a file, from a heredoc, from some secret managers, and from pasting into a `.env` editor that adds one. The header value no longer matches.
+
+```js
+const key = process.env.API_KEY?.trim();
+if (!key) throw new Error('API_KEY is not set');
+```
+
+Trim once at the boundary and fail loudly when it is missing. A missing key should crash at startup, not produce a confusing 401 an hour later.
+
+### The variable is not loaded
+
+```js
+console.log('key present:', Boolean(process.env.API_KEY));
+```
+
+Common reasons it is absent:
+
+- The `.env` file is not being read, because the framework only loads `.env.local`, or the process started from a different directory
+- The variable exists in your shell but not in the deployment platform's settings
+- The name differs by one character between environments, such as `API_KEY` versus `APIKEY`
+- In Next.js, a client component is reading a variable without the `NEXT_PUBLIC_` prefix, which is `undefined` in the browser by design
+
+### The placeholder was never substituted
+
+```yaml
+# The literal string ${API_KEY} is being sent as the credential.
+headers:
+  Authorization: "Bearer ${API_KEY}"
+```
+
+In a config file that is not processed for interpolation, this is sent verbatim. Log the length: if it matches the placeholder rather than the key, you have found it.
+
+### A proxy is stripping the header
+
+Some reverse proxies and CDNs drop or rewrite `Authorization`. If the request works from your laptop and fails from inside your infrastructure, check what sits between the two.
+
+## Confirming the fix, and not repeating it
+
+Once you have a working key, three changes prevent most repeat occurrences.
+
+**Validate at startup.** Fail immediately with a clear message rather than at the first API call:
+
+```ts title="lib/env.ts"
+import { z } from 'zod';
+
+const schema = z.object({
+  API_KEY: z.string().trim().min(20, 'API_KEY looks truncated'),
+});
+
+export const env = schema.parse(process.env);
+```
+
+**Keep keys out of the browser entirely.** A key in client-side code is visible to every visitor in DevTools, and will eventually be scraped and abused until the provider revokes it. Proxy through a route handler so the key stays server-side.
+
+**Prefer APIs with no key where a key adds nothing.** For prototypes, demos, tutorials and coding exercises, an API that needs no credential cannot have a credential problem.
+
+<Tested date="2026-09-21" endpoint="Full catalogue probe with Origin header" result="1,051 of 2,712 indexed APIs need no authentication. 274 of those also send CORS headers and are currently responding.">
+That last figure is the useful one for front-end work: those 274 can be called directly from browser JavaScript on a static site, with no key to leak and no backend to maintain.
+</Tested>
+
+Browse them in the [no-key collection](/collections/no-api-key), or the narrower [browser-ready collection](/collections/browser-ready) if you need CORS too.
+
+## The order to work through
+
+| Check | Command or place to look | Rules out |
+| --- | --- | --- |
+| Key valid at all | curl with the key | Everything downstream |
+| Recently rotated | Provider dashboard, creation date | Team rotation |
+| Committed publicly | `git log -S` across all history | Auto-revocation |
+| Whitespace | `JSON.stringify(key)` | Invisible newline |
+| Variable loaded | `Boolean(process.env.API_KEY)` | Environment issues |
+| Restrictions | Dashboard key settings | IP and referrer locks |
+
+Work down that list and you will land on the cause within a few minutes. The temptation is to regenerate the key immediately, but doing that first destroys the evidence and, if the real problem is a missing environment variable, leaves you with two broken keys instead of one.
