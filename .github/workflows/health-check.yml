@@ -1,0 +1,56 @@
+name: Health check
+
+# Probes every listed API daily and commits what we found.
+#
+# This is the differentiator. Most free API directories never check whether their
+# listings still work, so a large share of their entries 404. Publishing honest
+# status, including the failures, is the whole point of the site.
+
+on:
+  schedule:
+    - cron: '0 3 * * *' # daily, 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      concurrency:
+        description: 'Parallel requests'
+        required: false
+        default: '16'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Probe every listing
+        run: npm run health -- --concurrency ${{ github.event.inputs.concurrency || '16' }}
+
+      - name: Fold results into the catalogue
+        run: npm run data
+
+      - name: Commit results
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/; then
+            echo "No status changes."
+            exit 0
+          fi
+          git add data/
+          git commit -m "chore(health): daily status check"
+          git push

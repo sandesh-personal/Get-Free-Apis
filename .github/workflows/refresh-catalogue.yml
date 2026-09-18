@@ -1,0 +1,49 @@
+name: Refresh catalogue
+
+# Rebuilds data/apis.json from the upstream lists once a week.
+# The result is committed, so the site keeps building even if an upstream source
+# disappears. That is not hypothetical: the API several older directories were built
+# on stopped resolving and took those sites down with it.
+
+on:
+  schedule:
+    - cron: '0 4 * * 1' # Mondays, 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Rebuild catalogue
+        run: npm run data
+
+      - name: Verify the site still builds
+        run: npm run build
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- data/; then
+            echo "No catalogue changes."
+            exit 0
+          fi
+          git add data/
+          git commit -m "chore(data): weekly catalogue refresh"
+          git push

@@ -1,69 +1,166 @@
-import Image from "next/image";
+import Link from 'next/link';
+import type { Metadata } from 'next';
+import { HomeSearch } from '@/components/HomeSearch';
+import { ApiCardGrid } from '@/components/ApiCard';
+import {
+  collections,
+  getAllCategories,
+  getCollectionApis,
+  stats,
+} from '@/lib/apis';
+import { site } from '@/lib/site';
 
-export default function Home() {
+export const metadata: Metadata = {
+  title: `${site.name} — ${site.tagline}`,
+  description: site.description,
+  alternates: { canonical: '/' },
+};
+
+export default function HomePage() {
+  const categories = getAllCategories().slice(0, 12);
+  const featured = getCollectionApis('for-beginners').slice(0, 8);
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: site.name,
+    url: site.url,
+    description: site.description,
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: { '@type': 'EntryPoint', urlTemplate: `${site.url}/browse?q={search_term_string}` },
+      'query-input': 'required name=search_term_string',
+    },
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* Hero */}
+      <section className="border-b border-border-subtle bg-surface">
+        <div className="mx-auto max-w-7xl px-4 py-16 text-center sm:py-20">
+          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-border-subtle bg-surface-raised px-3 py-1 text-xs text-muted">
+            <span className="size-1.5 rounded-full bg-ok" aria-hidden />
+            {stats.verified.toLocaleString('en-GB')} listings independently verified
           </p>
+
+          <h1 className="mx-auto max-w-3xl text-balance text-4xl font-bold tracking-tight sm:text-5xl">
+            Free public APIs that <span className="text-accent">actually work</span>
+          </h1>
+
+          <p className="mx-auto mt-4 max-w-2xl text-pretty text-base leading-relaxed text-muted sm:text-lg">
+            Most API directories are link graveyards. We check ours, publish what we find, and let
+            you filter by the things that decide whether an API is usable: key required, CORS, HTTPS.
+          </p>
+
+          <div className="mt-8">
+            <HomeSearch />
+          </div>
+
+          <dl className="mx-auto mt-10 grid max-w-2xl grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              { label: 'APIs indexed', value: stats.total },
+              { label: 'No key needed', value: stats.noAuth },
+              { label: 'CORS enabled', value: stats.corsEnabled },
+              { label: 'Categories', value: stats.categories },
+            ].map((s) => (
+              <div key={s.label} className="rounded-xl border border-border-subtle bg-surface-raised p-3">
+                <dt className="text-xs text-muted">{s.label}</dt>
+                <dd className="text-xl font-semibold tabular-nums">
+                  {s.value.toLocaleString('en-GB')}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* Collections */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <h2 className="text-2xl font-bold tracking-tight">Start here</h2>
+        <p className="mt-1 text-sm text-muted">
+          Shortcuts to the filters people actually need.
+        </p>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {collections.map((collection) => (
+            <Link
+              key={collection.slug}
+              href={`/collections/${collection.slug}`}
+              className="group rounded-xl border border-border-subtle bg-surface-raised p-5 transition hover:border-accent hover:shadow-md"
+            >
+              <span aria-hidden className="text-2xl">
+                {collection.emoji}
+              </span>
+              <h3 className="mt-3 font-semibold group-hover:text-accent">{collection.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{collection.description}</p>
+              <p className="mt-3 text-xs font-medium text-accent">
+                {getCollectionApis(collection.slug).length.toLocaleString('en-GB')} APIs →
+              </p>
+            </Link>
+          ))}
         </div>
-      </main>
-    </div>
+      </section>
+
+      {/* Categories */}
+      <section className="border-y border-border-subtle bg-surface">
+        <div className="mx-auto max-w-7xl px-4 py-14">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight">Browse by category</h2>
+              <p className="mt-1 text-sm text-muted">
+                {stats.categories} categories, from weather to machine learning.
+              </p>
+            </div>
+            <Link href="/categories" className="shrink-0 text-sm font-medium text-accent hover:underline">
+              See all →
+            </Link>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            {categories.map((category) => (
+              <Link
+                key={category.slug}
+                href={`/categories/${category.slug}`}
+                className="group flex items-center gap-3 rounded-xl border border-border-subtle bg-surface-raised p-3 transition hover:border-accent"
+              >
+                <span aria-hidden className="text-xl">
+                  {category.emoji}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium group-hover:text-accent">
+                    {category.name}
+                  </span>
+                  <span className="block text-xs text-muted">{category.count}</span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Featured */}
+      <section className="mx-auto max-w-7xl px-4 py-14">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Good places to start</h2>
+            <p className="mt-1 text-sm text-muted">
+              Verified, no key required, and simple enough to get a response first try.
+            </p>
+          </div>
+          <Link
+            href="/collections/for-beginners"
+            className="shrink-0 text-sm font-medium text-accent hover:underline"
+          >
+            See all →
+          </Link>
+        </div>
+
+        <div className="mt-6">
+          <ApiCardGrid apis={featured} />
+        </div>
+      </section>
+    </>
   );
 }
