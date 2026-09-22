@@ -1,0 +1,234 @@
+---
+title: "Free IP geolocation APIs"
+description: "Six IP geolocation APIs that need no key, what accuracy you can actually expect at city level, and why VPNs and mobile networks break the assumption your code is making."
+cluster: roundups
+imageQuery: "world map pins network"
+author: sandy
+publishedAt: "2026-10-09"
+updatedAt: "2026-10-09"
+relatedApis:
+  - ipify
+  - ipapi-co
+  - ipwhois
+  - ip-api
+  - freegeoip
+  - ipinfo
+relatedPosts:
+  - free-geocoding-and-maps-apis
+  - fix-cors-error-public-api
+  - caching-api-responses-free-tier
+sources:
+  - label: "RFC 1918 — Address Allocation for Private Internets"
+    url: "https://www.rfc-editor.org/rfc/rfc1918"
+  - label: "MDN — X-Forwarded-For header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-For"
+  - label: "RFC 8805 — A Format for Self-Published IP Geolocation Feeds"
+    url: "https://www.rfc-editor.org/rfc/rfc8805"
+faq:
+  - q: "What is the most accurate free IP geolocation API?"
+    a: "At country level all the mainstream providers are roughly 95–99% accurate. At city level accuracy drops sharply, often to 50–75%, and no free provider is meaningfully better than the others because they largely license the same underlying datasets."
+  - q: "Can I get the visitor's IP from browser JavaScript?"
+    a: "Not directly. The browser does not expose it. You either call an API such as IPify that reflects the IP it sees, or read it server-side from the connection and the X-Forwarded-For header."
+  - q: "Is IP geolocation accurate enough for GDPR or tax compliance?"
+    a: "No. It is a guess, and it is wrong often enough that it cannot support a legal determination. Use it to pick a sensible default, then let the user correct it, and keep the correction."
+  - q: "Why does IP geolocation put my user in the wrong city?"
+    a: "Usually a VPN, a corporate network routing through a central gateway, or a mobile carrier assigning addresses from a pool registered elsewhere. Mobile is the worst case and can be hundreds of miles out."
+  - q: "Do free IP geolocation APIs work over HTTPS?"
+    a: "Most do now, but several legacy ones still serve plain HTTP on their free tier. Calling HTTP from an HTTPS page is blocked by the browser as mixed content, which is a common cause of a request that works in curl and fails in production."
+---
+
+IP geolocation is the most over-trusted data source in web development. It is genuinely useful for picking a default currency or pre-filling a country dropdown. It is genuinely unsuitable for anything where being wrong matters, and it is wrong far more often than people expect.
+
+<Answer>
+To get **the visitor's IP only**, use **[IPify](/apis/ipify)** — it does one thing, needs no key, and answered in <Measured label="median" value="144 ms" /> in our checks. To get **location from an IP**, use **[ipapi.co](/apis/ipapi-co)**, which sends CORS headers so it works from the browser. Treat the city it returns as a hint, never as a fact.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["ipify", "ipapi-co", "ipwhois", "ip-api", "freegeoip", "ipinfo"]} />
+
+<Tested date="2026-09-18" result="All six answered without a key. Latencies ranged from 144 ms to 406 ms.">
+Called from a clean client with no credential. IPify was consistently fastest, which follows from it returning a single string rather than a geolocation lookup.
+</Tested>
+
+## What accuracy actually means here
+
+Providers advertise "99% accurate", and that number is true — at country level. It collapses as you zoom in.
+
+```text
+Country     95–99%   reliable enough to act on
+Region      70–85%   usable as a default, not a fact
+City        50–75%   frequently wrong, often by a lot
+Postcode    <50%     do not build on this
+Lat/long    centroid of a region, not the user
+```
+
+That last line catches people out. When an API returns coordinates, it is usually handing you the **centre of the city or country it guessed**, not a position. Several thousand people resolve to the exact same point. There is a well-documented case of a farm in Kansas receiving years of harassment because it sat at the geographic centre of the United States, and was therefore the default answer for every IP that could not be placed more precisely.
+
+<Callout type="danger" title="Do not use IP geolocation for compliance decisions">
+Geo-blocking, tax jurisdiction and age verification all need to be right. IP geolocation is wrong for any user on a VPN, a corporate network or a mobile carrier — a large minority of real traffic. Use it to <em>suggest</em>, then let the user correct it.
+</Callout>
+
+## IPify — just the address
+
+The narrowest API on the list, which is its virtue. No key, no rate limit stated, and it does not attempt to geolocate.
+
+```bash
+curl -s "https://api.ipify.org?format=json"
+```
+
+```json
+{ "ip": "203.0.113.42" }
+```
+
+```js
+const { ip } = await fetch('https://api.ipify.org?format=json').then((r) => r.json());
+```
+
+Use this when all you need is the address, for example to display it or to pass it to your own backend.
+
+## ipapi.co — location, from the browser
+
+Returns a full location record and sends CORS headers, which is what makes it usable client-side. Called with no IP, it geolocates the caller.
+
+```bash
+curl -s "https://ipapi.co/json/"
+curl -s "https://ipapi.co/8.8.8.8/json/"
+```
+
+```json
+{
+  "ip": "8.8.8.8",
+  "city": "Mountain View",
+  "region": "California",
+  "country_code": "US",
+  "currency": "USD",
+  "timezone": "America/Los_Angeles",
+  "org": "GOOGLE"
+}
+```
+
+The genuinely useful fields are `country_code`, `currency` and `timezone` — all three are safe defaults that the user can override. `city` is the one to be sceptical of.
+
+```js
+const geo = await fetch('https://ipapi.co/json/').then((r) => r.json());
+form.country.value = geo.country_code;   // a sensible default
+form.currency.value = geo.currency;      // also fine
+// do not silently trust geo.city
+```
+
+## ip-api — the most detail, with a catch
+
+Returns the richest free record, including ISP, autonomous system and proxy detection.
+
+```bash
+curl -s "http://ip-api.com/json/8.8.8.8?fields=status,country,city,isp,proxy,hosting"
+```
+
+```json
+{
+  "status": "success",
+  "country": "United States",
+  "city": "Ashburn",
+  "isp": "Google LLC",
+  "proxy": false,
+  "hosting": true
+}
+```
+
+The `hosting` flag is the interesting one: it tells you the address belongs to a data centre rather than a residential connection, which is a much stronger signal than city for spotting automated traffic.
+
+<Callout type="warning" title="ip-api's free tier is HTTP only">
+The free endpoint is plain <code>http://</code>. Call it from an HTTPS page and the browser blocks it as mixed content — the request never leaves. It works fine server-side. See <a href="/blog/mixed-content-http-api-https-page">mixed content errors</a> for the full explanation.
+</Callout>
+
+## Reading the IP server-side instead
+
+If you control a backend, you often do not need any of these. The address is already on the request — but only if you read it correctly behind a proxy or CDN.
+
+```js
+// Express behind a reverse proxy
+app.set('trust proxy', true);
+app.get('/api/geo', (req, res) => {
+  res.json({ ip: req.ip });
+});
+```
+
+```js
+// Next.js route handler
+export function GET(request) {
+  const forwarded = request.headers.get('x-forwarded-for');
+  const ip = forwarded?.split(',')[0].trim() ?? 'unknown';
+  return Response.json({ ip });
+}
+```
+
+`X-Forwarded-For` is a comma-separated chain, and **the client is the first entry**. Taking the last one gives you your own load balancer.
+
+<Callout type="danger" title="X-Forwarded-For is client-supplied unless you control the proxy">
+Anyone can send that header. Only trust it if a proxy you operate overwrites it. Trusting it blindly is how IP allowlists get bypassed.
+</Callout>
+
+## Cache the lookup
+
+An IP's location does not change between page loads, so looking it up repeatedly wastes your rate limit and adds latency to every request.
+
+```js
+const DAY = 86_400_000;
+const cache = new Map();
+
+async function locate(ip) {
+  const hit = cache.get(ip);
+  if (hit && Date.now() - hit.at < DAY) return hit.data;
+
+  const data = await fetch(`https://ipapi.co/${ip}/json/`).then((r) => r.json());
+  cache.set(ip, { at: Date.now(), data });
+  return data;
+}
+```
+
+## Where the data actually comes from
+
+Knowing how IP geolocation is produced explains both why it works at all and why it fails the way it does.
+
+There is no registry mapping addresses to places. What exists is a set of inferences. Regional internet registries publish which organisation owns which block, which reliably gives you a country and often an organisation. Below that, providers infer location from routing behaviour, from network latency measurements between known points, from self-published feeds where ISPs declare where blocks are deployed, and from correlating addresses against location data volunteered by applications.
+
+That stack is why country-level accuracy is high and city-level accuracy is not. Ownership is a matter of record; deployment is a matter of inference. An ISP that owns a block registered to its head office may deploy those addresses three hundred miles away, and nothing in the registry says so.
+
+It also explains the centroid problem. When a provider can place an address in a country but no further, it has to return *something*, and that something is usually the geographic centre of the country or region. Thousands of unrelated addresses therefore resolve to one point. This is not a rounding artefact — it is a deliberate fallback, and treating those coordinates as a location produces a map with an implausible cluster in the middle of nowhere.
+
+The practical consequence is to check how a result was derived where the API tells you. Several return an accuracy radius or a confidence indicator, and a radius of five hundred kilometres is the provider telling you plainly not to put a pin on a map.
+
+## Mobile, CGNAT and IPv6
+
+Three network realities that break the assumption of one address per user, and all three are increasingly common.
+
+**Mobile networks** route traffic through a small number of gateways, so a phone in one city frequently appears at the gateway's location instead. Distances of hundreds of miles are routine. Since mobile is now the majority of consumer traffic for most sites, this is not an edge case.
+
+**Carrier-grade NAT** means many households share one public address, because there are not enough IPv4 addresses to go round. Any per-address logic — rate limits, allowlists, "one signup per IP" — is therefore acting on a group of unrelated people. Blocking an abusive address can block a neighbourhood.
+
+**IPv6** has the opposite property. Addresses are plentiful enough that a single device may rotate through many, and privacy extensions make this the default. Rate limiting per IPv6 address is close to useless, because the same user appears as a new visitor repeatedly. The convention is to limit on a prefix rather than a full address, which groups a subscriber's addresses together.
+
+Taken together, these mean an IP address is a weak identifier in both directions: many people can share one, and one person can have many. Any logic that treats it as identity will misfire, and the misfires land on real users rather than on the abuse you were targeting.
+
+## Using it well, and the privacy question
+
+Given all of the above, the honest applications are narrower than the marketing suggests, and they are still genuinely useful.
+
+Good uses share a shape: the guess sets a default, being wrong costs almost nothing, and the user can override it. Pre-selecting a country in a dropdown. Defaulting a currency or a timezone. Choosing which of several regional sites to suggest. Showing prices in a plausible currency before someone tells you otherwise. In every case the failure mode is a small annoyance, corrected in one click.
+
+Bad uses share the opposite shape: the guess is treated as fact and being wrong is expensive. Blocking access by region. Determining tax jurisdiction. Age or identity verification. Denying a login because the location "looks wrong" — which mostly punishes people travelling, using a VPN, or on a corporate network.
+
+There is also a privacy dimension worth being deliberate about. An IP address is personal data under GDPR and similar regimes. Sending every visitor's address to a third-party geolocation service is a transfer of personal data to a processor, and it needs a lawful basis and a mention in your privacy policy like any other. Doing the lookup server-side, caching by address, and storing only the derived country rather than the address itself reduces both the exposure and the obligation. Where the only thing you need is a sensible default, the browser can often tell you more cheaply and more accurately: `Intl.DateTimeFormat().resolvedOptions().timeZone` gives a timezone with no request and no third party involved at all.
+
+## Choosing
+
+**You only need the address.** IPify.
+
+**Browser-side defaults for currency, timezone or country.** ipapi.co, because of CORS.
+
+**Server-side, and you want ISP or hosting detection.** ip-api, over HTTPS if you upgrade, or ipwhois.
+
+**You control the backend.** Read `X-Forwarded-For` and skip the third party entirely.
+
+For turning an address or place name into coordinates — a different problem with much better accuracy — see [free geocoding and maps APIs](/blog/free-geocoding-and-maps-apis), or [browse the geocoding category](/categories/geocoding).

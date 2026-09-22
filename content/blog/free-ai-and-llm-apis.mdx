@@ -1,0 +1,249 @@
+---
+title: "Free AI and LLM APIs with genuine free tiers"
+description: "Which AI APIs actually let you build without a card on file, the metadata APIs that track model pricing and deprecation, and how to read a free tier before it bills you."
+cluster: roundups
+imageQuery: "abstract neural network nodes"
+author: sandy
+publishedAt: "2026-10-13"
+updatedAt: "2026-10-13"
+relatedApis:
+  - ai-model-watch
+  - modelfax
+  - tensorfeed
+  - hugging-face
+  - kavel
+  - statlyte
+relatedPosts:
+  - api-authentication-types-explained
+  - when-a-free-tier-is-not-enough
+  - hide-api-keys-frontend
+sources:
+  - label: "Hugging Face Inference API documentation"
+    url: "https://huggingface.co/docs/api-inference/index"
+  - label: "OpenAI API pricing"
+    url: "https://openai.com/api/pricing/"
+  - label: "MDN — Server-sent events"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events"
+faq:
+  - q: "Are there any free LLM APIs with no key?"
+    a: "Very few, and none you should build on. Inference costs real money per request, so keyless access gets abused within hours. Kavel offers keyless image generation; for text, expect to register even on a free tier."
+  - q: "What is the difference between a free tier and a free trial?"
+    a: "A free tier is permanently free up to a limit. A free trial is credit that expires, after which you are billed. Most AI providers offer a trial and call it a free tier, which is the single most expensive misreading in this category."
+  - q: "Which free AI API is best for prototyping?"
+    a: "Hugging Face's Inference API. The free tier is rate-limited rather than credit-limited, so it does not silently expire, and it covers thousands of models across text, vision and audio."
+  - q: "How do I track when a model is deprecated?"
+    a: "AI Model Watch and Modelfax both publish deprecation and end-of-life dates for major models as structured data, with no key. Pinning a model id without monitoring its EOL date is how integrations break overnight."
+  - q: "Can I call an LLM API directly from the browser?"
+    a: "No. It would expose your key to anyone who opens DevTools, and that key bills you. Always proxy through your own backend and keep the key server-side."
+---
+
+"Free AI API" almost always means one of three different things: a permanently free rate-limited tier, a one-off credit grant that expires, or a free tier on a product that is not itself the model. Conflating them is how people end up with a bill.
+
+There is also a category most lists miss entirely — APIs that give you data *about* models rather than inference from them. Those are genuinely keyless, and if you are building anything that depends on model pricing or availability, they are more useful than another wrapper.
+
+<Answer>
+For **prototyping with real inference**, use **[Hugging Face](/apis/hugging-face)**: the free tier is rate-limited rather than credit-limited, so it does not expire. For **model pricing, context windows and deprecation dates**, use **[AI Model Watch](/apis/ai-model-watch)** — no key, CORS enabled, and <Measured label="median" value="89 ms" /> in our checks, the fastest API in our entire catalogue.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["ai-model-watch", "modelfax", "tensorfeed", "statlyte", "kavel", "hugging-face"]} />
+
+<Tested date="2026-09-18" result="Five of six returned data with no key. Hugging Face requires a free token.">
+Checked during our scheduled run. The metadata APIs are genuinely keyless; inference is not.
+</Tested>
+
+## Why keyless inference barely exists
+
+This is worth understanding before you go looking for it. Every LLM request costs the provider real GPU time. A keyless endpoint is therefore a machine that converts anonymous HTTP requests into someone else's money, and it gets discovered and drained within hours.
+
+So the honest position is: for inference, expect to register. What you should look for instead is a tier that does not expire and does not require a card.
+
+```text
+Free tier      permanently free up to a rate or volume cap
+Free trial     $N of credit, expires, card usually required afterwards
+Freemium       free product, paid API
+```
+
+<Callout type="danger" title="Check whether a card is required before the free tier starts">
+Several providers advertise a free tier but require a payment method to activate it, then bill automatically on overflow with no hard stop. If you must attach a card, set a hard spend limit in the dashboard the same day.
+</Callout>
+
+## Hugging Face — the best free tier for real inference
+
+Thousands of models, one interface, and a free tier that is rate-limited rather than credit-limited. That distinction matters: a rate limit throttles you, a credit limit ends you.
+
+```bash
+curl -s https://api-inference.huggingface.co/models/distilbert-base-uncased-finetuned-sst-2-english \
+  -H "Authorization: Bearer $HF_TOKEN" \
+  -d '{"inputs":"This API list is genuinely useful"}'
+```
+
+```json
+[[{"label":"POSITIVE","score":0.9998},{"label":"NEGATIVE","score":0.0002}]]
+```
+
+The one behaviour to handle is cold starts. Models are loaded on demand, and the first call to an idle model returns a 503 with an estimated wait:
+
+```js
+async function infer(model, inputs, token) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ inputs, options: { wait_for_model: true } }),
+    });
+
+    if (res.ok) return res.json();
+    if (res.status !== 503) throw new Error(`HF ${res.status}`);
+
+    const { estimated_time = 20 } = await res.json().catch(() => ({}));
+    await new Promise((r) => setTimeout(r, Math.min(estimated_time, 30) * 1000));
+  }
+  throw new Error('Model never warmed up');
+}
+```
+
+`wait_for_model: true` makes the request block until the model is ready rather than returning 503, which is simpler when you can tolerate a slow first call.
+
+## The metadata APIs — keyless, and underrated
+
+If you are building anything that routes between models, estimates cost, or has to survive a deprecation, these are the ones to know. All are keyless and most send CORS headers.
+
+**AI Model Watch** — daily-updated prices, context windows and end-of-life dates:
+
+```bash
+curl -s "https://aimodelwatch.dev/api/v1/models" | head -40
+```
+
+This is how you stop hard-coding a price that changed three months ago:
+
+```js
+const models = await fetch('https://aimodelwatch.dev/api/v1/models')
+  .then((r) => r.json());
+
+const cheapest = models
+  .filter((m) => m.context_window >= 128_000 && !m.deprecated)
+  .sort((a, b) => a.input_price_per_1m - b.input_price_per_1m)[0];
+```
+
+**Modelfax** returns the same class of data schema-validated, which is easier to depend on programmatically. **Statlyte** covers live pricing and model ids. **TensorFeed** adds AI news and service status.
+
+<Callout type="tip" title="Monitor deprecation dates in CI">
+Pinning a model id is correct. Pinning it and never checking whether it still exists is how a working integration returns 404 one morning. A weekly job that reads the EOL date from one of these and fails the build 30 days out costs almost nothing.
+</Callout>
+
+## Kavel — keyless image generation
+
+The exception that proves the rule: image generation with no key and no account.
+
+```bash
+curl -s "https://kavel.io/api/generate?prompt=a+lighthouse+in+fog" -o out.png
+```
+
+Expect queueing under load. Keyless generative endpoints are, by nature, heavily used.
+
+## Cost arithmetic before you commit
+
+LLM pricing is quoted per million tokens, which makes small numbers look free and large ones sneak up.
+
+```js
+// Rough: 1 token ~ 4 characters of English
+const tokens = (text) => Math.ceil(text.length / 4);
+
+function cost(promptText, outputText, model) {
+  return (
+    (tokens(promptText) / 1e6) * model.input_price_per_1m +
+    (tokens(outputText) / 1e6) * model.output_price_per_1m
+  );
+}
+```
+
+The figure that surprises people is the multiplier. A chat that resends the whole conversation each turn pays for the entire history on every message, so a twenty-turn conversation can cost far more than twenty single messages.
+
+## Never put the key in the browser
+
+```js
+// Wrong — the key ships to every visitor
+const res = await fetch('https://api.provider.com/v1/chat', {
+  headers: { Authorization: `Bearer ${PUBLIC_KEY}` },
+});
+```
+
+Anyone can open DevTools, copy that key and spend your balance. Proxy through your own endpoint:
+
+```js
+// app/api/chat/route.ts — key stays server-side
+export async function POST(request) {
+  const { prompt } = await request.json();
+
+  const upstream = await fetch('https://api.provider.com/v1/chat', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.PROVIDER_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prompt }),
+  });
+
+  return new Response(upstream.body, {
+    headers: { 'Content-Type': 'text/event-stream' },
+  });
+}
+```
+
+Streaming the body straight through keeps token-by-token output working without buffering. Our guide on [keeping API keys out of your frontend bundle](/blog/hide-api-keys-frontend) covers the rest, including why `NEXT_PUBLIC_` is a trap.
+
+## Where the cost actually goes
+
+Token pricing is quoted in units small enough to feel free, and the bill arrives from three places people do not model.
+
+**Conversation history is resent every turn.** A chat API is stateless: the model has no memory between calls, so maintaining a conversation means sending the entire transcript each time. Turn twenty pays for turns one through nineteen again. Cost therefore grows with the square of conversation length, not linearly, and a long support chat can cost more than a hundred independent questions.
+
+**Output is several times the price of input.** The ratio varies by provider and is commonly three to five. A prompt that asks for an exhaustive answer is buying the expensive tokens, and "be concise" in a system prompt is a genuine cost control rather than a style preference.
+
+**Retries and failures still cost.** A request that times out after generating most of its output has been paid for. So has one whose answer you discarded because it failed validation. An aggressive retry loop against a slow model is an expensive way to fail.
+
+Two mitigations are worth knowing. **Prompt caching**, offered by several providers, charges a reduced rate for a prefix you send repeatedly — which is exactly the shape of a long system prompt or a fixed document. If your prompts share a large static portion, structuring them so that portion comes first can cut input costs substantially.
+
+And **model routing**: most applications send everything to their largest model when a much cheaper one would handle the majority of requests identically. Classifying the request first and routing accordingly is the single largest saving available in most LLM applications, and the metadata APIs above exist to make that routing decision on current prices rather than on what was true when you wrote the code.
+
+## Building against a non-deterministic dependency
+
+Every other API in this series returns the same answer for the same question. These do not, and that changes how you integrate.
+
+**Never parse free text when you can ask for structure.** Requesting JSON and validating it at the boundary turns "the model phrased it differently today" from a silent failure into a caught one. Providers increasingly support a schema-constrained mode that guarantees valid JSON, and where it exists it removes an entire class of bug.
+
+**Validate before acting.** A schema check proves the shape, not the sense. A model can return a perfectly valid object containing a date in the past, a total that does not match its line items, or a category outside your allowed set. Business-rule validation still applies, and this is where "confidently wrong" output gets caught.
+
+**Set a low temperature for anything mechanical.** Extraction, classification and formatting want the most likely answer every time, not variety. Variety is only a feature for open-ended generation.
+
+**Assume it will occasionally be wrong.** Not a bug to fix but a property to design for. Where a mistake is cheap and visible, ship it. Where a mistake is expensive or invisible, put a human in the path or add a deterministic check. The question worth asking before any LLM feature is: what happens the one time in fifty that this is wrong, and who notices?
+
+Testing needs adjusting too. Assertions on exact strings will flake. Assert on structure, on the presence of required fields, on ranges and on the absence of obviously bad output. Keep a small set of representative inputs and expected properties, and re-run them when you change models — which is the moment behaviour shifts most.
+
+## Timeouts, streaming and the user's patience
+
+The operational shape of these APIs is unusual enough to catch people out.
+
+Responses are slow by ordinary API standards. A long generation can take tens of seconds, which exceeds default timeouts in many HTTP clients and most serverless platforms. Discovering your platform's maximum execution time after deploying a feature that usually finishes in time is a bad way to find out.
+
+Streaming is the fix, and it changes the experience more than the numbers suggest. Tokens arrive as they are produced, so the user sees progress within a second even though the full answer takes twenty. Perceived responsiveness improves enormously for the same total duration, and it keeps the connection active, which avoids intermediary timeouts.
+
+It does complicate error handling, because the response has already begun with a 200 status when a failure occurs mid-stream. There is no status code left to change. The convention is to emit an error event in the stream itself and have the client handle it, which means your client needs to treat a truncated stream as a failure rather than as a complete answer.
+
+Finally, make long operations cancellable. A user who navigates away should not leave a generation running and billing. An `AbortController` wired to the request, and to the component's unmount, is a few lines and directly reduces cost.
+
+## Choosing
+
+**Prototyping, text or vision, without a card.** Hugging Face.
+
+**Model pricing, context windows, EOL dates.** AI Model Watch or Modelfax.
+
+**Images, no account at all.** Kavel.
+
+**Tracking the market and outages.** TensorFeed.
+
+**Production inference at volume.** None of these free tiers. Budget for it, and use the metadata APIs to pick on current price.
+
+[Browse the AI category](/categories/ai) for all 82 entries we track.

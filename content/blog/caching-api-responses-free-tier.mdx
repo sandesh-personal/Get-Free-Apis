@@ -1,0 +1,272 @@
+---
+title: "Caching API responses to stay inside a free tier"
+description: "How to pick a cache duration from how fast the data actually changes, why stale-while-revalidate is the setting that matters, and what to serve when the upstream fails."
+cluster: howto
+imageQuery: "library archive shelves"
+author: sandy
+publishedAt: "2026-10-29"
+updatedAt: "2026-10-29"
+relatedApis:
+  - open-meteo-ensemble
+  - exchangerate-dev
+  - coinlore
+  - musicbrainz
+relatedPosts:
+  - fix-429-too-many-requests
+  - client-side-rate-limiting
+  - when-a-free-tier-is-not-enough
+sources:
+  - label: "RFC 9111 — HTTP Caching"
+    url: "https://www.rfc-editor.org/rfc/rfc9111"
+  - label: "MDN — Cache-Control header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control"
+  - label: "RFC 5861 — stale-while-revalidate and stale-if-error"
+    url: "https://www.rfc-editor.org/rfc/rfc5861"
+faq:
+  - q: "How long should I cache an API response?"
+    a: "As long as the data stays true. A daily exchange rate fix can be cached for a day, a weather forecast for an hour, a live score for thirty seconds, and a historical record forever. Match the duration to the data, not to a habit."
+  - q: "What is stale-while-revalidate?"
+    a: "A Cache-Control directive that lets a cache serve an expired response immediately while fetching a fresh one in the background. Users never wait for a refresh, and the upstream sees far less traffic."
+  - q: "Should I cache on the client or the server?"
+    a: "Server, if you have one. A server cache is shared across all users, so one upstream call serves everybody. A client cache only helps that one browser and does nothing for your rate limit under load."
+  - q: "What should I return when the upstream API is down?"
+    a: "Stale data with a timestamp, in almost every case. A slightly old exchange rate is far more useful than an error page, and stale-if-error makes this automatic at the HTTP layer."
+  - q: "How do I stop a cache stampede?"
+    a: "When many requests miss simultaneously they all hit the upstream at once. Fix it by having the first request populate the cache while the others wait on the same promise, which is a few lines of code."
+---
+
+Free tiers are generous in a way that surprises people once they stop wasting them. An API allowing 1,000 calls a day sounds restrictive until you notice you were making 900 of those calls for data that had not changed.
+
+Caching is not an optimisation here. It is the difference between fitting in a free tier and not.
+
+<Answer>
+Cache for **as long as the data stays true**, not for some default duration. Then add `stale-while-revalidate` so users never wait for a refresh, and `stale-if-error` so an upstream outage serves slightly old data instead of an error. Those two directives do most of the work.
+</Answer>
+
+## Pick the duration from the data
+
+The only question worth asking is: how long does this answer stay correct?
+
+```text
+Historical records          forever     Apollo 11 launched in 1969
+Country codes, currencies   30 days     changes are rare and announced
+Central bank daily fix      24 hours    published once per working day
+Weather forecast            1 hour      models run hourly
+Crypto price                60 seconds  aggregated on an interval
+Live score                  30 seconds  during a match only
+```
+
+Two failures come from ignoring this. Caching a live score for an hour makes the product wrong. Fetching a country list on every page load wastes a request on data that last changed in 2018.
+
+<Callout type="tip" title="Data that never changes should never be fetched at runtime">
+Country lists, ISO codes, historical results — fetch them at build time and ship them as JSON. A network request for a static fact is pure cost with no benefit.
+</Callout>
+
+## The HTTP way, if you have a server
+
+Cache-Control does the work, and the CDN in front of you honours it for free.
+
+```js
+// app/api/rates/route.ts
+export async function GET() {
+  const data = await fetch('https://api.exchangerate.dev/latest?base=GBP')
+    .then((r) => r.json());
+
+  return Response.json(data, {
+    headers: {
+      'Cache-Control':
+        'public, s-maxage=3600, stale-while-revalidate=86400, stale-if-error=604800',
+    },
+  });
+}
+```
+
+Reading that directive:
+
+**`s-maxage=3600`** — shared caches treat it as fresh for an hour.
+
+**`stale-while-revalidate=86400`** — for the next day, serve the stale copy *immediately* and refresh in the background. Nobody waits.
+
+**`stale-if-error=604800`** — if the upstream fails, keep serving the old copy for a week rather than erroring.
+
+That last one is the one people leave out, and it is the difference between an upstream outage being invisible and being an incident.
+
+## In-memory caching, and the stampede
+
+Without a CDN, a module-level cache works — but the naive version has a bug that only appears under load.
+
+```js
+// Naive: ten simultaneous misses cause ten upstream calls
+let cache = { at: 0, data: null };
+
+async function getRates() {
+  if (Date.now() - cache.at < 3_600_000) return cache.data;
+  cache = { at: Date.now(), data: await fetchRates() };  // stampede here
+  return cache.data;
+}
+```
+
+The fix is to cache the **promise**, not just the result, so concurrent callers share one upstream request:
+
+```js
+const TTL = 3_600_000;
+let entry = { at: 0, promise: null, value: null };
+
+export async function getRates() {
+  const fresh = Date.now() - entry.at < TTL;
+  if (fresh && entry.value) return entry.value;
+
+  // A refresh is already running — join it rather than starting another
+  if (entry.promise) return entry.promise;
+
+  entry.promise = fetchRates()
+    .then((value) => {
+      entry = { at: Date.now(), promise: null, value };
+      return value;
+    })
+    .catch((err) => {
+      entry.promise = null;
+      if (entry.value) return entry.value;   // serve stale on failure
+      throw err;
+    });
+
+  return entry.promise;
+}
+```
+
+That is about fifteen lines and it eliminates both the stampede and the outage problem.
+
+## Serve stale rather than nothing
+
+The instinct is to surface an error when the upstream fails. For most data that is the wrong call.
+
+```text
+Exchange rate from 3 hours ago   fine, label it
+Weather from this morning        fine, label it
+An error page                    useless to everybody
+```
+
+Show the timestamp and the decision becomes defensible:
+
+```jsx
+<p>
+  £1 = €{rate}
+  <small>as of {new Date(asOf).toLocaleString('en-GB')}</small>
+</p>
+```
+
+The exception is anything where acting on stale data causes harm — a live score during a match, stock quotes, anything with money attached. There, failing visibly is correct.
+
+## Conditional requests are free wins
+
+If the API sends an `ETag` or `Last-Modified`, send it back. A 304 response has no body, costs almost nothing, and on many APIs does not count against your rate limit.
+
+```js
+let etag = null;
+
+async function fetchIfChanged(url) {
+  const res = await fetch(url, {
+    headers: etag ? { 'If-None-Match': etag } : {},
+  });
+
+  if (res.status === 304) return null;       // unchanged
+  etag = res.headers.get('etag') ?? etag;
+  return res.json();
+}
+```
+
+## Persist the cache across restarts
+
+A serverless function that cold-starts loses its in-memory cache, which means a busy deployment can hammer the upstream at every restart. Push the cache somewhere shared:
+
+```js
+// Vercel KV / Upstash Redis
+import { kv } from '@vercel/kv';
+
+async function cached(key, ttlSeconds, fetcher) {
+  const hit = await kv.get(key);
+  if (hit) return hit;
+
+  const value = await fetcher();
+  await kv.set(key, value, { ex: ttlSeconds });
+  return value;
+}
+```
+
+For a browser-side cache that survives reloads, IndexedDB via `idb-keyval` does the same job in a few lines.
+
+## Reduce the number of calls, not just their frequency
+
+Caching is one half. The other is not making N requests where one would do.
+
+```js
+// Wrong: one request per coin
+for (const id of ids) await fetch(`/api/ticker/${id}`);
+
+// Right: one request, filter locally
+const all = await cached('tickers', 60, fetchAllTickers);
+const wanted = all.filter((c) => ids.includes(c.symbol));
+```
+
+Almost every API that serves a list is cheaper to call once and filter than to call per item. This single change often takes a project from over-quota to comfortably inside it.
+
+## A worked budget
+
+Suppose the free tier is 1,000 requests a day and you show exchange rates on every page, with 10,000 daily page views.
+
+```text
+No cache                    10,000 requests   10x over
+Client cache, 1 hour         ~3,000 requests   still over
+Server cache, 1 hour             24 requests   2.4% of quota
+Server cache + SWR               24 requests   and nobody waits
+```
+
+The jump is from per-user caching to per-server caching. One shared cache serves every visitor.
+
+## Choosing a cache key is half the problem
+
+Most caching that "does not work" is caching with the wrong key, and the symptoms are easy to misread.
+
+A key that is **too specific** never hits. Including a timestamp, a request id or an unnormalised URL means every request produces a fresh key and the cache fills up while doing nothing. The classic version is caching on the full URL including parameters that do not affect the response — a tracking parameter, or query parameters in a different order each time.
+
+A key that is **too general** serves the wrong data. Caching a personalised response under a key that omits the user, or caching a localised response without the locale, means one visitor's data reaches another. This is the more dangerous failure by a wide margin, and it usually surfaces as a confusing bug report rather than an obvious error.
+
+The discipline that avoids both is to build the key deliberately from exactly the inputs that change the output. Normalise before hashing: sort the parameters, lowercase what is case-insensitive, and round what does not need precision. That last one is quietly the biggest win in geographic work — rounding coordinates to two decimal places collapses thousands of distinct keys into a handful, because weather does not differ meaningfully across a kilometre.
+
+The related decision is what **not** to cache. Anything personalised, anything behind authentication, and anything whose staleness could mislead someone into acting wrongly. A shared cache in front of an authenticated endpoint is a data leak waiting to happen, and the `private` directive exists precisely to mark responses that a shared cache must never store.
+
+## Invalidation, when time is not enough
+
+Time-based expiry covers most of this category because most free-API data changes on a schedule. It is worth naming what to do when it does not.
+
+The simplest alternative is **versioning the key**. Rather than deleting entries when something changes, include a version in the key and increment it. Old entries become unreachable and expire on their own, there is no delete to coordinate across instances, and rolling back is as simple as decrementing. For build-time data this is nearly free: use the deploy identifier as the version and every deploy starts clean.
+
+The second is **writing through**. When your own code causes the change, update the cache at the same time rather than waiting for expiry. This only works for data you control, which in this context means your own derived values rather than the upstream response.
+
+The third, and the one worth resisting, is building an event-driven invalidation system for a free third-party API. You will not get a webhook when a weather model runs. Time-based expiry with a sensible interval is the correct answer here, and complexity spent trying to be cleverer is complexity that will produce a stale-cache bug six months later.
+
+A useful habit either way is to store the upstream's own freshness signal alongside the value. Most APIs report when they computed the answer. Keeping that lets you show the true age of the data rather than the age of your cache entry, which are not the same number and the difference matters when you are displaying a timestamp.
+
+## Knowing whether it is working
+
+Caching is easy to add and easy to believe in without evidence. Two numbers tell you the truth.
+
+The **hit rate** is the proportion of requests served without going upstream. If it is low, the key is wrong or the expiry is too short, and either is worth ten minutes of investigation. A hit rate below about half on data that changes hourly almost always means a key that includes something it should not.
+
+The **upstream call count** is the number that actually matters for a free tier, and it is the one to alert on. Hit rate can look healthy while absolute traffic grows past your quota. Counting real upstream calls per hour, and comparing that against the allowance, is what tells you whether you have a problem before the 429 does.
+
+Both are a counter each, and logging them once a minute is enough. The point is not sophisticated observability; it is that "we added caching" should be followed by "and here is the number that proves it".
+
+One last thing worth verifying explicitly: that the cache does not become a single point of failure. A cache lookup that throws should fall through to the upstream rather than failing the request. That sounds obvious and is a genuinely common outage cause, because the failure mode only appears when the cache itself is unavailable, which is exactly when everything else is under strain too.
+
+## The checklist
+
+- Duration chosen from how fast the data actually changes
+- `stale-while-revalidate` so refreshes are invisible
+- `stale-if-error` so outages are invisible
+- Concurrent misses share one upstream request
+- Timestamp shown wherever data might be stale
+- Static data fetched at build time, not runtime
+- Lists fetched once and filtered locally
+
+When caching is no longer enough, see [when a free tier stops being enough](/blog/when-a-free-tier-is-not-enough). For handling the 429 you get when it fails, see [HTTP 429 and backoff](/blog/fix-429-too-many-requests).

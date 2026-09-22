@@ -1,0 +1,158 @@
+---
+title: "What is an API? A plain-English guide for complete beginners"
+description: "No jargon and no prior knowledge assumed. What an API actually is, why they exist, the six words you need, and a first real request you can run in your browser in under a minute."
+cluster: fundamentals
+imageQuery: "person writing notebook desk learning"
+author: sandy
+publishedAt: "2026-11-10"
+updatedAt: "2026-11-10"
+relatedApis:
+  - zippopotam-us
+  - open-meteo-ensemble
+  - randomuser
+  - kanye-rest
+relatedPosts:
+  - your-first-api-call-curl-fetch-python
+  - best-free-apis-for-beginners
+  - what-is-an-api-endpoint
+sources:
+  - label: "MDN — An overview of HTTP"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Overview"
+  - label: "MDN — Introduction to web APIs"
+    url: "https://developer.mozilla.org/en-US/docs/Learn/JavaScript/Client-side_web_APIs/Introduction"
+  - label: "RFC 9110 — HTTP Semantics"
+    url: "https://www.rfc-editor.org/rfc/rfc9110"
+faq:
+  - q: "What is an API in simple terms?"
+    a: "An API is a way for one program to ask another program for something. You send a request over the internet and get data back, usually as text. The API decides what you are allowed to ask for and what format the answer comes in."
+  - q: "What does API stand for?"
+    a: "Application Programming Interface. The useful word is interface: it is the agreed set of things you may ask for, in the same way a menu is the agreed set of things you may order in a restaurant."
+  - q: "Do I need to know how to code to use an API?"
+    a: "Not to see one work. You can paste an API address into your browser's address bar and read the response. You need code to do something useful with that response automatically, but you can understand the idea without writing any."
+  - q: "What is the difference between an API and a website?"
+    a: "They usually run on the same server and return different things. A website returns HTML for a browser to display to a person. An API returns raw data for a program to work with. Same information, different packaging."
+  - q: "What is JSON?"
+    a: "The text format most APIs answer in. It is a way of writing data using curly braces for objects and square brackets for lists, readable by both people and programs. If you can read a shopping list, you can read JSON."
+  - q: "Are free APIs safe to use?"
+    a: "Reading public data from a reputable API is low risk. The things to be careful with are sending personal data to a service you do not know, and putting a secret key in code that runs in a browser, where anyone can read it."
+---
+
+Almost every explanation of APIs assumes you already know what a server is, what JSON looks like, and what "making a request" means. This one does not. If you have never written a line of code, you can still follow it, and by the end you will have seen a real API answer a real question.
+
+<Answer>
+An API is **a way for one program to ask another program for something**. You send a short message over the internet asking for specific information, and a computer somewhere else sends the information back as text. That is the whole idea. Everything else — the jargon, the tooling — is detail layered on top of it.
+</Answer>
+
+## The restaurant, and where the analogy stops
+
+The usual comparison is a restaurant, and it is useful as long as you know where it breaks.
+
+You sit down and get a menu. The menu lists what you may order — not everything the kitchen could theoretically cook, just the agreed set. You tell the waiter what you want, the waiter goes to the kitchen, and food comes back. You never enter the kitchen. You do not need to know how the kitchen works, who is cooking, or what equipment they use. You only need to know how to read the menu and how to place an order.
+
+An API is the menu and the waiter together. The **menu** is the documentation: the list of things you are allowed to ask for. The **waiter** is the interface that carries your request to the system and brings the answer back. The **kitchen** is the provider's database and software, which stays private.
+
+Where the analogy stops is worth saying, because it misleads people later. A waiter can improvise; an API cannot. Ask for something not on the menu and you do not get a helpful substitution, you get an error. APIs are rigidly literal, and most early frustration comes from expecting flexibility that is not there.
+
+## Why APIs exist at all
+
+It is reasonable to ask why any of this is necessary. Two reasons, and they explain most of how the modern web is put together.
+
+The first is **not rebuilding what already exists**. If you want to show a weather forecast on your page, you could build a global network of sensors, hire meteorologists and run atmospheric simulations. Or you could ask an organisation that already does that. Weather, maps, payments, currency rates, address lookup — all available to ask for rather than build.
+
+The second is **keeping the kitchen private**. A company will happily tell you today's exchange rate. It will not hand you direct access to its database, because that would expose everyone's data and every internal detail. An API is a controlled doorway: here is exactly what you may ask, and nothing else.
+
+There is a third reason that matters more than it sounds. Once information is available through an API, it can be combined. A delivery app is mostly other people's APIs stitched together — maps from one, payments from another, messaging from a third — with the app supplying the idea rather than the infrastructure.
+
+## Six words, and then you are fluent enough
+
+Vocabulary is most of the barrier. Here is the minimum, in the order you meet it.
+
+A **request** is you asking for something. A **response** is what comes back. Together they are one complete exchange, and everything else describes their parts.
+
+An **endpoint** is the address you send the request to. It looks exactly like a web address, because it is one. `https://api.zippopotam.us/gb/NW1` is an endpoint, and you can read it: the site, then the country, then the postcode.
+
+A **parameter** is an extra detail attached to the request, usually after a question mark. In `?latitude=51.5&longitude=-0.13` there are two, and they narrow a general question down to a specific one.
+
+**JSON** is the format the answer usually arrives in. It looks alarming and is not:
+
+```json
+{
+  "post code": "NW1",
+  "country": "United Kingdom",
+  "places": [
+    { "place name": "Camden Town", "latitude": "51.5417" }
+  ]
+}
+```
+
+Curly braces hold a set of labelled facts. Square brackets hold a list. Quotation marks hold text. That is genuinely all of it — you already know how to read this.
+
+A **status code** is a three-digit number the response carries to say how it went. `200` means fine. `404` means the thing you asked for does not exist. `500` means the other computer broke. There are more, and those three cover most of what you will meet early.
+
+An **API key** is a password some APIs require, identifying who is asking. Many APIs need no key at all, which is the whole point of this site — we track 1,051 that ask for nothing.
+
+## Try one now, with no setup
+
+This is the part that makes it click, and it needs no installation and no code.
+
+Copy this into your browser's address bar and press enter:
+
+```text
+https://api.zippopotam.us/gb/NW1
+```
+
+You will see raw text rather than a web page. That is an API response — the same data a program would receive. You just made an API request, using the browser as the tool.
+
+Now change `NW1` to another UK postcode district and try again. The answer changes. You have now modified a request and observed the effect, which is the entire skill in miniature.
+
+Two more worth trying, both returning something different:
+
+```text
+https://api.kanye.rest
+https://randomuser.me/api/
+```
+
+The first returns one short quote — the simplest API response you will ever see. The second returns a made-up person with a name, an email and a photograph, which is what developers use to fill a page with realistic-looking content while building it.
+
+<Callout type="tip" title="Install a JSON viewer">
+Raw JSON in a browser is a wall of text. Firefox formats it automatically; for Chrome, a free JSON viewer extension makes it indented and collapsible. It takes a minute and makes everything after this considerably easier to read.
+</Callout>
+
+## The same request, in code
+
+Once you have seen it work in the browser, the code version is less mysterious than it looks. This is JavaScript, and it does exactly what you just did by hand:
+
+```js
+const response = await fetch('https://api.zippopotam.us/gb/NW1');
+const data = await response.json();
+
+console.log(data.places[0]['place name']);   // Camden Town
+```
+
+Three lines, three ideas. `fetch` sends the request. `.json()` turns the text that came back into something the program can pick apart. The last line reaches into the result and pulls out one value.
+
+You can run this without a project, an editor or an install. Open any web page, press F12 to open developer tools, click Console, paste it in and press enter. That is a genuine API call from your own machine.
+
+## What to be careful about
+
+Three things, and none of them are complicated.
+
+**Do not put a secret key in a web page.** Anything the browser can read, a visitor can read, including any password you embedded. Keys belong on a server. This is the single most common security mistake beginners make, and it is [worth understanding early](/blog/hide-api-keys-frontend).
+
+**Do not send personal data to a service you have not checked.** Reading public information is one thing; posting someone's email address or location to an unknown API is another.
+
+**Do not hammer an API in a loop.** Most limit how often you may ask, and a script that requests as fast as it can will be blocked. Asking once and remembering the answer is both politer and faster.
+
+## Where to go next
+
+In order, because each step assumes the previous one.
+
+1. **[Your first API call](/blog/your-first-api-call-curl-fetch-python)** — the same request in curl, JavaScript and Python, so you can see what the tool changes and what it does not.
+2. **[Best free APIs for beginners](/blog/best-free-apis-for-beginners)** — eight APIs chosen for how quickly a newcomer can get a response, in a deliberate order.
+3. **[Endpoints, resources and base URLs](/blog/what-is-an-api-endpoint)** — how to read an unfamiliar API address and predict what it will return.
+
+These are all keyless, so nothing below needs an account:
+
+<ApiTable ids={["zippopotam-us", "kanye-rest", "randomuser", "open-meteo-ensemble"]} />
+
+The thing worth holding on to is that none of this is conceptually hard. An API is one program asking another for something. Everything that follows — authentication, pagination, rate limits, error handling — is a refinement of that one sentence, and you already understand it.

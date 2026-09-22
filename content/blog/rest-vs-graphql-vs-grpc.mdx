@@ -1,0 +1,187 @@
+---
+title: "REST vs GraphQL vs gRPC vs SOAP: picking one in 2026"
+description: "Four ways to build an API, what each is genuinely good at, and the honest answer about which one you should reach for by default."
+cluster: fundamentals
+imageQuery: "crossroads path choice"
+author: sandy
+publishedAt: "2026-10-01"
+updatedAt: "2026-10-01"
+relatedApis:
+  - dummyjson
+  - open-meteo-ensemble
+  - postcodes-io
+relatedPosts:
+  - what-is-an-api-endpoint
+  - api-pagination-patterns
+sources:
+  - label: "Roy Fielding — Architectural Styles, Chapter 5 (REST)"
+    url: "https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm"
+  - label: "GraphQL specification"
+    url: "https://spec.graphql.org/"
+  - label: "gRPC — Introduction"
+    url: "https://grpc.io/docs/what-is-grpc/introduction/"
+faq:
+  - q: "Is GraphQL replacing REST?"
+    a: "No. GraphQL solves a specific problem, namely clients needing differently shaped data from the same backend. For a public API with predictable access patterns, REST remains simpler to build, cache, debug and document."
+  - q: "Why is almost every free public API REST?"
+    a: "Because REST works with the tools everyone already has. A REST endpoint can be called from a browser address bar, curl, or any HTTP library without a schema, a client or a build step. That removes the friction that matters most for public adoption."
+  - q: "When is gRPC the right choice?"
+    a: "Service-to-service communication inside your own infrastructure, particularly when you need streaming or low latency at high volume. It is a poor fit for public APIs because browsers cannot call it directly without a proxy."
+  - q: "Do I still need to know SOAP?"
+    a: "Only if you integrate with banking, insurance, telecoms, healthcare or government systems, where it remains common. You will not choose it for something new, but you may well have to consume it."
+  - q: "Can one API offer several of these?"
+    a: "Yes, and large providers often do: REST for public consumers, gRPC internally, sometimes GraphQL for first-party clients. The styles are not mutually exclusive."
+---
+
+Four architectural styles, each designed for a different set of constraints. The marketing around them suggests a progression from old to new. The reality is that they solve different problems, and the newest is rarely the right default.
+
+<Answer>
+**REST** for public APIs and most things generally. **GraphQL** when many different clients need differently shaped data from the same backend. **gRPC** for internal service-to-service traffic, especially streaming or high volume. **SOAP** only when an existing system forces it. If you are unsure, the answer is REST.
+</Answer>
+
+## REST
+
+Resources identified by URLs, manipulated with HTTP methods. The style the web already works in.
+
+```http
+GET    /v1/articles          list
+GET    /v1/articles/42       one
+POST   /v1/articles          create
+PATCH  /v1/articles/42       partial update
+DELETE /v1/articles/42       remove
+```
+
+**Strengths.** HTTP caching works without you doing anything: `Cache-Control`, `ETag` and CDNs all understand a GET. Every tool on earth speaks it. You can test an endpoint by pasting it into a browser. Debugging is reading a URL and a status code.
+
+**Weaknesses.** Over-fetching, where an endpoint returns thirty fields and you wanted three. Under-fetching, where building one screen takes four sequential requests. Neither matters much until you are building many different clients against one backend.
+
+**Why free public APIs are almost universally REST:** adoption friction. There is no schema to fetch, no client to generate, no build step. Someone can try your API from a terminal in ten seconds.
+
+<Tested date="2026-10-01" endpoint="Full catalogue of 2,712 indexed free APIs" result="The overwhelming majority expose plain REST over HTTPS. GraphQL and gRPC endpoints are a small minority.">
+When an ecosystem converges this hard on one style, it is usually telling you something about what actually gets adopted. For a public API, being callable from a browser address bar is worth more than elegance.
+</Tested>
+
+## GraphQL
+
+One endpoint, and the client states exactly which fields it wants.
+
+```graphql
+query {
+  article(id: 42) {
+    title
+    author { name }
+    comments(first: 5) { text }
+  }
+}
+```
+
+One request, exactly the fields requested, no more. For a mobile client on a slow connection assembling a screen from several resources, this is a genuine improvement.
+
+**What it costs.**
+
+HTTP caching largely stops working. Queries are usually POSTs with the query in the body, so URLs are no longer cache keys. You end up building application-level caching to replace what REST got free.
+
+Rate limiting becomes hard. One query can request a trivial field or traverse a deeply nested graph costing a thousand database reads. Counting requests is meaningless, so you need query cost analysis.
+
+Debugging moves from reading a URL to reading a query and a resolver chain. The N+1 problem is a constant presence, addressed with batching layers such as DataLoader.
+
+**When it genuinely pays off:** several client types with different data needs against one backend, and the freedom to change clients without shipping backend changes.
+
+## gRPC
+
+Binary messages over HTTP/2, defined by a schema.
+
+```protobuf
+service ArticleService {
+  rpc GetArticle(GetArticleRequest) returns (Article);
+  rpc StreamUpdates(StreamRequest) returns (stream Article);
+}
+
+message Article {
+  int32 id = 1;
+  string title = 2;
+}
+```
+
+**Strengths.** Protocol Buffers are compact and fast to serialise, considerably more so than JSON. The schema generates typed clients in a dozen languages. HTTP/2 multiplexes many calls over one connection, and bidirectional streaming is built in rather than bolted on.
+
+**The disqualifier for public APIs:** browsers cannot call gRPC directly. It requires gRPC-Web plus a proxy, which reintroduces the infrastructure you were avoiding. A binary protocol is also inherently harder to debug, since you cannot read a request off the wire without tooling.
+
+gRPC is excellent where it belongs: between your own services, where both ends are yours and the performance difference is real at volume.
+
+## SOAP
+
+XML envelopes, usually over HTTP, described by a WSDL document.
+
+```xml
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <GetArticle xmlns="http://example.com/articles">
+      <Id>42</Id>
+    </GetArticle>
+  </soap:Body>
+</soap:Envelope>
+```
+
+Nobody starts a new project with SOAP. It persists because it is embedded in systems that cannot be replaced: core banking, insurance policy administration, telecoms provisioning, national health and government services.
+
+What it offered, and still offers, is formality. The WSDL is a machine-readable contract that generates clients. WS-Security handles message-level signing and encryption. WS-AtomicTransaction provides distributed transactions. These were solved problems in SOAP before REST had conventions for them.
+
+If you work in those sectors you will meet SOAP. Generate a client from the WSDL and do not hand-write the XML.
+
+## Choosing
+
+| Situation | Choose |
+| --- | --- |
+| Public API for unknown consumers | REST |
+| Browser calls it directly | REST or GraphQL |
+| Many clients, divergent data needs | GraphQL |
+| Internal service-to-service, high volume | gRPC |
+| Streaming in both directions | gRPC |
+| Caching and CDN matter | REST |
+| Integrating with a legacy enterprise system | SOAP, because you must |
+| You are not sure | REST |
+
+That last row is the most useful. REST is the default for good reasons: it is the easiest to build, the easiest to debug, the easiest to document, and the easiest for someone else to adopt without reading anything first.
+
+## Some honest caveats
+
+**Most "REST" APIs are not REST.** Fielding's definition requires hypermedia controls that almost nothing implements. What people mean by REST is JSON over HTTP with sensible URLs and methods, and that is fine. The pedantic term is "RESTful" or "HTTP API", and nobody outside conference talks will correct you.
+
+**GraphQL is not automatically faster.** It reduces round trips, which helps on high-latency connections. It can easily be slower per request, because one query may trigger many database calls. Measure rather than assume.
+
+**The styles compose.** A public REST API, gRPC between internal services, and GraphQL for a first-party mobile app is a perfectly coherent architecture. Pick per boundary, not per company.
+
+## What changes for you as a consumer
+
+Most comparisons are written for people choosing what to build. If you are consuming someone else's API, the differences that matter are narrower and more practical.
+
+**Caching is the big one.** REST responses are ordinary HTTP GETs, so every layer between you and the server already knows how to cache them — browsers, CDNs, proxies, all of it, for free. GraphQL sends everything as a POST to one URL, so none of that applies and caching becomes something you implement yourself. That is a real cost, and it is the reason a GraphQL client library is a heavier dependency than a REST one.
+
+**Error handling differs fundamentally.** REST tells you what happened in the status code. GraphQL returns HTTP 200 almost regardless, with problems in an `errors` array alongside whatever data did resolve — so a partially successful response is normal, and checking `response.ok` tells you nothing. Client code has to inspect the body every time.
+
+**Over-fetching versus round trips is the real trade.** REST gives you whole resources, so assembling a page frequently means several requests and discarding fields you did not need. GraphQL gives you exactly the fields you asked for in one request. On a page composed of several related things, that difference is substantial; on a single simple lookup, it is not.
+
+**gRPC is mostly not your problem.** It needs HTTP/2, generated stubs and a proxy layer to work from a browser. In the free-API world it is essentially absent, and if you meet it the integration is a code-generation step rather than a fetch call.
+
+The practical summary: you usually do not get to choose. The API is what it is, and knowing the shape tells you what your client needs to handle rather than which is better.
+
+## Recognising and reading each one
+
+A short field guide, since the first task is identifying what you are looking at.
+
+A **REST** API has many URLs that read like nouns, uses several HTTP methods, and returns different status codes. Its documentation is a list of endpoints. This is the overwhelming majority of what is in our catalogue.
+
+A **GraphQL** API has one URL, usually ending `/graphql`, and everything is a POST. Its documentation is a schema rather than an endpoint list, and it very often ships an interactive explorer at that same URL — which is the fastest way to learn any GraphQL API, because the schema is introspectable and the explorer autocompletes it.
+
+An **RPC-style** API has URLs that read like function calls — `/api/createUser` — and typically uses POST for everything including reads. It is unfashionable and perfectly workable.
+
+**SOAP** announces itself with XML envelopes and a WSDL file. It survives in banking, telecoms and government systems, and the sensible approach is a library that consumes the WSDL rather than constructing the XML yourself.
+
+Where an API offers both REST and GraphQL, the useful heuristic is to pick by shape of need rather than by preference: one resource, take REST; a page assembled from several related resources, take GraphQL and save the round trips.
+
+## For learning
+
+If you are learning how APIs work, start with REST, and specifically with one that needs no key. There is no schema to fetch, no client to generate, and no credential to configure between you and a response.
+
+Our [browser-ready collection](/collections/browser-ready) lists APIs that need no key, send CORS headers and are currently responding, which is the shortest path from curiosity to a working request.

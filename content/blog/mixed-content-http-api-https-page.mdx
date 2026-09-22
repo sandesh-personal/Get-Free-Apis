@@ -2,7 +2,8 @@
 title: "Mixed content errors: calling an HTTP API from an HTTPS page"
 description: "Your page is secure, the API is not, and the browser refuses to connect them. Why there is no client-side fix, and what to do when the API has no HTTPS endpoint."
 cluster: errors
-author: editorial
+imageQuery: "padlock secure connection"
+author: sandy
 publishedAt: "2026-09-24"
 updatedAt: "2026-09-24"
 relatedApis:
@@ -159,6 +160,28 @@ The simplest fix is to select for it up front. Every listing in our catalogue re
 <Tested date="2026-09-24" endpoint="Full catalogue probe" result="Of 2,712 indexed APIs, the overwhelming majority now serve over HTTPS. Those that do not are flagged on their listing with an explicit warning.">
 Plain-HTTP APIs are now a small minority, concentrated in older institutional services. Where we find one, the listing says so directly and explains that a browser will refuse the call from a secure page, rather than leaving you to discover it at deploy time.
 </Tested>
+
+## Why browsers block it rather than warning
+
+The behaviour looks heavy-handed until you consider what an unencrypted request from an encrypted page actually exposes.
+
+The page arrived over HTTPS, so its contents were authenticated and encrypted. A request from that page over plain HTTP is neither. Anyone on the network path — a shared wifi access point, an ISP, anyone who has positioned themselves between the two — can read it and, more importantly, change it. A modified response is then executed or rendered inside a page the user believes is secure, with the padlock still showing.
+
+That is the reason the block is absolute for active content like scripts and API responses, rather than being a warning. A warning would place the decision with someone who has no way to evaluate it, and the padlock would be making a promise the page could not keep.
+
+Passive content — images, video, audio — is treated slightly more leniently in some browsers, because a tampered image is a smaller problem than tampered code. Even there the trend has been towards automatic upgrading or blocking, and relying on the leniency is building on something being actively removed.
+
+The related mechanism worth knowing is **automatic upgrading**. Modern browsers will silently retry some mixed-content requests over HTTPS before blocking them. That is helpful and it makes the failure inconsistent: a request that works in one browser fails in another, and a resource that upgrades successfully today fails when the HTTPS endpoint goes down. Depending on it is depending on a fallback, not a fix.
+
+## Finding every instance before your users do
+
+Mixed content is easy to miss because it frequently affects one feature rather than the whole page, and it does not appear at all when testing over plain HTTP locally.
+
+Two mechanisms find it reliably. The console lists every blocked request explicitly, naming the URL, which is enough to fix it. And `Content-Security-Policy` can be used in report-only mode to collect violations from real traffic without breaking anything — which catches the paths your own testing did not reach.
+
+The `upgrade-insecure-requests` directive is the pragmatic middle ground. It tells the browser to rewrite HTTP subresource requests to HTTPS automatically, which fixes every case where the origin supports HTTPS and you simply had the wrong scheme written down. It does not help where the origin genuinely has no HTTPS endpoint, and it is a transition aid rather than a permanent answer.
+
+The cases it cannot fix are the ones needing a real decision: an API that is HTTP-only. There the options are to proxy it server-side, where no browser restriction applies, or to replace it. Our catalogue records HTTPS support per listing precisely so that choice can be made before you build, and [the browser-ready collection](/collections/browser-ready) lists the entries that are keyless, CORS-enabled and HTTPS together.
 
 ## Summary
 

@@ -4,7 +4,10 @@ import { notFound } from 'next/navigation';
 import { ArticleBody } from '@/components/mdx/ArticleBody';
 import { MdxContent } from '@/components/mdx/MdxContent';
 import { PostCard } from '@/components/PostCard';
+import { PostHero } from '@/components/PostHero';
+import { Faq } from '@/components/Faq';
 import { ApiCard } from '@/components/ApiCard';
+import { getPostImage, sizedUrl } from '@/lib/images';
 import { getApi } from '@/lib/apis';
 import { getAuthor } from '@/lib/authors';
 import {
@@ -38,9 +41,29 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: `${site.url}/blog/${post.slug}`,
       publishedTime: post.publishedAt,
       modifiedTime: post.updatedAt,
-      ...(post.heroImage && { images: [{ url: post.heroImage.src, alt: post.heroImage.alt }] }),
+      images: ogImages(post),
     },
   };
+}
+
+/**
+ * Prefer an image the post declares for itself, then the Unsplash hero. Social cards
+ * want an absolute URL, and the Unsplash CDN link already is one.
+ */
+function ogImages(post: NonNullable<ReturnType<typeof getPost>>) {
+  if (post.heroImage) return [{ url: post.heroImage.src, alt: post.heroImage.alt }];
+
+  const image = getPostImage(post.slug);
+  if (!image) return undefined;
+
+  return [
+    {
+      url: sizedUrl(image, 1200, 1.91),
+      width: 1200,
+      height: 628,
+      alt: image.altDescription ?? post.title,
+    },
+  ];
 }
 
 export default async function PostPage({ params }: Props) {
@@ -114,7 +137,6 @@ export default async function PostPage({ params }: Props) {
                 href={`/blog/category/${cluster.slug}`}
                 className="inline-flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 text-xs font-medium text-muted transition hover:text-accent"
               >
-                <span aria-hidden>{cluster.emoji}</span>
                 {cluster.name}
               </Link>
 
@@ -142,23 +164,15 @@ export default async function PostPage({ params }: Props) {
               </div>
             </header>
 
+            <PostHero slug={post.slug} title={post.title} />
+
             <ArticleBody>
               <MdxContent source={post.body} />
             </ArticleBody>
 
-            {post.faq.length > 0 && (
-              <section className="mt-12 border-t border-border-subtle pt-8">
-                <h2 className="mb-5 text-2xl font-bold tracking-tight">Common questions</h2>
-                <dl className="space-y-5">
-                  {post.faq.map((item) => (
-                    <div key={item.q} className="rounded-xl border border-border-subtle p-5">
-                      <dt className="font-semibold">{item.q}</dt>
-                      <dd className="mt-2 text-sm leading-relaxed text-muted-strong">{item.a}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </section>
-            )}
+            {/* schema={false}: this page already emits faqLd above, alongside its
+                other JSON-LD, and two FAQPage blocks on one page is a duplicate. */}
+            <Faq items={post.faq} schema={false} />
 
             {post.sources.length > 0 && (
               <section className="mt-10 rounded-xl border border-border-subtle bg-surface p-5">

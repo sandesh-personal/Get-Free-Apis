@@ -1,0 +1,239 @@
+---
+title: "API pagination patterns: offset, cursor and page tokens"
+description: "Three ways APIs split large results, why offset pagination silently skips records, and how to consume each one correctly."
+cluster: fundamentals
+imageQuery: "library card index drawers"
+author: sandy
+publishedAt: "2026-10-02"
+updatedAt: "2026-10-02"
+relatedApis:
+  - dummyjson
+  - europe-pmc
+  - postcodes-io
+relatedPosts:
+  - query-params-vs-path-params
+  - fix-429-too-many-requests
+sources:
+  - label: "MDN — Link header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Link"
+  - label: "RFC 8288 — Web Linking"
+    url: "https://www.rfc-editor.org/rfc/rfc8288"
+  - label: "GitHub REST API — Using pagination"
+    url: "https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api"
+faq:
+  - q: "What is the difference between offset and cursor pagination?"
+    a: "Offset pagination asks for records starting at position N, so inserts and deletes shift the window and records can be skipped or repeated. Cursor pagination asks for records after a specific item, which stays correct regardless of changes elsewhere in the set."
+  - q: "Why does offset pagination skip records?"
+    a: "Because the offset is a position, not an anchor. If a record is deleted while you are paging, everything after it shifts back by one, so the first record of your next page has already moved into the previous page and you never see it."
+  - q: "Can I jump to page 50 with cursor pagination?"
+    a: "No, and that is the trade-off. Cursors only move forward or backward one page at a time from a known position. If your interface needs numbered page links, you need offsets or a hybrid approach."
+  - q: "How do I know when I have reached the last page?"
+    a: "Depends on the API. Cursor APIs usually return a null or absent cursor. Offset APIs may return a total count, or simply fewer items than you asked for. Never assume an empty array is the only end signal."
+  - q: "Should I fetch all pages in parallel?"
+    a: "With offsets you technically can, but it multiplies your request rate and risks a 429. With cursors it is impossible, because each page's cursor comes from the previous response. Sequential fetching with a small delay is the safer default."
+---
+
+An API with fifty thousand records will not return them in one response. How it splits them determines how you consume it, and whether you quietly lose data along the way.
+
+<Answer>
+**Offset**: `?limit=20&offset=40`. Simple, allows jumping to any page, and silently skips or repeats records when the underlying data changes. **Cursor**: `?limit=20&after=abc123`. Correct under concurrent writes, forward-only. **Page token**: an opaque string the API hands you. Treat it as a cursor and never parse it.
+</Answer>
+
+## Offset pagination
+
+The most common, because it maps directly onto SQL.
+
+```http
+GET /items?limit=20&offset=0     # first 20
+GET /items?limit=20&offset=20    # next 20
+```
+
+Some APIs express the same thing as page numbers, which is offset arithmetic with different labels:
+
+```http
+GET /items?per_page=20&page=3    # offset = (3 - 1) * 20
+```
+
+**Why it is popular:** you can jump straight to page 50, show numbered page links, and display "showing 41 to 60 of 1,240".
+
+**The flaw.** The offset is a position in a result set that is still changing.
+
+Imagine paging through items sorted newest first. You read page 1, items 1 to 20. Before you request page 2, someone deletes item 5. Everything shifts back by one, so what was item 21 is now item 20, which sits on the page you already read. Your page 2 starts at the new item 21, and the record that moved is never returned.
+
+<Callout type="warning" title="This loses data silently">
+There is no error. You get a complete-looking response with one record missing, and the only symptom is a count that does not add up. On a fast-changing dataset, paging through a large result with offsets will reliably lose records.
+</Callout>
+
+Insertions cause the mirror problem: a record appears twice.
+
+**It also gets slow.** `OFFSET 100000` requires the database to walk and discard a hundred thousand rows before returning anything. Deep pagination degrades badly.
+
+## Cursor pagination
+
+Instead of a position, you send a pointer to the last item you saw.
+
+```http
+GET /items?limit=20
+# { "items": [...], "next_cursor": "eyJpZCI6MTIzfQ" }
+
+GET /items?limit=20&after=eyJpZCI6MTIzfQ
+```
+
+The server translates that into "records ordered after this one", which is stable. Deleting an earlier record does not move your position, because your position is an anchor rather than a count.
+
+It is also fast at any depth: an indexed lookup rather than a scan-and-discard.
+
+**The trade-off:** no jumping. You cannot ask for page 50, because a cursor only means anything relative to a known position. Infinite scroll suits cursors; numbered page links do not.
+
+Consuming one correctly:
+
+```ts
+async function* paginate(baseUrl: string) {
+  let cursor: string | null = null;
+
+  do {
+    const url = new URL(baseUrl);
+    url.searchParams.set('limit', '100');
+    if (cursor) url.searchParams.set('after', cursor);
+
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const page = await response.json();
+    yield* page.items;
+
+    cursor = page.next_cursor ?? null;
+
+    // Stay comfortably inside the rate limit.
+    if (cursor) await new Promise((r) => setTimeout(r, 200));
+  } while (cursor);
+}
+
+for await (const item of paginate('https://api.example.com/items')) {
+  process(item);
+}
+```
+
+An async generator fits this shape well: the caller gets a flat stream of items and never handles pagination directly.
+
+## Page tokens
+
+Google's APIs and several others hand you an opaque string:
+
+```json
+{ "items": [], "nextPageToken": "CiAKGjBpNDd2Nmp2Zml2cXRxZGxmc..." }
+```
+
+Functionally a cursor. The important rule is in the name: **opaque**. It may encode a position, a timestamp, a sort key, a shard identifier and an expiry. Decoding it and constructing your own will break without warning when the provider changes the format.
+
+Pass it back exactly as received.
+
+## Link headers
+
+Some APIs, notably GitHub, put pagination in a header rather than the body:
+
+```http
+Link: <https://api.github.com/repos/x/y/issues?page=2>; rel="next",
+      <https://api.github.com/repos/x/y/issues?page=8>; rel="last"
+```
+
+This is RFC 8288 web linking, and it is elegant: the response body stays pure data, and you follow URLs rather than constructing them.
+
+```ts
+function parseLinkHeader(header: string | null): Record<string, string> {
+  if (!header) return {};
+
+  return Object.fromEntries(
+    header.split(',').map((part) => {
+      const [urlPart, relPart] = part.split(';');
+      const url = urlPart.trim().slice(1, -1);       // strip < >
+      const rel = relPart.trim().slice(5, -1);       // strip rel="
+      return [rel, url];
+    }),
+  );
+}
+
+let url: string | undefined = 'https://api.github.com/repos/x/y/issues';
+
+while (url) {
+  const response = await fetch(url);
+  const items = await response.json();
+  process(items);
+  url = parseLinkHeader(response.headers.get('link')).next;
+}
+```
+
+Following the provided URL is more robust than rebuilding it, because the server may include sort or filter state you would otherwise lose.
+
+## Knowing when to stop
+
+Different APIs signal the end differently, and guessing wrong means either an infinite loop or a truncated result.
+
+| Signal | Meaning |
+| --- | --- |
+| `next_cursor` is null or absent | Last page |
+| Fewer items returned than `limit` | Usually the last page |
+| Empty array | Last page, though some APIs return one empty page first |
+| `has_more: false` | Explicit, the clearest option |
+| No `rel="next"` in the Link header | Last page |
+
+Always add a hard cap regardless:
+
+```ts
+const MAX_PAGES = 1000;
+let pages = 0;
+
+while (cursor && pages++ < MAX_PAGES) {
+  // ...
+}
+
+if (pages >= MAX_PAGES) {
+  throw new Error('Pagination exceeded safety limit; check the stop condition');
+}
+```
+
+A bug in a stop condition turns into an unbounded loop hammering someone else's API. The cap costs nothing and prevents an embarrassing incident.
+
+## Pagination and rate limits
+
+Paging is where rate limits get hit, because it is the one pattern that deliberately makes many requests in a row.
+
+Three things help. Request the largest page size the API permits, since one hundred-item request costs far less quota than five twenty-item ones. Add a small delay between pages. And cache the result, because paging through the same dataset twice is the most avoidable quota waste there is.
+
+<Tested date="2026-10-02" endpoint="Catalogue-wide probe, 2,712 APIs" result="Response times span from under 100 ms to several seconds. Paging a large set sequentially through a 2-second API takes minutes, not seconds.">
+Latency compounds with pagination in a way single requests never reveal. An API answering in 2 seconds is perfectly usable for one lookup and painful across five hundred pages. Our listings publish measured response times, which is worth checking before you design a job that pages through everything.
+</Tested>
+
+## Paging through data that is changing underneath you
+
+The failure that makes offset pagination unsuitable for feeds, and it is worth seeing concretely because it is silent.
+
+Offset pagination asks for "the next twenty, starting at forty". The database answers by ordering the whole set and counting forward. If something is inserted near the front between your requests, everything shifts down by one — so the item that was at position forty is now at forty-one, and your second page starts one item later than it should. You never see the item that slipped past the boundary.
+
+Deletion does the reverse and causes duplicates: everything shifts up, and an item you already displayed moves into the range of your next request. On a busy feed, both happen continuously, and a client paging through it quietly loses some records and repeats others with nothing in the response indicating a problem.
+
+Cursor pagination avoids this by describing a position in the data rather than a count. "Give me twenty after this record" stays correct regardless of what happened before it, because the anchor is the record itself. Insertions and deletions elsewhere do not move it.
+
+The trade-off is what you give up. Cursors cannot jump to an arbitrary page, cannot easily go backwards unless the API provides a reverse cursor, and do not tell you how many pages there are. That is why offset pagination persists: numbered pages are genuinely useful for a static, sortable table, and that use case is real.
+
+The rule that follows is simple enough to apply without thinking about it. Data that changes while you read it — a feed, a log, anything ordered by recency — needs cursors. A stable catalogue that a user wants to jump around in can use offsets safely.
+
+## Consuming pagination without falling over
+
+Three practical habits, each preventing a specific production incident.
+
+**Always bound the loop.** A pagination loop that trusts `has_next_page` will run forever if the API has a bug, and a cursor that fails to advance produces an infinite loop that fetches the same page repeatedly until something falls over. A maximum page count and a check that the cursor actually changed each iteration are two lines that turn a runaway into a logged error.
+
+**Do not fetch pages in parallel.** The instinct to speed things up by requesting several pages at once defeats the ordering guarantee, trips rate limits, and with cursor pagination is impossible anyway, since each cursor comes from the previous response. Sequential and rate-limited is the correct shape here.
+
+**Process as you go rather than accumulating.** Collecting every page into one array before doing anything means holding the entire dataset in memory and waiting for the last page before producing any result. An async generator that yields records as they arrive uses constant memory and lets the caller stop early, which matters when you only needed the first fifty matches out of ten thousand.
+
+The related decision is whether to page at all. If you find yourself walking every page on each request, the question is whether the API offers a bulk export or a filter that would return only what you need. Paginating through a whole dataset to filter it locally is the most common misuse of these endpoints, and usually means a query parameter was missed.
+
+## If you are designing the API
+
+Offer cursors. Offset pagination is easier to build and will lose your users' data on any dataset that changes.
+
+If your interface truly needs numbered pages, provide both: cursors for programmatic consumers doing full exports, offsets for a paginated table in a UI where an occasional skipped row is cosmetic rather than a correctness bug.
+
+And always send an explicit end signal. `has_more: false` removes all ambiguity, and costs one field.

@@ -1,0 +1,188 @@
+---
+title: "How to read API documentation without getting lost"
+description: "Documentation is written in a fixed order that rarely matches the order you need it in. Here is the reading path that gets you a working request fastest, and the five sections that actually matter."
+cluster: fundamentals
+imageQuery: "open technical manual pages"
+author: sandy
+publishedAt: "2026-10-05"
+updatedAt: "2026-10-05"
+relatedApis:
+  - open-meteo-ensemble
+  - zippopotam-us
+  - randomuser
+  - jikan
+relatedPosts:
+  - what-is-an-api-endpoint
+  - api-authentication-types-explained
+  - api-pagination-patterns
+sources:
+  - label: "OpenAPI Specification"
+    url: "https://spec.openapis.org/oas/latest.html"
+  - label: "MDN — HTTP request methods"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods"
+  - label: "RFC 9110 — HTTP Semantics"
+    url: "https://www.rfc-editor.org/rfc/rfc9110"
+faq:
+  - q: "What order should I read API documentation in?"
+    a: "Not front to back. Find one complete working example first and run it, then read authentication, then the single endpoint you need, then errors and rate limits. Reading the conceptual overview first is the slowest possible route to a working request."
+  - q: "What do I do when the documentation has no examples?"
+    a: "Look for an OpenAPI or Swagger file, usually at /openapi.json, /swagger.json or /v3/api-docs. It lists every endpoint, parameter and response shape in a machine-readable form, and you can generate a working request straight from it."
+  - q: "Why does the documented response not match what I get back?"
+    a: "Usually one of three things: the docs describe a newer version than the one your base URL points at, the example is trimmed for readability, or you are looking at a paid-tier response. Check the version prefix first, because that explains it most often."
+  - q: "How do I find the rate limit if it is not documented?"
+    a: "Send one request and read the response headers. Most APIs report the limit in X-RateLimit-Limit and X-RateLimit-Remaining even when the documentation never mentions them."
+  - q: "Is a Postman collection better than reading the docs?"
+    a: "For getting started, usually yes. An official collection is executable documentation that is more likely to be current than prose, because it is generated from the same source as the API."
+---
+
+You need one value out of an API. Forty minutes later you have read the authentication guide twice, skimmed a page titled "Core concepts", and still have not sent a single request.
+
+This is not your fault. Documentation is organised for completeness, in the order a technical writer would explain the product. You need it in the order that produces a working request.
+
+<Answer>
+Read it **out of order, in this sequence**: find a complete copy-pasteable example and run it unchanged, then read only the authentication section, then only the one endpoint you need, then errors and rate limits. Everything else is reference material you consult later, not reading material you work through now.
+</Answer>
+
+## Why front-to-back fails
+
+Most API documentation opens with an overview, then concepts, then authentication, then a long endpoint reference. That ordering assumes you are evaluating the product. If you already know you need this API, it front-loads two sections that cannot produce a request and buries the one that can.
+
+Worse, the overview usually explains the provider's own vocabulary. You will meet "workspaces", "projects" and "collections" before you learn whether any of them is required for the call you want to make. Those words are easier to learn later, attached to fields you have actually seen in a response.
+
+## Step 1: find a runnable example and run it
+
+Before reading anything, search the page for `curl`. Almost every API has one complete example somewhere, and a complete example answers questions that prose does not: the real base URL, whether the key goes in a header or a query string, and which fields come back.
+
+```bash
+# The first thing to run, whatever the API
+curl -i "https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.13&current=temperature_2m"
+```
+
+The `-i` matters. It prints response headers, which is where rate limits, deprecation notices and content types live.
+
+<Tested date="2026-09-18" endpoint="GET https://api.open-meteo.com/v1/forecast" result="200 OK in 97 ms, no key required">
+Run against <ApiRef id="open-meteo-ensemble" /> during our scheduled check. A documentation page can be out of date; a 200 with a body cannot.
+</Tested>
+
+Run it **unchanged** first. If you modify it before you have seen it work, a failure tells you nothing, because you cannot tell whether the example was broken or your change was.
+
+<Callout type="tip" title="Check for a Postman or Bruno collection first">
+If the provider publishes one, import it and skip this step. A collection is executable and is usually generated from the same specification as the API, so it drifts out of date more slowly than hand-written prose does.
+</Callout>
+
+## Step 2: read only the authentication section
+
+Now read authentication, and answer exactly three questions:
+
+1. **Do I need a credential at all?** Plenty of APIs do not. Our catalogue lists 1,051 that need no key of any kind.
+2. **Where does it go?** An `Authorization` header, a custom header such as `X-API-Key`, or a query parameter. Getting this wrong produces a 401 that looks identical to a wrong key.
+3. **What scheme prefixes it?** `Bearer`, `Token`, `Basic`, or nothing at all. These are not interchangeable and the header is case-sensitive about the value.
+
+```http
+Authorization: Bearer sk_live_abc123     scheme + token
+X-API-Key: abc123                        custom header, no scheme
+?api_key=abc123                          query parameter
+```
+
+If you cannot answer question two from the prose, go back to the curl example. It always answers it.
+
+## Step 3: read one endpoint, not the reference
+
+Open the endpoint reference, search for the noun you care about, and read that single entry. For each parameter, you only need to know three things: is it required, what type is it, and what does it default to.
+
+Skip the rest of the reference entirely. You are not learning the API; you are making one call.
+
+```text
+GET /v1/forecast
+
+latitude    required   number
+longitude   required   number
+current     optional   comma-separated list
+timezone    optional   string, defaults to GMT
+```
+
+The defaults are the part people skip and then get surprised by. A `timezone` that silently defaults to GMT is the difference between a correct dashboard and one that is wrong by an hour for half the year.
+
+## Step 4: find the error and rate-limit sections
+
+These two are worth reading before you write a loop, not after it fails in production.
+
+For errors, you want the shape of the error body, because it differs per provider and your handling code has to parse it:
+
+```json
+{ "error": { "code": "invalid_parameter", "message": "latitude out of range" } }
+```
+
+For rate limits, prefer headers over documentation. Documentation states policy; headers state fact.
+
+```http
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 58
+X-RateLimit-Reset: 1789890326
+```
+
+If a limit is not documented anywhere, send a request and read the headers. Most APIs report it even when nobody wrote it down. Our post on [HTTP 429 and backoff](/blog/fix-429-too-many-requests) covers what to do once you know the number.
+
+## When the documentation is bad
+
+Three fallbacks, in order of how much they tell you.
+
+**Look for a machine-readable specification.** Try these paths against the base URL:
+
+```bash
+for p in openapi.json swagger.json v3/api-docs openapi.yaml; do
+  curl -s -o /dev/null -w "%{http_code} $p\n" "https://api.example.com/$p"
+done
+```
+
+A hit gives you the complete, authoritative list of endpoints, and it cannot drift from the implementation the way prose can.
+
+```bash
+curl -s https://api.example.com/openapi.json | jq -r '.paths | keys[]'
+```
+
+**Call the API root.** Some APIs return an index of themselves:
+
+```bash
+curl -s https://api.example.com/v1/ | head -40
+```
+
+**Read the response, not the docs.** One real response tells you the field names, the nesting, the date format and the null conventions. That is most of what an integration needs.
+
+```bash
+curl -s "https://randomuser.me/api/" | jq 'paths(scalars) | join(".")' | head -20
+```
+
+That prints every field path in the response, which is a faster map of the data than any documentation page.
+
+## Reading practice on small APIs
+
+The skill is easier to build on APIs small enough to hold in your head. These respond without a key, return plain JSON, and have few enough endpoints that you can read the whole surface in a sitting:
+
+<ApiTable ids={["zippopotam-us", "randomuser", "open-meteo-ensemble", "jikan"]} />
+
+[Zippopotam.us](/apis/zippopotam-us) is the smallest useful example: the path encodes the parameters, so you can predict the response before sending it. [Jikan](/apis/jikan) is the opposite, with a large endpoint surface and real pagination, which makes it good practice for finding one endpoint in a big reference.
+
+<Callout type="warning" title="Documentation lies more often than APIs do">
+When the documented response and the real response disagree, trust the response. Docs are maintained by hand and drift; the endpoint is the implementation. This is why step one is running an example rather than reading one.
+</Callout>
+
+## Reading documentation you suspect is out of date
+
+Prose drifts from implementation, and knowing which parts drift fastest tells you what to trust.
+
+The **quickstart** is usually the most reliable section, because it is the one people complain about immediately when it breaks. The **endpoint reference** is next, particularly where it is generated from the code rather than written by hand. **Conceptual guides and tutorials** drift fastest, because nothing fails visibly when they go stale and nobody is assigned to check them.
+
+Three signals suggest the page in front of you is older than the API. A version number in the examples that does not match the current one. Screenshots of a dashboard that looks nothing like the current dashboard. And a changelog whose most recent entry is a year old while the API clearly still works.
+
+When you suspect drift, the response is the same as the first step of this whole article: send the request and look at the response. An observed response beats any documented one, and a five-second check settles the question. Where the two disagree, the response is right.
+
+It is also worth checking whether a machine-readable specification exists, because it cannot drift in the same way. An OpenAPI document generated from the implementation describes what the API actually does, and where one is published it should be your reference rather than the prose.
+
+Finally, note the difference between documentation being *wrong* and being *incomplete*. Incomplete is far more common, and the gaps cluster in predictable places: error responses, rate limits, pagination behaviour at the boundaries, and what happens with an empty result. Those are the sections to verify by experiment rather than by reading, because they are the ones most likely never to have been written down.
+
+## The short version
+
+Find an example and run it unchanged. Read authentication and answer where the credential goes. Read the one endpoint you need and note the defaults. Check the error shape and the rate-limit headers. Consult everything else only when something breaks.
+
+That order gets you to a working request in minutes rather than an hour, and it leaves you with the one thing reading never produces: a response you have actually seen.

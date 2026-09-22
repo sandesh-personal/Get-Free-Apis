@@ -1,0 +1,388 @@
+---
+title: "Build a weather dashboard with a free no-key API"
+description: "A complete working dashboard in one HTML file, using no key, no build step and no backend — then the three changes that make it production-ready."
+cluster: howto
+imageQuery: "weather vane cloudy sky"
+author: sandy
+publishedAt: "2026-11-06"
+updatedAt: "2026-11-06"
+relatedApis:
+  - open-meteo-ensemble
+  - zippopotam-us
+  - us-weather
+  - wttr-in
+relatedPosts:
+  - best-free-weather-apis-no-key
+  - caching-api-responses-free-tier
+  - best-free-apis-for-beginners
+sources:
+  - label: "Open-Meteo API documentation"
+    url: "https://open-meteo.com/en/docs"
+  - label: "WMO weather interpretation codes"
+    url: "https://www.nodc.noaa.gov/archive/arc0021/0002199/1.1/data/0-data/HTML/WMO-CODE/WMO4677.HTM"
+  - label: "MDN — Geolocation API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Geolocation_API"
+faq:
+  - q: "Can I build a weather app without an API key?"
+    a: "Yes. Open-Meteo returns global forecasts with no key and sends CORS headers, so a single HTML file with no backend and no build step is enough for a working dashboard."
+  - q: "How do I turn a postcode into coordinates for a weather API?"
+    a: "Use a free geocoder. Zippopotam.us covers 60+ countries with no key, and Open-Meteo also has its own geocoding endpoint that takes a place name directly."
+  - q: "What are WMO weather codes?"
+    a: "A standard numeric encoding of conditions — 0 is clear sky, 61 is light rain, 95 is thunderstorm. Open-Meteo returns the code rather than a text description so it stays language-independent."
+  - q: "Why is my weather data an hour out?"
+    a: "Almost always a missing timezone parameter. Open-Meteo defaults to GMT, so without timezone=auto every timestamp is shifted for anywhere observing daylight saving."
+  - q: "Do I need a backend for a weather dashboard?"
+    a: "Not for a personal one. For anything public you want a small server-side cache, because a shared cache turns thousands of page views into a handful of upstream requests."
+---
+
+Most weather tutorials start with "sign up for an API key". This one does not need one. The result is a single HTML file you can open from disk and it works.
+
+Then we make it good, because the gap between a demo and something you would deploy is three specific changes.
+
+<Answer>
+Use **[Open-Meteo](/apis/open-meteo-ensemble)**: no key, global coverage, CORS headers so the browser can call it directly. Pair it with **[Zippopotam.us](/apis/zippopotam-us)** to turn a postcode into coordinates. The whole dashboard is one file with no build step and no backend.
+</Answer>
+
+## The complete thing, in one file
+
+Save this as `index.html` and open it. No install, no key, no server.
+
+```html
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weather</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { margin: 0; padding: 2rem 1rem; background: #d1d5db; color: #10151b; }
+    .wrap { max-width: 44rem; margin: 0 auto; }
+    form { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+    input, button { padding: .6rem .8rem; border: 1px solid #9aa4b0; border-radius: .5rem; font: inherit; }
+    input { flex: 1; background: #fff; }
+    button { background: #115e56; color: #fff; border-color: #115e56; cursor: pointer; }
+    .now { background: #fff; border-radius: .75rem; padding: 1.25rem; margin-bottom: 1rem; }
+    .temp { font-size: 3rem; font-weight: 700; line-height: 1; }
+    .days { display: grid; grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr)); gap: .5rem; }
+    .day { background: #fff; border-radius: .5rem; padding: .75rem; text-align: center; }
+    .muted { color: #4b5563; font-size: .875rem; }
+    .error { background: #fee2e2; color: #b91c1c; padding: .75rem; border-radius: .5rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Weather</h1>
+
+    <form id="search">
+      <input id="place" placeholder="Postcode or city, e.g. NW1 or Berlin" required />
+      <button>Look up</button>
+    </form>
+
+    <div id="out" aria-live="polite"></div>
+  </div>
+
+<script type="module">
+const out = document.getElementById('out');
+
+// WMO codes -> something a human can read
+const WMO = {
+  0:'Clear sky', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+  45:'Fog', 48:'Depositing rime fog', 51:'Light drizzle', 53:'Drizzle',
+  55:'Heavy drizzle', 61:'Light rain', 63:'Rain', 65:'Heavy rain',
+  71:'Light snow', 73:'Snow', 75:'Heavy snow', 80:'Rain showers',
+  81:'Heavy showers', 82:'Violent showers', 95:'Thunderstorm',
+  96:'Thunderstorm with hail', 99:'Severe thunderstorm with hail',
+};
+
+/** Place name or postcode -> coordinates, using Open-Meteo's own geocoder. */
+async function geocode(query) {
+  const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
+  url.search = new URLSearchParams({ name: query, count: '1', language: 'en' });
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Geocoding failed (${res.status})`);
+
+  const { results } = await res.json();
+  if (!results?.length) throw new Error(`Could not find “${query}”`);
+
+  const { latitude, longitude, name, country } = results[0];
+  return { lat: latitude, lon: longitude, label: `${name}, ${country}` };
+}
+
+async function forecast(lat, lon) {
+  const url = new URL('https://api.open-meteo.com/v1/forecast');
+  url.search = new URLSearchParams({
+    latitude: lat,
+    longitude: lon,
+    current: 'temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m',
+    daily: 'weather_code,temperature_2m_max,temperature_2m_min',
+    timezone: 'auto',        // without this everything is in GMT
+    forecast_days: '5',
+  });
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Forecast failed (${res.status})`);
+  return res.json();
+}
+
+function render(place, data) {
+  const c = data.current;
+  const days = data.daily.time.map((date, i) => ({
+    date,
+    code: data.daily.weather_code[i],
+    max: Math.round(data.daily.temperature_2m_max[i]),
+    min: Math.round(data.daily.temperature_2m_min[i]),
+  }));
+
+  out.innerHTML = `
+    <div class="now">
+      <p class="muted">${place}</p>
+      <p class="temp">${Math.round(c.temperature_2m)}°C</p>
+      <p>${WMO[c.weather_code] ?? 'Unknown'}</p>
+      <p class="muted">
+        Wind ${Math.round(c.wind_speed_10m)} km/h · Humidity ${c.relative_humidity_2m}%
+      </p>
+      <p class="muted">Updated ${new Date(c.time).toLocaleString('en-GB')}</p>
+    </div>
+
+    <div class="days">
+      ${days.slice(1).map((d) => `
+        <div class="day">
+          <p class="muted">${new Date(d.date).toLocaleDateString('en-GB', { weekday: 'short' })}</p>
+          <p><strong>${d.max}°</strong> <span class="muted">${d.min}°</span></p>
+          <p class="muted">${WMO[d.code] ?? ''}</p>
+        </div>`).join('')}
+    </div>`;
+}
+
+async function show(query) {
+  out.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const { lat, lon, label } = await geocode(query);
+    render(label, await forecast(lat, lon));
+  } catch (err) {
+    out.innerHTML = `<p class="error">${err.message}</p>`;
+  }
+}
+
+document.getElementById('search').addEventListener('submit', (e) => {
+  e.preventDefault();
+  show(document.getElementById('place').value.trim());
+});
+
+show('London');
+</script>
+</body>
+</html>
+```
+
+## The parts that matter
+
+**`timezone: 'auto'`.** Leave it out and Open-Meteo returns everything in GMT. Your "current" reading is then an hour off for half the year, and the daily buckets are wrong at the boundaries. This is the most common bug in weather integrations.
+
+**WMO codes, not text.** The API returns a number rather than a description, which keeps it language-independent and lets you map to your own wording and icons. Always handle an unmapped code — the list is longer than the common cases.
+
+**Errors rendered, not logged.** `fetch` does not throw on a 404, so every response needs an `ok` check. See [why fetch does not throw](/blog/failed-to-fetch-javascript).
+
+**Parallel arrays in `daily`.** Dates in one array, values in another, matched by index. Zip them into objects immediately, as above, or you will eventually filter one and not the other.
+
+<Callout type="tip" title="Use the browser's own location, with a fallback">
+<code>navigator.geolocation</code> gives real coordinates with the user's consent. Ask only on a button press, never on page load, and fall back to the search box if it is refused.
+</Callout>
+
+```js
+document.getElementById('locate').addEventListener('click', () => {
+  navigator.geolocation.getCurrentPosition(
+    async ({ coords }) => render('Your location', await forecast(coords.latitude, coords.longitude)),
+    () => { out.innerHTML = '<p class="error">Location unavailable — search instead.</p>'; },
+    { timeout: 8000 },
+  );
+});
+```
+
+## Three changes for production
+
+The file above is a good personal dashboard. For something public, change these.
+
+**1. Cache server-side.** Right now every visitor triggers two upstream calls. A shared cache makes that a handful per hour regardless of traffic:
+
+```js
+// app/api/forecast/route.ts
+export async function GET(request) {
+  const { searchParams } = new URL(request.url);
+  const lat = Number(searchParams.get('lat'));
+  const lon = Number(searchParams.get('lon'));
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return Response.json({ error: 'lat and lon required' }, { status: 400 });
+  }
+
+  const data = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+      '&current=temperature_2m,weather_code&timezone=auto',
+  ).then((r) => r.json());
+
+  return Response.json(data, {
+    headers: {
+      'Cache-Control': 'public, s-maxage=1800, stale-while-revalidate=3600, stale-if-error=86400',
+    },
+  });
+}
+```
+
+Rounding coordinates to two decimals before caching raises the hit rate enormously — weather does not differ meaningfully over a kilometre, and it collapses thousands of distinct keys into a few. Full detail in [caching API responses](/blog/caching-api-responses-free-tier).
+
+**2. Debounce the search.** As written, a submit per keystroke is impossible, but if you add autocomplete, debounce it or you will send a geocoding request per character.
+
+**3. Read the licence.** Open-Meteo's keyless endpoints are free for **non-commercial** use. If this becomes part of a product you charge for, they sell a commercial plan. This is the most commonly missed condition on the API.
+
+<Callout type="warning" title="Do not ship placeholders or demo keys">
+The version above depends on a free service with no uptime guarantee. For anything people rely on, add the cache, add a fallback provider such as <a href="/apis/meteorologisk-institutt">MET Norway</a>, and show stale data with a timestamp rather than an error when both fail.
+</Callout>
+
+## Adding an hourly chart
+
+The same request already returns hourly data if you ask for it, so a chart costs no extra calls:
+
+```js
+url.search = new URLSearchParams({
+  latitude: lat,
+  longitude: lon,
+  hourly: 'temperature_2m,precipitation_probability',
+  forecast_days: '2',
+  timezone: 'auto',
+});
+```
+
+Open-Meteo returns the hourly block as parallel arrays — `time`, `temperature_2m` and so on, matched by index. Zip them before doing anything else, and slice to the window you want:
+
+```js
+function hourlySeries(data, hours = 24) {
+  const now = Date.now();
+
+  return data.hourly.time
+    .map((t, i) => ({
+      at: new Date(t),
+      temp: data.hourly.temperature_2m[i],
+      rain: data.hourly.precipitation_probability[i],
+    }))
+    .filter((p) => p.at >= now)
+    .slice(0, hours);
+}
+```
+
+An inline SVG sparkline is enough and avoids pulling in a charting library for one graph:
+
+```js
+function sparkline(points, w = 600, h = 120) {
+  const temps = points.map((p) => p.temp);
+  const min = Math.min(...temps);
+  const max = Math.max(...temps);
+  const span = max - min || 1;
+
+  const d = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * w;
+      const y = h - ((p.temp - min) / span) * h;
+      return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+
+  return `<svg viewBox="0 0 ${w} ${h}" role="img"
+    aria-label="Temperature over the next ${points.length} hours,
+                from ${min}°C to ${max}°C">
+    <path d="${d}" fill="none" stroke="#115e56" stroke-width="2" />
+  </svg>`;
+}
+```
+
+The `aria-label` matters. A line with no text alternative is invisible to a screen reader, and stating the range and period in words is more useful than any description of the shape.
+
+## Handling the failures you will actually hit
+
+Four things go wrong with this dashboard in practice, and none of them are the API being down.
+
+**The place is not found.** Geocoding returns `results: undefined` rather than an empty array when nothing matches, which is why the code checks `results?.length` rather than `results.length`. Getting that wrong throws a TypeError instead of showing your error message.
+
+**Two places share a name.** There are several dozen places called Springfield. Taking `results[0]` silently picks one. If it matters, show the alternatives:
+
+```js
+const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
+url.search = new URLSearchParams({ name: query, count: '5' });
+
+const { results } = await fetch(url).then((r) => r.json());
+if (results?.length > 1) renderDisambiguation(results);
+```
+
+**The user types a postcode the geocoder does not know.** Open-Meteo's geocoder is place-name oriented and misses many postcodes. Falling back to [Zippopotam.us](/apis/zippopotam-us) covers that:
+
+```js
+async function resolve(query) {
+  const byName = await geocode(query).catch(() => null);
+  if (byName) return byName;
+
+  const code = query.replace(/\s+/g, '').toUpperCase();
+  const res = await fetch(`https://api.zippopotam.us/gb/${code.slice(0, -3)}`);
+  if (!res.ok) throw new Error(`Could not find “${query}”`);
+
+  const { places } = await res.json();
+  return { lat: +places[0].latitude, lon: +places[0].longitude, label: places[0]['place name'] };
+}
+```
+
+**The network is offline.** `fetch` rejects rather than returning a response, so the `try/catch` in `show()` is what stops the page hanging on "Loading…". Distinguishing the two is worth doing, because the advice differs:
+
+```js
+catch (err) {
+  const offline = err instanceof TypeError && !navigator.onLine;
+  out.innerHTML = `<p class="error">${
+    offline ? 'You appear to be offline.' : err.message
+  }</p>`;
+}
+```
+
+## Making it usable for everyone
+
+A weather dashboard is mostly numbers and colour, which makes it easy to build something that excludes people without noticing.
+
+The live region on the results container is the most important line in the markup. `aria-live="polite"` tells a screen reader to announce the content when it changes, which is what makes the search result reach someone who cannot see the page updating. Without it the page changes silently and the user has no idea their search worked.
+
+Colour is the next trap. Encoding conditions purely as colour — blue for cold, red for hot, an amber warning band — is invisible to a substantial minority of users. The rule is the same one behind the status swatches elsewhere on this site: colour may reinforce, never carry. Every value that matters should also be stated in words or numbers.
+
+Units need to be explicit and, ideally, adjustable. Open-Meteo returns Celsius and kilometres per hour by default and accepts parameters for other systems. A dashboard that never states its units leaves a reader guessing whether 17 is pleasant or freezing, and a reader in the United States guessing wrongly.
+
+Finally, respect `prefers-reduced-motion` if you add any animation to the chart or the transitions. A weather dashboard is a glanceable tool, and movement in it is decoration that some people experience as discomfort.
+
+## Keeping it fast
+
+The single-file version loads quickly because it does almost nothing. As it grows, three habits keep it that way.
+
+**Do not block the first paint on the network.** The page should render its structure immediately and fill in the data when it arrives. The version above does this, but it is easy to lose when moving to a framework that waits for data before rendering anything.
+
+**Reserve the space the content will occupy.** A card that appears after the fetch pushes everything below it down, which is the layout shift problem described in our [image APIs article](/blog/free-image-and-photo-apis) and applies just as much to text. Giving the results container a minimum height prevents the jump.
+
+**Avoid re-requesting what you already have.** A user toggling between two cities should not re-fetch the one they just looked at. A small in-memory map keyed on rounded coordinates handles this in a few lines, and the rounding matters — coordinates to two decimal places is about a kilometre, which is well inside the resolution of any forecast.
+
+The broader point is that a weather dashboard is a caching problem wearing a UI. The API is fast, the data changes hourly at most, and almost every performance improvement available is about not asking again.
+
+## Turning it into something people rely on
+
+The gap between this and a dashboard someone checks every morning is smaller than it looks, and it is mostly about trust rather than features.
+
+Show when the data was fetched. A forecast with no timestamp gives no way to tell whether it is current, and the moment someone suspects it might be stale they stop using it. One line of text removes that doubt permanently.
+
+Remember the last place searched. A dashboard that opens on London every time, when the user lives in Manchester, fails at the only interaction that matters. `localStorage` covers this in three lines, and it is the highest-value addition on this list.
+
+Handle the offline case deliberately. A cached forecast from two hours ago, clearly labelled, is far more useful than an error — and with a service worker this becomes the natural behaviour rather than an exception.
+
+And decide what the page does at night, in bad weather, and when the API is down, rather than discovering those states in production. The failure paths described earlier are the difference between a demo and a tool, and they are where most of the remaining work actually is.
+
+## Where to take it next
+
+- Swap the geocoder for [Zippopotam.us](/apis/zippopotam-us) if you want postcode-first input.
+- Add [US National Weather Service](/apis/us-weather) alerts for US coordinates — it is the authoritative source and includes the forecaster's written discussion.
+- Chart the hourly series; Open-Meteo returns up to 16 days of hourly data in the same call.
+- Add a fallback provider behind an adapter, as in [surviving breaking API changes](/blog/surviving-breaking-api-changes).
+
+For the full comparison of keyless weather providers with our measured latencies, see [best free weather APIs with no key required](/blog/best-free-weather-apis-no-key).

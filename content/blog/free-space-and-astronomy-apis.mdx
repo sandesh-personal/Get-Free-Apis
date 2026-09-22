@@ -1,0 +1,339 @@
+---
+title: "Free space and astronomy APIs"
+description: "Satellite tracking, spaceflight news and asteroid data without a key, plus why orbital elements go stale in days and what that means for your code."
+cluster: roundups
+imageQuery: "night sky stars galaxy"
+author: sandy
+publishedAt: "2026-10-18"
+updatedAt: "2026-10-18"
+relatedApis:
+  - spaceflight-news
+  - isro
+  - tle
+  - minor-planet-center
+  - swapi
+  - stapi
+relatedPosts:
+  - free-news-apis
+  - caching-api-responses-free-tier
+  - build-weather-dashboard-free-api
+sources:
+  - label: "NASA Open APIs"
+    url: "https://api.nasa.gov/"
+  - label: "CelesTrak — NORAD two-line element sets"
+    url: "https://celestrak.org/NORAD/documentation/tle-fmt.php"
+  - label: "IAU Minor Planet Center"
+    url: "https://www.minorplanetcenter.net/"
+faq:
+  - q: "Is there a free NASA API?"
+    a: "Yes. NASA's own APIs are free and you can use the shared DEMO_KEY without registering, though it is limited to about 30 requests per hour per IP. A personal key is free and raises that substantially."
+  - q: "How do I track the ISS or another satellite?"
+    a: "Fetch its TLE, a two-line element set describing the orbit, then propagate it locally with a library such as satellite.js. Do not ask an API for a position every second; compute it from the elements yourself."
+  - q: "How long is a TLE valid for?"
+    a: "Accuracy degrades within days. For low Earth orbit, refresh at least daily. A week-old element set can put the ISS kilometres from where it actually is."
+  - q: "What is the best free space news API?"
+    a: "Spaceflight News. It aggregates launches, agencies and missions from many outlets, needs no key, sends CORS headers and paginates cleanly."
+  - q: "Can I get asteroid and comet data for free?"
+    a: "Yes. The Minor Planet Center publishes orbital data for hundreds of thousands of minor planets, and NASA's NeoWs covers near-Earth objects with close-approach distances."
+---
+
+Space data is unusually generous. Most of it is produced by publicly funded agencies, which means it is published openly and without a paywall. The catch is not access — it is that orbital data has a shelf life, and code that ignores that silently produces wrong answers.
+
+<Answer>
+For news and launches, **[Spaceflight News](/apis/spaceflight-news)** needs no key and sends CORS headers. For satellite tracking, fetch a TLE from **[TLE API](/apis/tle)** and propagate it locally rather than polling for positions. For imagery and near-Earth objects, NASA's own APIs work with the shared `DEMO_KEY` before you register anything.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["spaceflight-news", "isro", "tle", "minor-planet-center", "stapi", "swapi"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. Spaceflight News, ISRO, TLE and Minor Planet Center also send CORS headers.
+</Tested>
+
+## Spaceflight News — launches and coverage
+
+Aggregates articles, blogs and reports across the spaceflight press, with clean cursor pagination.
+
+```bash
+curl -s "https://api.spaceflightnewsapi.net/v4/articles/?limit=5"
+curl -s "https://api.spaceflightnewsapi.net/v4/articles/?news_site=NASA&limit=5"
+```
+
+```js
+async function* allArticles(url = 'https://api.spaceflightnewsapi.net/v4/articles/?limit=50') {
+  while (url) {
+    const page = await fetch(url).then((r) => r.json());
+    yield* page.results;
+    url = page.next;
+  }
+}
+```
+
+The `next` field is a complete URL, so paging needs no offset arithmetic. There are separate `/blogs/` and `/reports/` collections with the same shape.
+
+## Satellite tracking, done correctly
+
+This is where most projects go wrong, so it is worth doing properly.
+
+A **TLE** (two-line element set) describes an orbit at a moment in time. From it you can compute the satellite's position at any later moment, locally, with no network call.
+
+```bash
+curl -s "https://tle.ivanstanojevic.me/api/tle/25544"
+```
+
+```json
+{
+  "satelliteId": 25544,
+  "name": "ISS (ZARYA)",
+  "date": "2026-09-18T06:22:11+00:00",
+  "line1": "1 25544U 98067A   26261.26541667  .00016717  00000-0  10270-3 0  9991",
+  "line2": "2 25544  51.6412 247.4627 0006703 130.5360 325.0288 15.50377579    12"
+}
+```
+
+The wrong approach is to poll an API for a position every second. The right approach fetches the TLE once a day and computes positions in a loop:
+
+```js
+import * as satellite from 'satellite.js';
+
+const { line1, line2 } = await fetch('https://tle.ivanstanojevic.me/api/tle/25544')
+  .then((r) => r.json());
+
+const rec = satellite.twoline2satrec(line1, line2);
+
+function positionAt(when = new Date()) {
+  const { position } = satellite.propagate(rec, when);
+  const gmst = satellite.gstime(when);
+  const geo = satellite.eciToGeodetic(position, gmst);
+
+  return {
+    lat: satellite.degreesLat(geo.latitude),
+    lon: satellite.degreesLong(geo.longitude),
+    altKm: geo.height,
+  };
+}
+
+setInterval(() => render(positionAt()), 1000); // no network call
+```
+
+<Callout type="warning" title="TLEs go stale within days">
+Element sets describe an orbit that atmospheric drag is continuously changing. For low Earth orbit, refresh daily. A week-old TLE can place the ISS kilometres from its real position, and nothing in your code will indicate anything is wrong.
+</Callout>
+
+## NASA's own APIs, and DEMO_KEY
+
+NASA publishes a large family of APIs at `api.nasa.gov`, all free. You can call them without registering by using the literal key `DEMO_KEY`, which is rate-limited to roughly 30 requests per hour per IP.
+
+```bash
+# Astronomy Picture of the Day
+curl -s "https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY"
+
+# Near-Earth objects for a date range
+curl -s "https://api.nasa.gov/neo/rest/v1/feed\
+?start_date=2026-09-18&end_date=2026-09-19&api_key=DEMO_KEY"
+
+# Mars rover photographs
+curl -s "https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/photos\
+?sol=4000&api_key=DEMO_KEY"
+```
+
+DEMO_KEY is shared across everyone using it, so it is for trying things out. A personal key is free, instant and raises the limit to 1,000 per hour.
+
+The near-Earth object feed is the most interesting for building something. Close-approach distances are given in several units, and in lunar distances they become intuitive:
+
+```js
+const feed = await fetch(
+  `https://api.nasa.gov/neo/rest/v1/feed?start_date=${today}&api_key=${key}`,
+).then((r) => r.json());
+
+const close = Object.values(feed.near_earth_objects)
+  .flat()
+  .map((o) => ({
+    name: o.name,
+    lunarDistance: +o.close_approach_data[0].miss_distance.lunar,
+    hazardous: o.is_potentially_hazardous_asteroid,
+  }))
+  .sort((a, b) => a.lunarDistance - b.lunarDistance);
+```
+
+## Minor Planet Center and ISRO
+
+**Minor Planet Center** exposes orbital data for hundreds of thousands of asteroids and comets — the IAU's authoritative record.
+
+```bash
+curl -s "http://www.asterank.com/api/mpc?query=%7B%22name%22:%22Ceres%22%7D&limit=1"
+```
+
+**ISRO** covers Indian spacecraft, launchers and customer satellites, keylessly and with CORS headers:
+
+```bash
+curl -s "https://isro.vercel.app/api/spacecrafts"
+curl -s "https://isro.vercel.app/api/launchers"
+```
+
+## Cache according to how fast the data moves
+
+Different endpoints have wildly different useful lifetimes, and matching the cache to the data is most of good citizenship here:
+
+```text
+Astronomy Picture of the Day   24 hours   changes once daily
+TLE element sets               12 hours   drag changes the orbit
+Near-Earth object feed          6 hours   recalculated periodically
+Spaceflight news               15 minutes fast-moving
+Historical mission data        forever    it is history
+```
+
+```js
+const TTL = { apod: 864e5, tle: 432e5, neo: 216e5, news: 9e5 };
+```
+
+Caching historical data permanently is not laziness. Apollo 11's launch date is not going to be revised.
+
+## Predicting a visible pass
+
+The question people actually want answered is not "where is the ISS" but "when will I see it". That needs three things the position alone does not give you: the observer's location, whether the station is sunlit, and whether the sky is dark.
+
+```js
+import * as satellite from 'satellite.js';
+
+const observer = {
+  latitude: satellite.degreesToRadians(51.5),
+  longitude: satellite.degreesToRadians(-0.13),
+  height: 0.02,          // kilometres above sea level
+};
+
+function lookAngles(rec, when) {
+  const pv = satellite.propagate(rec, when);
+  const gmst = satellite.gstime(when);
+  return satellite.ecfToLookAngles(observer, satellite.eciToEcf(pv.position, gmst));
+}
+
+// Step forward in 30-second slices, looking for anything above 10 degrees
+function passes(rec, hours = 24) {
+  const found = [];
+  let current = null;
+
+  for (let t = 0; t < hours * 120; t++) {
+    const when = new Date(Date.now() + t * 30_000);
+    const el = satellite.radiansToDegrees(lookAngles(rec, when).elevation);
+
+    if (el > 10 && !current) current = { start: when, peak: el };
+    else if (el > 10 && current) current.peak = Math.max(current.peak, el);
+    else if (el <= 10 && current) {
+      found.push({ ...current, end: when });
+      current = null;
+    }
+  }
+  return found;
+}
+```
+
+Ten degrees is the conventional cut-off: below that the satellite is behind buildings and trees for most observers.
+
+The part this still omits is illumination. A pass is only visible when the station is in sunlight while the ground is dark, which is why sightings cluster in the hour or two after sunset and before sunrise. Filtering on the sun's elevation at the observer — below about −6 degrees — removes the daytime passes nobody can see.
+
+<Callout type="warning" title="Do not present a computed pass as a guarantee">
+Propagation error grows with the age of the element set, and a TLE fetched this morning is already drifting. Quote the pass time to the minute rather than the second, and refresh the TLE daily.
+</Callout>
+
+## Working with the imagery endpoints
+
+NASA's image APIs return URLs rather than bytes, and a few details save time.
+
+**APOD** sometimes returns a video rather than an image, which breaks a naive `<img>`:
+
+```js
+const apod = await fetch(`https://api.nasa.gov/planetary/apod?api_key=${key}`)
+  .then((r) => r.json());
+
+if (apod.media_type === 'image') {
+  render(`<img src="${apod.hdurl ?? apod.url}" alt="${apod.title}" />`);
+} else {
+  render(`<iframe src="${apod.url}" title="${apod.title}"></iframe>`);
+}
+```
+
+`hdurl` can be several megabytes, so use `url` for thumbnails and reserve the high-resolution version for a click-through.
+
+**Mars rover photos** are indexed by sol — the Martian day since landing — rather than by Earth date, and asking for a sol with no photographs returns an empty array rather than an error:
+
+```js
+const { photos } = await fetch(
+  `https://api.nasa.gov/mars-photos/api/v1/rovers/curiosity/photos?sol=${sol}&api_key=${key}`,
+).then((r) => r.json());
+
+if (photos.length === 0) {
+  // Normal. Rovers do not photograph every sol; step back and try again.
+}
+```
+
+Both endpoints are slow enough that you should cache the result rather than call them per page view.
+
+## Units, and the mistakes they cause
+
+Space data mixes unit systems more than any other category, and the errors are silent.
+
+```text
+Distance    km, AU, light-years, lunar distances
+Time        UTC, Julian date, sol, mission elapsed
+Angles      degrees or radians, rarely stated
+Velocity    km/s or km/h
+```
+
+The two that bite hardest: **satellite.js works in radians** while almost every API reports degrees, and **Julian dates** appear in astronomical datasets where you expect ISO timestamps. Convert once at the boundary and keep one canonical unit internally, rather than converting at each use.
+
+```js
+const toDeg = (rad) => (rad * 180) / Math.PI;
+const fromJulian = (jd) => new Date((jd - 2440587.5) * 86_400_000);
+```
+
+## Coordinate systems, and why a position needs a frame
+
+The detail that separates a satellite tracker that works from one that is confidently wrong by thousands of kilometres.
+
+A position in space is meaningless without saying what it is measured against. Propagating a TLE gives coordinates in an Earth-centred inertial frame — fixed relative to the stars, not to the ground. The Earth rotates inside that frame. Plotting those coordinates on a map as though they were latitude and longitude produces a track that drifts steadily away from reality, because the map rotates and the frame does not.
+
+Converting to an Earth-fixed frame, which rotates with the planet, is what lets you derive a ground position. That conversion needs the sidereal time at the moment in question, which is why the propagation examples compute it rather than treating it as optional. It is the step that is easiest to omit and hardest to notice omitting, because the result looks plausible for the first few minutes.
+
+There is a third frame worth knowing: the observer's local horizon, expressed as azimuth and elevation. That is what someone standing outside needs — a compass bearing and an angle above the horizon. Converting to it requires the observer's position as well as the satellite's, which is why a pass prediction needs a location and a raw position does not.
+
+Time has the same problem. Astronomical work uses several scales that differ by seconds, and a second of error is several kilometres of orbital position. For most applications UTC is fine and the libraries handle the rest, but it is worth knowing that "the time" is not a single thing here, and that a naive local timestamp is a source of error rather than merely a formatting choice.
+
+## Working with agency data at scale
+
+NASA and the other agencies publish far more than the convenient JSON endpoints, and knowing what exists changes what is practical.
+
+The APIs are a thin layer over much larger archives. Full mission datasets, raw instrument data and complete image collections are distributed as bulk downloads, often as FITS files rather than anything web-friendly. If a project needs more than a handful of records, the archive is usually the right route and the API is the wrong one — the endpoints are designed for browsing, not for extraction.
+
+Rate limits reflect that intent. A personal NASA key allows around a thousand requests an hour, which is generous for a dashboard and inadequate for iterating over every Mars photograph. Attempting the latter through the API is slow, fragile and discourteous when the same data is available as a download.
+
+The other practical note is that agency endpoints are frequently slower than commercial ones, sometimes by seconds, and occasionally unavailable during maintenance announced somewhere you are not reading. That argues for the same pattern as government data generally: fetch on a schedule, store your own copy, and serve from it.
+
+Where the data is genuinely static — historical missions, completed surveys, orbital elements for objects that no longer exist — it should not be fetched at runtime at all. Apollo mission dates are not going to be revised.
+
+## Presenting space data honestly
+
+A short note, because this category invites impressive-looking numbers that mislead.
+
+Distances in space span such ranges that raw figures stop conveying anything. Saying an asteroid passed at 4.6 million kilometres is technically informative and practically meaningless to most readers. Expressing it in lunar distances — about twelve times further than the Moon — communicates the same fact usefully. Choosing the unit that makes a number comprehensible is part of presenting the data, not a liberty taken with it.
+
+The "potentially hazardous" flag on near-Earth objects is the clearest case of a field that reads as more alarming than it is. It is a technical classification based on size and minimum approach distance, applied to thousands of objects, and it says nothing about whether an impact is expected. Displaying it without that context produces exactly the misreading the term invites.
+
+Uncertainty deserves the same treatment. Orbital predictions carry error bars that widen with time, and a close-approach distance quoted to five significant figures for a date decades away implies precision that does not exist. Where the source provides an uncertainty, showing it is more honest than showing the central value alone — and it is the same principle as labelling a forecast with its age.
+
+## Choosing
+
+**Launches and industry news.** Spaceflight News.
+
+**Live satellite position.** TLE API plus satellite.js, computing locally.
+
+**Imagery, Mars photos, asteroids.** NASA, with your own free key.
+
+**Asteroid and comet orbits.** Minor Planet Center.
+
+**Indian space programme.** ISRO.
+
+**Star Trek or Star Wars.** STAPI and SWAPI — fictional, keyless, and excellent for demos.
+
+For the terrestrial equivalent, see [best free weather APIs](/blog/best-free-weather-apis-no-key). [Browse the science and maths category](/categories/science-and-math) for related entries.

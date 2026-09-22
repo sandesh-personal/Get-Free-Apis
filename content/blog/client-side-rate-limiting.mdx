@@ -1,0 +1,365 @@
+---
+title: "Client-side rate limiting: queues, tokens and backoff"
+description: "Staying under an API's limit before it rejects you, with a token bucket and a concurrency-capped queue you can paste into a project today."
+cluster: howto
+imageQuery: "water tap dripping control"
+author: sandy
+publishedAt: "2026-10-31"
+updatedAt: "2026-10-31"
+relatedApis:
+  - jikan
+  - musicbrainz
+  - coinlore
+  - open-meteo-ensemble
+relatedPosts:
+  - fix-429-too-many-requests
+  - api-timeouts-and-retries
+  - caching-api-responses-free-tier
+sources:
+  - label: "RFC 6585 — Additional HTTP Status Codes (429)"
+    url: "https://www.rfc-editor.org/rfc/rfc6585#section-4"
+  - label: "MDN — Retry-After header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After"
+  - label: "AWS Architecture Blog — Exponential backoff and jitter"
+    url: "https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/"
+faq:
+  - q: "What is the difference between rate limiting and backoff?"
+    a: "Rate limiting is proactive: you pace requests so you never exceed the limit. Backoff is reactive: you slow down after being rejected. You want both, but limiting well means backoff rarely fires."
+  - q: "What is a token bucket?"
+    a: "A counter that refills at a steady rate up to a maximum. Each request spends a token, and when the bucket is empty requests wait. It allows short bursts while holding the long-run average under the limit."
+  - q: "How do I limit concurrent requests rather than the rate?"
+    a: "Use a semaphore that caps how many requests are in flight at once. That is a different constraint from requests per second, and APIs often impose both."
+  - q: "Why add randomness to a retry delay?"
+    a: "Without it, every client that failed at the same moment retries at the same moment, which recreates the overload. Jitter spreads the retries out and is the difference between recovery and a thundering herd."
+  - q: "Should I rate limit in the browser or on the server?"
+    a: "Server, where you can see all traffic. A browser-side limiter only controls one tab, so a hundred users still produce a hundred times the traffic against a limit that is usually per-IP or per-key."
+---
+
+There are two ways to respect an API's limit. You can send requests as fast as you like and handle the rejections, or you can pace yourself so the rejections never happen.
+
+The second is better in every respect, and it is not much code.
+
+<Answer>
+Use a **token bucket** to control the rate and a **semaphore** to cap concurrency, because APIs usually impose both. Keep exponential backoff with jitter as a safety net for when you get a 429 anyway — and always honour `Retry-After` when the API sends it.
+</Answer>
+
+## Know which limit you are hitting
+
+These are different constraints and need different fixes:
+
+```text
+Requests per second      3/sec        -> token bucket
+Requests per hour        1,000/hour   -> token bucket + caching
+Concurrent requests      5 in flight  -> semaphore
+Per endpoint             varies       -> one limiter per endpoint
+```
+
+The API usually tells you, in headers rather than documentation:
+
+```bash
+curl -sI "https://api.example.com/v1/data" | grep -i ratelimit
+# x-ratelimit-limit: 60
+# x-ratelimit-remaining: 58
+# x-ratelimit-reset: 1789890326
+```
+
+## A token bucket
+
+The bucket holds up to `capacity` tokens and refills at `refillPerSecond`. Each request spends one. This permits a short burst — useful when a page loads and needs five things at once — while keeping the long-run average under the limit.
+
+```js
+class TokenBucket {
+  constructor(capacity, refillPerSecond) {
+    this.capacity = capacity;
+    this.tokens = capacity;
+    this.rate = refillPerSecond;
+    this.last = Date.now();
+  }
+
+  #refill() {
+    const now = Date.now();
+    this.tokens = Math.min(
+      this.capacity,
+      this.tokens + ((now - this.last) / 1000) * this.rate,
+    );
+    this.last = now;
+  }
+
+  async take() {
+    this.#refill();
+
+    if (this.tokens < 1) {
+      const waitMs = ((1 - this.tokens) / this.rate) * 1000;
+      await new Promise((r) => setTimeout(r, waitMs));
+      this.#refill();
+    }
+
+    this.tokens -= 1;
+  }
+}
+
+// Jikan allows ~3 requests/second
+const jikanBucket = new TokenBucket(3, 3);
+
+async function jikan(path) {
+  await jikanBucket.take();
+  const res = await fetch(`https://api.jikan.moe/v4${path}`);
+  if (!res.ok) throw new Error(`Jikan ${res.status}`);
+  return res.json();
+}
+```
+
+Now calling code needs no awareness of the limit at all:
+
+```js
+// Looks like it will flood the API. It will not.
+const results = await Promise.all(
+  ids.map((id) => jikan(`/anime/${id}`)),
+);
+```
+
+Every call queues behind the bucket, so the burst is paced automatically. This is the property that makes a limiter worth having — it lets the rest of your code stay simple.
+
+## A concurrency cap
+
+A separate constraint. Three requests per second still allows a hundred in flight if each takes thirty seconds.
+
+```js
+class Semaphore {
+  constructor(max) {
+    this.max = max;
+    this.active = 0;
+    this.waiting = [];
+  }
+
+  async acquire() {
+    if (this.active < this.max) { this.active += 1; return; }
+    await new Promise((resolve) => this.waiting.push(resolve));
+    this.active += 1;
+  }
+
+  release() {
+    this.active -= 1;
+    this.waiting.shift()?.();
+  }
+
+  async run(fn) {
+    await this.acquire();
+    try { return await fn(); } finally { this.release(); }
+  }
+}
+
+const limit = new Semaphore(5);
+
+const results = await Promise.all(
+  urls.map((url) => limit.run(() => fetch(url).then((r) => r.json()))),
+);
+```
+
+Combine both when the API imposes both:
+
+```js
+async function request(url) {
+  return limit.run(async () => {
+    await bucket.take();
+    return fetch(url);
+  });
+}
+```
+
+## Backoff, as the safety net
+
+Even with pacing you will occasionally get a 429 — a clock skew, another process sharing your key, a limit that is stricter than documented. Handle it properly.
+
+```js
+async function withBackoff(fn, attempts = 5) {
+  for (let i = 0; i < attempts; i++) {
+    const res = await fn();
+
+    if (res.status !== 429 && res.status < 500) return res;
+
+    // The API telling you when to come back beats any guess
+    const retryAfter = res.headers.get('retry-after');
+    const wait = retryAfter
+      ? Number(retryAfter) * 1000
+      : Math.min(2 ** i * 300, 20_000) * (0.5 + Math.random());
+
+    await new Promise((r) => setTimeout(r, wait));
+  }
+  throw new Error('Rate limited after all retries');
+}
+```
+
+Two details carry most of the value. **`Retry-After` wins** over your calculation, because the server knows when the window resets and you are guessing. And **jitter** — the `0.5 + Math.random()` multiplier — prevents every client that failed together from retrying together.
+
+<Callout type="warning" title="Backoff without jitter recreates the overload">
+Ten clients hit a limit at the same moment. All ten wait exactly 400 ms. All ten retry at the same instant. The API is overloaded again, and the pattern repeats with longer gaps. Jitter is not a refinement; it is the thing that makes backoff work.
+</Callout>
+
+See [HTTP 429 and backoff, done right](/blog/fix-429-too-many-requests) for more on the retry side.
+
+## Limit on the server, not in the browser
+
+A browser-side limiter controls one tab. If the limit is per-IP or per-key — and it nearly always is — a hundred users produce a hundred times the traffic regardless of how politely each one behaves.
+
+```text
+Browser limiter    one user, one tab      does not protect a shared key
+Server limiter     all traffic            actually enforces the limit
+```
+
+Put the limiter in the proxy that holds your key — see [keeping API keys out of your frontend bundle](/blog/hide-api-keys-frontend) — and across multiple instances use a shared store so they do not each keep their own count:
+
+```js
+import { kv } from '@vercel/kv';
+
+async function allow(key, limit, windowSeconds) {
+  const n = await kv.incr(key);
+  if (n === 1) await kv.expire(key, windowSeconds);
+  return n <= limit;
+}
+```
+
+## One limiter per key, not one per process
+
+A single global limiter is the usual first implementation and it is wrong as soon as you call more than one API. Jikan's three per second and MusicBrainz's one per second are separate budgets, and sharing a limiter between them throttles both to the stricter of the two.
+
+```js
+const buckets = new Map();
+
+function bucketFor(host, capacity, rate) {
+  if (!buckets.has(host)) buckets.set(host, new TokenBucket(capacity, rate));
+  return buckets.get(host);
+}
+
+const LIMITS = {
+  'api.jikan.moe': { capacity: 3, rate: 3 },
+  'musicbrainz.org': { capacity: 1, rate: 1 },
+  'api.open-meteo.com': { capacity: 10, rate: 10 },
+};
+
+export async function limited(url, init) {
+  const { hostname } = new URL(url);
+  const limit = LIMITS[hostname];
+
+  if (limit) await bucketFor(hostname, limit.capacity, limit.rate).take();
+  return fetch(url, init);
+}
+```
+
+Now every call site uses `limited()` instead of `fetch()` and the right budget is applied automatically. Hosts without an entry pass straight through, which keeps the common case free.
+
+Some APIs limit per endpoint rather than per host — search is often stricter than a lookup by id. Where that is true, key the bucket on host plus path prefix rather than host alone.
+
+## Sharing a limit across processes
+
+An in-memory bucket counts one process's requests. Run three instances of your server and you have tripled your actual rate against a limit the provider enforces per key.
+
+Redis handles this in a few lines, using a sorted set as a sliding window:
+
+```js
+import { Redis } from '@upstash/redis';
+const redis = Redis.fromEnv();
+
+async function take(key, limit, windowMs) {
+  const now = Date.now();
+  const cutoff = now - windowMs;
+
+  const pipe = redis.pipeline();
+  pipe.zremrangebyscore(key, 0, cutoff);       // drop expired entries
+  pipe.zadd(key, { score: now, member: `${now}-${Math.random()}` });
+  pipe.zcard(key);
+  pipe.pexpire(key, windowMs);
+
+  const [, , count] = await pipe.exec();
+  return count <= limit;
+}
+```
+
+A sliding window rather than a fixed one, because fixed windows allow a burst across the boundary: twenty requests at 11:59:59 and twenty more at 12:00:01 is forty in two seconds against a "twenty per minute" limit.
+
+<Callout type="warning" title="Serverless makes this worse, not better">
+Every cold start is a fresh process with an empty bucket. Under load a platform may run dozens of concurrent instances, each politely observing a limit that the provider is applying to all of them together. If you are on serverless and calling a rate-limited API, a shared store is not optional.
+</Callout>
+
+## Priority, when not all requests are equal
+
+Once requests queue, the order matters. A user waiting on a search should not sit behind fifty background prefetches.
+
+```js
+class PriorityQueue {
+  #high = [];
+  #low = [];
+
+  push(task, priority = 'low') {
+    (priority === 'high' ? this.#high : this.#low).push(task);
+  }
+
+  next() {
+    return this.#high.shift() ?? this.#low.shift();
+  }
+
+  get size() {
+    return this.#high.length + this.#low.length;
+  }
+}
+```
+
+Drain it behind the token bucket, and give anything user-initiated the high lane. The effect is that background work fills the gaps rather than competing for them.
+
+It is also worth dropping stale work rather than running it. A search request whose user navigated away three seconds ago should be abandoned, not executed:
+
+```js
+const controller = new AbortController();
+input.addEventListener('input', () => controller.abort());   // cancel the previous
+
+await limited(url, { signal: controller.signal });
+```
+
+## The cheapest fix is not sending the request
+
+Before tuning any of this, check whether the request is necessary. Caching removes requests entirely, and one bulk call usually replaces many small ones.
+
+```js
+// 100 requests
+for (const id of ids) await api(`/item/${id}`);
+
+// 1 request
+const all = await api('/items?limit=100');
+const wanted = all.filter((i) => ids.includes(i.id));
+```
+
+A limiter paces the requests you make. Caching and batching reduce how many you need to make, which is the larger win. See [caching API responses to stay inside a free tier](/blog/caching-api-responses-free-tier).
+
+## Where the limit actually applies
+
+Before tuning anything, it is worth establishing what the provider is counting, because a limiter aimed at the wrong dimension passes its own tests and still gets you a 429.
+
+Most limits are **per credential**, which is the easy case: your key, your budget, and a shared limiter across your instances enforces it correctly. Keyless APIs necessarily limit **per IP address** instead, which is harder, because the address is not yours alone. On a serverless platform requests leave from a pool shared with other tenants, and behind a corporate NAT the whole office shares one. Neither situation is visible from your side, and both produce limits that seem to arrive early and unpredictably.
+
+Some providers limit **per endpoint** rather than globally, with search or write operations budgeted separately from reads. A single global bucket set to the generous figure will trip on the strict endpoint while reporting plenty of headroom.
+
+And several apply **multiple windows at once** — a per-second burst limit alongside an hourly or daily total. Respecting the per-second figure says nothing about the daily one, and an application that runs smoothly all morning and fails at four in the afternoon has usually met the second kind.
+
+The way to establish which applies is to read the headers on a real response rather than the documentation, since the headers describe what is actually being enforced. Where an API returns several rate-limit headers with different names or scopes, that is the provider telling you plainly that more than one budget exists.
+
+## Testing that your limiter works
+
+A limiter is easy to write and easy to get subtly wrong, and the failure only appears under load, which is the worst time to discover it.
+
+The straightforward test is to fire a burst at it with a fake fetch, record the timestamps, and assert that no window exceeds the allowance. A token bucket rated at three per second should let an initial burst of three through immediately and then space the rest, and the assertion is that no one-second window contains a fourth.
+
+Fake timers make this fast, but be careful: code that reads the clock directly rather than through an injectable source will not respond to them, and a test that passes instantly without actually exercising the delays is proving nothing. Passing a time function into the bucket, defaulting to `Date.now`, is a small change that makes it testable properly.
+
+The case most worth testing explicitly is concurrency. Ten simultaneous callers should be paced as a group, not each independently, and an implementation that refills per-caller rather than per-bucket will pass a sequential test and fail completely in production. Firing a `Promise.all` of twenty at the limiter and checking the total elapsed time catches it immediately.
+
+Finally, test that a rejected request does not deadlock the queue. An exception thrown inside a limited call must still release its token, or the bucket drains permanently and every subsequent request waits forever — which is a much worse outage than the rate limit it was preventing.
+
+## The checklist
+
+- Know whether the limit is per second, per hour, or on concurrency
+- Token bucket for rate, semaphore for concurrency
+- Limiter wrapping the client, so calling code stays simple
+- Backoff with jitter as the safety net
+- `Retry-After` honoured whenever present
+- Limiter on the server, shared across instances
+- Caching and batching applied first

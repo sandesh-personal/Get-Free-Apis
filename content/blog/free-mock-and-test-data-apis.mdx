@@ -1,0 +1,234 @@
+---
+title: "Free mock and test-data APIs"
+description: "APIs that generate fake users, fake products and deliberately broken responses, so you can build against realistic data and test the failure paths you normally cannot reach."
+cluster: roundups
+imageQuery: "test tubes laboratory grid"
+author: sandy
+publishedAt: "2026-10-11"
+updatedAt: "2026-10-11"
+relatedApis:
+  - randomuser
+  - dummyjson
+  - flaky
+  - beeceptor-s-crud-apis
+  - dicebear-avatars
+  - addressmock
+relatedPosts:
+  - mocking-apis-during-development
+  - api-timeouts-and-retries
+  - best-free-apis-for-beginners
+sources:
+  - label: "MDN — Fetch API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+  - label: "RFC 9110 — HTTP status codes"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-status-codes"
+  - label: "httpbin — HTTP request and response service"
+    url: "https://httpbin.org/"
+faq:
+  - q: "What is the best free API for fake test data?"
+    a: "RandomUser for people, DummyJSON for products and carts with full CRUD, and AddressMock for postal addresses that actually match their city and region. All three need no key."
+  - q: "How do I test how my app handles a 500 error?"
+    a: "Use an API that lets you choose the status code. flaky accepts a requested status and returns it, so you can force a 500, a 429 or a timeout on demand instead of waiting for one to happen naturally."
+  - q: "What is the difference between a mock API and a test-data API?"
+    a: "A test-data API generates realistic fake content. A mock API stands in for a real service you have not built or cannot call yet, returning the shapes your code expects. DummyJSON and Beeceptor do both."
+  - q: "Should I use a hosted mock API or a local one?"
+    a: "Local for automated tests, because network calls make tests slow and flaky. Hosted for prototyping and for manually exercising failure paths, where the convenience outweighs the dependency."
+  - q: "Can I use these in automated CI tests?"
+    a: "You can, but you should not depend on them. A third-party outage becomes a red build unrelated to your code. Record the responses once and replay them locally instead."
+---
+
+There are two problems these APIs solve, and they are easy to confuse. One is "I need a hundred plausible users so my table does not look empty." The other is "I need this endpoint to return a 503 so I can see what my retry logic does."
+
+The second is the more valuable, and the less well served.
+
+<Answer>
+For realistic fake content, **[RandomUser](/apis/randomuser)** for people and **[DummyJSON](/apis/dummyjson)** for products and full CRUD. For testing failure, **[flaky](/apis/flaky)** is the one worth knowing: it returns whatever status code you ask for and can inject latency, which lets you reach error paths on demand rather than by waiting.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["randomuser", "dummyjson", "flaky", "beeceptor-s-crud-apis", "dicebear-avatars", "addressmock"]} />
+
+<Tested date="2026-09-18" result="All six responded without a key. AddressMock was fastest at 61 ms.">
+Checked from a clean client with no credential during our scheduled run.
+</Tested>
+
+## RandomUser — people who look real
+
+The output is deliberately plausible: names match nationalities, emails match names, and there are photographs.
+
+```bash
+curl -s "https://randomuser.me/api/?results=5&nat=gb&inc=name,email,location,picture"
+```
+
+```js
+const { results } = await fetch(
+  'https://randomuser.me/api/?results=20&nat=gb,us&inc=name,email,picture',
+).then((r) => r.json());
+
+const rows = results.map((p) => ({
+  name: `${p.name.first} ${p.name.last}`,
+  email: p.email,
+  avatar: p.picture.thumbnail,
+}));
+```
+
+Two parameters do most of the work. `inc` trims the response to the fields you want, which matters because the full record is large. And `seed` makes the output deterministic:
+
+```bash
+curl -s "https://randomuser.me/api/?seed=getfreeapis&results=3"
+```
+
+<Callout type="tip" title="Always seed test data">
+The same seed returns the same people every time. That turns a screenshot test or a visual diff from flaky to stable, and it means a bug report about "the third row" is reproducible.
+</Callout>
+
+## DummyJSON — products, carts and write methods
+
+Where RandomUser gives you people, DummyJSON gives you a small e-commerce domain, and it accepts POST, PUT, PATCH and DELETE.
+
+```bash
+curl -s "https://dummyjson.com/products?limit=5&select=title,price,stock"
+curl -s "https://dummyjson.com/products/search?q=laptop"
+```
+
+Pagination works the way most real APIs do, which makes it useful for practising:
+
+```js
+async function* allProducts(limit = 30) {
+  let skip = 0;
+  while (true) {
+    const page = await fetch(
+      `https://dummyjson.com/products?limit=${limit}&skip=${skip}`,
+    ).then((r) => r.json());
+
+    yield* page.products;
+    skip += limit;
+    if (skip >= page.total) return;
+  }
+}
+
+for await (const product of allProducts()) {
+  console.log(product.title);
+}
+```
+
+Writes are simulated — you get a response with a new id, but nothing persists. That is what makes it safe to hammer while learning. See [API pagination patterns](/blog/api-pagination-patterns) for the offset/cursor distinction this illustrates.
+
+## flaky — the one for testing failure
+
+Most test-data APIs only ever succeed, which is the opposite of what you need when testing error handling. flaky lets you demand a specific failure.
+
+```bash
+# Force a 500
+curl -i -s "https://flaky.eu/status/500"
+
+# Force a 429, so you can exercise backoff
+curl -i -s "https://flaky.eu/status/429"
+
+# Add two seconds of latency, to test a timeout
+curl -i -s "https://flaky.eu/delay/2"
+```
+
+This is how you actually verify retry logic rather than hoping it works:
+
+```js
+async function withRetry(url, attempts = 4) {
+  for (let i = 0; i < attempts; i++) {
+    const res = await fetch(url);
+    if (res.ok) return res;
+    if (res.status < 500 && res.status !== 429) throw new Error(`Gave up: ${res.status}`);
+
+    const wait = Math.min(2 ** i * 200, 5000) * (0.5 + Math.random());
+    await new Promise((r) => setTimeout(r, wait));
+  }
+  throw new Error('Out of attempts');
+}
+
+// Now testable on purpose
+await withRetry('https://flaky.eu/status/503');
+```
+
+Without something like this, the retry path in almost every codebase is untested, because nobody can make the dependency fail on command. Our post on [handling timeouts and retries](/blog/api-timeouts-and-retries) covers what that code should look like.
+
+<Callout type="warning" title="Do not put a third-party API in your CI pipeline">
+Calling a hosted mock from automated tests means an outage on their side turns into a failing build on yours, with no relation to your code. Use these interactively, then record the responses and replay them locally with something like MSW or nock.
+</Callout>
+
+## Beeceptor — stateful CRUD
+
+Unlike DummyJSON, Beeceptor's free CRUD endpoints actually remember what you wrote, which matters when you are testing a create-then-read flow.
+
+```bash
+curl -s -X POST "https://dummy.restapiexample.com/api/v1/create" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test","salary":"1000","age":"30"}'
+```
+
+State is shared and periodically reset, so treat it as a scratchpad rather than storage.
+
+## DiceBear and AddressMock — the small gaps
+
+**DiceBear** generates deterministic avatars from any string, which solves the placeholder-image problem without hotlinking photos of real people:
+
+```html
+<img src="https://api.dicebear.com/7.x/initials/svg?seed=Ada%20Lovelace" alt="" />
+```
+
+Because the seed determines the image, the same user always gets the same avatar, with no storage.
+
+**AddressMock** returns addresses where the street, city, region and postcode are internally consistent — which matters if anything downstream validates them. Generic fakers happily produce a London street with a Manchester postcode.
+
+```bash
+curl -s "https://addressmock.com/api/us/random?count=3"
+```
+
+## Fake data that is too polite
+
+The most common failure with generated test data is that it is uniformly reasonable, and real data never is. Every name is a sensible length, every email is well formed, every address exists, nothing is missing. The interface looks perfect throughout development and breaks the first week it meets real users.
+
+Real datasets contain the long tail that generators smooth away. Names that are a single character, or fifty. Names containing apostrophes, hyphens, spaces, accented characters, or scripts that read right to left. People with one legal name and no surname. Fields that are null where your type said string. Numbers arriving as strings. Empty arrays where you assumed at least one element. Text long enough to break a layout that was designed around fifteen characters.
+
+None of that is exotic, and all of it is absent from a default generator. So the useful practice is to keep a small hand-written fixture of deliberately awkward cases alongside the generated bulk, and render both. A dozen hostile records catch more layout and validation bugs than a thousand tidy ones, because the tidy ones all exercise the same path.
+
+The cases worth including are the ones that map to real failures: the longest plausible value for every text field, an empty string, a null, a value containing markup, a value containing an emoji, a right-to-left string, and a number at the boundary of whatever range you accept. If your UI survives those, it will survive most of what production sends it.
+
+There is a related trap in volumes. Generators default to returning ten items, and interfaces built against ten items collapse at ten thousand. Test with an empty list, one item, and a list long enough to need pagination or virtualisation, because those three cases have different layouts and different bugs.
+
+## Determinism is what makes tests trustworthy
+
+A test that calls a random-data API is a test that runs against different input every time, which means it can pass a hundred times and fail on the hundred and first for reasons unrelated to any change you made. That is the definition of a flaky test, and flaky tests get disabled rather than fixed.
+
+Seeding is the fix and it is cheap. RandomUser accepts a seed parameter and returns the same people for the same seed indefinitely; DiceBear derives its avatars deterministically from a string; most generator libraries expose a seed on their random source. Set it once, and the same test run today and next year produces identical input.
+
+That has two benefits beyond stability. Snapshot and visual-regression tests become meaningful, because a diff now indicates a real change rather than different fake names. And a bug report referring to "the third row" is reproducible by anyone, which turns a vague description into something you can debug.
+
+The one place to deliberately avoid seeding is exploratory testing, where the whole point is to encounter combinations you did not anticipate. Run those separately, log the seed that produced any interesting failure, and promote that seed into a fixed test.
+
+## Choosing between hosted and local
+
+Both have a place, and the decision is really about what happens when the thing you are not testing breaks.
+
+A **hosted** mock is unbeatable for exploration. Nothing to install, nothing to configure, and you can force a 500 from a browser address bar. For prototyping a frontend before the backend exists, or for showing a colleague a failure mode, the convenience wins outright.
+
+A **local** mock is what belongs in automated tests. It runs in milliseconds rather than hundreds, works offline, cannot be rate limited, and — most importantly — cannot fail for reasons that have nothing to do with your code. A third-party outage turning your build red is a genuinely bad trade for the small convenience of not writing a handler.
+
+The practical middle ground is to record from the hosted service and replay locally. Capture a real response once, commit it as a fixture, and serve it from an interceptor in tests. You keep the realism of data you did not invent while removing the network from the loop entirely. That workflow is covered in [mocking APIs during development](/blog/mocking-apis-during-development).
+
+One caveat on shared hosted mocks worth stating plainly: services like Beeceptor's free CRUD endpoints hold state that everyone using them can see and change. That is fine for a scratchpad and unsuitable for anything you would be embarrassed to have read, so never post real data to one while debugging.
+
+## Choosing
+
+**Filling a UI with plausible people.** RandomUser, with a seed.
+
+**Products, carts, or practising POST and DELETE.** DummyJSON.
+
+**Testing what happens on a 500, a 429 or a timeout.** flaky.
+
+**A create-then-read flow that needs to persist.** Beeceptor.
+
+**Avatars without storing images.** DiceBear.
+
+**Addresses that must validate.** AddressMock.
+
+For running a mock on your own machine instead of calling out — which is what you want in automated tests — see [mocking APIs during development](/blog/mocking-apis-during-development). [Browse the test data category](/categories/test-data) for all 48 entries we track.

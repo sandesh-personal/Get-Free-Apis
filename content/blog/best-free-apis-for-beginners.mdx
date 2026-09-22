@@ -1,0 +1,232 @@
+---
+title: "Best free APIs for beginners to learn with"
+description: "Eight APIs that need no key, return readable JSON and respond first try. Picked because they let you see a result in one command, not because they are famous."
+cluster: roundups
+imageQuery: "person learning at laptop"
+author: sandy
+publishedAt: "2026-10-07"
+updatedAt: "2026-10-07"
+relatedApis:
+  - zippopotam-us
+  - randomuser
+  - dummyjson
+  - open-meteo-ensemble
+  - jokeapi-2
+  - swapi
+relatedPosts:
+  - your-first-api-call-curl-fetch-python
+  - what-is-an-api-endpoint
+  - how-to-read-api-documentation
+sources:
+  - label: "MDN — Using the Fetch API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+  - label: "RFC 9110 — HTTP Semantics"
+    url: "https://www.rfc-editor.org/rfc/rfc9110"
+  - label: "JSON specification (ECMA-404)"
+    url: "https://www.ecma-international.org/publications-and-standards/standards/ecma-404/"
+faq:
+  - q: "What is the easiest API for a complete beginner?"
+    a: "Zippopotam.us. There is no key, no query string and no nesting to unpick: you put a country and a postcode in the path and get back a small flat object. You can predict the response before you send the request, which is the fastest way to understand what an API is."
+  - q: "Which free APIs work directly in browser JavaScript?"
+    a: "The ones that send CORS headers. From this list, Zippopotam.us, RandomUser, Open-Meteo, JokeAPI and SWAPI all do, so they work from a plain HTML page with no backend."
+  - q: "Do I need an API key to practise?"
+    a: "No. Every API in this list responds without a key, and our catalogue tracks 1,051 that need no credential of any kind. Keys add an authentication problem on top of the thing you are actually trying to learn."
+  - q: "What should I build first with a free API?"
+    a: "Something that displays one value. Fetch a temperature and put it on the page. Most beginners jump to a multi-screen app and get stuck on state management rather than on the API, which teaches them nothing about APIs."
+  - q: "Why do some of these APIs fail in the browser but work in curl?"
+    a: "Because curl ignores CORS and browsers enforce it. If a request works in your terminal and fails in the console with a CORS message, the API is fine and the browser is refusing to hand you the response."
+---
+
+Most "APIs for beginners" lists are really lists of famous APIs. Half of them need an OAuth flow before they return a single byte, which means your first hour is spent on authentication rather than on the thing you were trying to learn.
+
+These eight were picked on one criterion: how quickly a person who has never called an API can see a real response.
+
+<Answer>
+Start with **[Zippopotam.us](/apis/zippopotam-us)**. One URL, no key, no query string, and a response small enough to read in full. Then move to **[Open-Meteo](/apis/open-meteo-ensemble)** for query parameters and **[DummyJSON](/apis/dummyjson)** for POST, PUT and DELETE. That sequence covers the whole shape of REST in about an hour.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["zippopotam-us", "randomuser", "open-meteo-ensemble", "dummyjson", "jokeapi-2", "swapi"]} />
+
+<Tested date="2026-09-18" result="All six returned 200 with no credential attached.">
+Checked from a clean client with no key, no cookie and no <code>Authorization</code> header. Latency figures in the table come from the same scheduled run.
+</Tested>
+
+## 1. Zippopotam.us — your first request
+
+The whole API is one pattern: country code, then postcode, in the path.
+
+```bash
+curl -s "https://api.zippopotam.us/gb/SW1A"
+```
+
+```json
+{
+  "post code": "SW1A",
+  "country": "United Kingdom",
+  "country abbreviation": "GB",
+  "places": [
+    { "place name": "Westminster", "longitude": "-0.1382", "latitude": "51.5016" }
+  ]
+}
+```
+
+Why this first: you can read the URL and predict the response. There is no key to get wrong, no parameter to misspell, and the JSON is shallow enough to see whole. The one wrinkle — spaces in the key names — is a genuinely useful early lesson:
+
+```js
+const data = await fetch('https://api.zippopotam.us/gb/SW1A').then((r) => r.json());
+console.log(data.places[0]['place name']); // bracket notation, not dot
+```
+
+## 2. Open-Meteo — query parameters
+
+The natural next step, because now the request has options.
+
+```bash
+curl -s "https://api.open-meteo.com/v1/forecast\
+?latitude=51.5&longitude=-0.13&current=temperature_2m&timezone=auto"
+```
+
+```js
+const url = new URL('https://api.open-meteo.com/v1/forecast');
+url.search = new URLSearchParams({
+  latitude: '51.5',
+  longitude: '-0.13',
+  current: 'temperature_2m',
+  timezone: 'auto',
+});
+
+const { current } = await fetch(url).then((r) => r.json());
+document.body.textContent = `${current.temperature_2m}°C`;
+```
+
+Using `URL` and `URLSearchParams` rather than string concatenation is a habit worth forming now. It handles encoding for you, which becomes important the moment a parameter contains a space or an ampersand. See [query params vs path params](/blog/query-params-vs-path-params) for when to use which.
+
+## 3. RandomUser — arrays and nested objects
+
+Returns fabricated people, which makes it ideal for practising loops and rendering lists without needing a database.
+
+```bash
+curl -s "https://randomuser.me/api/?results=3&nat=gb"
+```
+
+```js
+const { results } = await fetch('https://randomuser.me/api/?results=5')
+  .then((r) => r.json());
+
+for (const person of results) {
+  console.log(`${person.name.first} ${person.name.last} — ${person.email}`);
+}
+```
+
+The nesting (`person.name.first` rather than `person.firstName`) is representative of real APIs and teaches you to read a response shape before writing code against it.
+
+## 4. DummyJSON — the other HTTP methods
+
+Everything above is GET. DummyJSON accepts POST, PUT, PATCH and DELETE, and fakes the write so you can practise safely.
+
+```bash
+curl -s -X POST "https://dummyjson.com/products/add" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"A test product","price":9.99}'
+```
+
+```js
+const created = await fetch('https://dummyjson.com/products/add', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ title: 'A test product', price: 9.99 }),
+}).then((r) => r.json());
+```
+
+<Callout type="note" title="The write is simulated">
+DummyJSON returns a created object with a new id, but nothing is stored. That is the point: you can run the same POST a hundred times while learning, with nothing to clean up afterwards.
+</Callout>
+
+Two things to notice here, because both are common beginner failures: the `Content-Type` header is required, and the body must be a JSON **string**, not an object. Pass the object directly and you will send `[object Object]`.
+
+## 5. JokeAPI — filtering and error shapes
+
+Useful because it has a rich query interface and a well-designed error response, so you can practise handling failure deliberately.
+
+```bash
+curl -s "https://v2.jokeapi.dev/joke/Programming?type=single&safe-mode"
+curl -s "https://v2.jokeapi.dev/joke/NotACategory"
+```
+
+The second returns a structured error rather than a crash:
+
+```json
+{ "error": true, "code": 106, "message": "No matching joke found" }
+```
+
+Getting into the habit of checking a flag like that, and checking `response.ok`, early will save you a great deal later. Our post on [why fetch does not throw on a 404](/blog/failed-to-fetch-javascript) explains the trap.
+
+## 6. SWAPI — following links between resources
+
+Star Wars data, where fields contain URLs to other records. That is a real pattern, and working through it teaches you sequential and parallel fetching.
+
+```js
+const person = await fetch('https://swapi.dev/api/people/1/').then((r) => r.json());
+const films = await Promise.all(
+  person.films.map((url) => fetch(url).then((r) => r.json())),
+);
+
+console.log(person.name, films.map((f) => f.title));
+```
+
+`Promise.all` over a list of URLs is the moment most people stop fetching things one at a time in a loop.
+
+## A suggested order
+
+1. **Zippopotam.us** — send a request, read a response.
+2. **Open-Meteo** — add parameters, see them change the result.
+3. **RandomUser** — loop over an array, render a list.
+4. **DummyJSON** — POST, and learn what a request body is.
+5. **JokeAPI** — handle an error on purpose.
+6. **SWAPI** — fetch several things at once.
+
+That is a complete tour of REST without ever touching an API key.
+
+<Callout type="tip" title="Run everything in the browser console first">
+Open any page, press F12, and paste the fetch examples straight in. No project setup, no build step, no npm install. All six of these send CORS headers, which is exactly why they were chosen.
+</Callout>
+
+## The three errors everyone hits first
+
+Almost every beginner runs into the same three failures in roughly the same order. Recognising them saves hours, because each one looks like a mystery and each has a one-line explanation.
+
+**`Unexpected token '<' in JSON`.** You called `.json()` on a response that was HTML. That happens because `fetch` does not throw on a 404 or a 500 — it resolves happily, your code carries on, and the parser then chokes on an error page. The URL is usually the real problem. Checking `response.ok` before touching the body turns a baffling parse error into a clear "404 from this URL", and it is the single most valuable habit to form early. [The full explanation is here](/blog/unexpected-token-html-instead-of-json).
+
+**"Blocked by CORS policy."** Your request succeeded and the browser refused to give you the response, because the API did not say your page was allowed to read it. Nothing is broken on your side and no amount of changing your code will fix it — the permission has to come from the API. Every API in this list sends the required header, which is why they work from a plain page. When you meet one that does not, the answer is a server in between, not a workaround. [More on CORS](/blog/fix-cors-error-public-api).
+
+**"Failed to fetch."** The most unhelpful message in JavaScript, because it covers several unrelated causes: no network, a wrong hostname, a blocked mixed-content request, or a CORS rejection. The Network tab distinguishes them in seconds — a request that never left looks different from one that completed and was withheld. [The seven real causes](/blog/failed-to-fetch-javascript).
+
+What these share is that the error message describes a symptom several layers away from the cause. That is not you missing something obvious; it is a genuine weakness in how browsers report these, and knowing the mapping is most of the skill.
+
+## Reading a response before you write code against it
+
+The habit that separates smooth integrations from frustrating ones, and it takes about thirty seconds.
+
+Before writing anything, send the request and look at what comes back. Not the documentation's example — the actual response, with your parameters. You are looking for four things: the field names as they really are, how deeply nested they are, what a missing value looks like, and whether numbers arrive as numbers or as strings.
+
+That last one catches people constantly. Plenty of APIs send `"price": "9.99"` as a string, deliberately, to avoid floating-point issues. Code that adds those together concatenates them instead, and `"9.99" + "5.00"` becomes `"9.995.00"` with no error at all.
+
+Nesting is the other thing worth checking first. `person.name.first` and `person.firstName` are both common, and guessing wrong gives you `undefined` rather than an error, which then propagates somewhere unrelated before anything visibly breaks.
+
+In the browser console, expanding the logged object shows all of this immediately. In a terminal, piping through `jq` does the same. Either way, thirty seconds spent looking at real output prevents the much longer confusion of debugging code written against an imagined shape.
+
+## What to build, and what to avoid building
+
+A suggestion, because choosing a first project badly is the most common reason people stall.
+
+Build something that displays **one value that changes**. A page showing the current temperature. A random joke with a button to get another. The population of whichever country you type. These are small enough to finish in an evening, and finishing matters far more than scope at this stage.
+
+The trap is jumping to a multi-screen application with accounts, saved favourites and routing. Those are real skills, and none of them teach you anything about APIs — you will spend the whole project on state management and never get past the first fetch. A finished trivial thing teaches more than an abandoned ambitious one.
+
+Once the single value works, the natural progression is roughly: render a list instead of one item, add a search box that changes the request, handle the case where the request fails, then add a second API and combine them. Each step is small, each introduces exactly one new idea, and by the end you have covered most of what an API client ever does.
+
+## Where to go next
+
+When you want a key-based API, the gentlest step up is one using a simple header key rather than OAuth. Our guide to [API authentication types](/blog/api-authentication-types-explained) covers the difference, and the [no key required collection](/collections/no-api-key) lists every keyless API we track if you would rather keep practising without one.

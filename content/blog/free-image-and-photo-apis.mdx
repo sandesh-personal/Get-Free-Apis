@@ -1,0 +1,224 @@
+---
+title: "Free image and photo APIs"
+description: "Placeholder images, stock photography and image processing without a key, and the licensing distinction that decides whether you may host the file yourself."
+cluster: roundups
+imageQuery: "photographer camera lens"
+author: sandy
+publishedAt: "2026-10-26"
+updatedAt: "2026-10-26"
+relatedApis:
+  - lorem-picsum
+  - dicebear-avatars
+  - kavel
+  - resmush-it
+  - screenshot-studio
+  - image-placeholder-generator
+relatedPosts:
+  - free-mock-and-test-data-apis
+  - caching-api-responses-free-tier
+  - free-qr-code-and-barcode-apis
+sources:
+  - label: "Unsplash API guidelines"
+    url: "https://help.unsplash.com/en/articles/2511245-unsplash-api-guidelines"
+  - label: "MDN — Responsive images"
+    url: "https://developer.mozilla.org/en-US/docs/Learn/HTML/Multimedia_and_embedding/Responsive_images"
+  - label: "web.dev — Cumulative Layout Shift"
+    url: "https://web.dev/articles/cls"
+faq:
+  - q: "What is the best free placeholder image API?"
+    a: "Lorem Picsum. It needs no key, returns real photographs rather than grey boxes, and supports a seed parameter so the same placeholder appears every time, which keeps visual tests stable."
+  - q: "Can I download and host Unsplash photos myself?"
+    a: "It depends how you obtained them. Downloading from the website under the Unsplash License permits self-hosting. Selecting them through the Unsplash API does not — the API guidelines require you to hotlink their CDN URLs and to credit the photographer."
+  - q: "How do I generate avatars without storing images?"
+    a: "DiceBear generates a deterministic SVG from any seed string, so the same username always produces the same avatar. Nothing is stored and there is no upload flow to build."
+  - q: "Do free image APIs hurt Core Web Vitals?"
+    a: "They can. A hotlinked image is a third-party connection with its own DNS and TLS cost, and any image without width and height causes layout shift. Always set explicit dimensions and preconnect to the image origin."
+  - q: "Is there a free API to remove image backgrounds?"
+    a: "Not really, at usable quality. Background removal is GPU work that costs the provider money, so free tiers are tiny. ReSmush.it does free optimisation, which is a different and cheaper operation."
+---
+
+"Image API" covers four unrelated jobs: filling a layout with placeholders, sourcing real photography, generating images, and processing them. The licensing rules differ sharply between them, and the rule people break most often is the one about self-hosting.
+
+<Answer>
+For placeholders, use **[Lorem Picsum](/apis/lorem-picsum)** with a seed. For avatars, **[DiceBear](/apis/dicebear-avatars)** generates deterministic SVGs with nothing to store. For real photography, Unsplash is the standard — but **how you obtain a photo decides whether you may host it**, which is the distinction this article exists to explain.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["lorem-picsum", "dicebear-avatars", "kavel", "resmush-it", "screenshot-studio", "image-placeholder-generator"]} />
+
+<Tested date="2026-09-18" result="All six responded without a key.">
+Checked from a clean client during our scheduled run.
+</Tested>
+
+## The licensing distinction that catches everyone
+
+This applies to Unsplash specifically, and it is the single most misunderstood point in this category. We ran into it building this site, which is why the article leads with it.
+
+There are **two different legal regimes**, and which one you are under depends on how you got the photo:
+
+```text
+Downloaded from unsplash.com        -> Unsplash License
+  self-hosting        allowed
+  attribution         appreciated, not required
+
+Selected via the Unsplash API       -> Unsplash API Guidelines
+  self-hosting        NOT allowed — must hotlink photo.urls
+  attribution         REQUIRED, with utm_source and utm_medium
+  download endpoint   must ping photo.links.download_location
+```
+
+So the same photograph, used the same way, has different obligations depending on whether a human downloaded it or an API key selected it. Using an API key to download and self-host — the obvious engineering choice — is the one combination that breaches the terms.
+
+<Callout type="warning" title="This applies to most stock photo APIs, not just Unsplash">
+Pexels and Pixabay have similar structures. If you obtained an image through an API, read that API's guidelines rather than the general site licence. They are different documents with different rules.
+</Callout>
+
+The hero photographs on this site come through the Unsplash API, so we hotlink them, credit each photographer with referral parameters, and fire the download endpoint. Our [image credits page](/image-credits) is the result.
+
+## Lorem Picsum — placeholders that look real
+
+Grey boxes make a design look better than it is. Real photographs at the right aspect ratio show you what the layout will actually feel like.
+
+```html
+<img src="https://picsum.photos/800/400" width="800" height="400" alt="" />
+<img src="https://picsum.photos/seed/article-1/800/400" width="800" height="400" alt="" />
+<img src="https://picsum.photos/800/400?grayscale&blur=2" width="800" height="400" alt="" />
+```
+
+The `seed` parameter is the important one. Without it every reload gives a different photo, which makes visual regression tests useless and screenshots inconsistent:
+
+```jsx
+{posts.map((post) => (
+  <img
+    key={post.id}
+    src={`https://picsum.photos/seed/${post.id}/600/300`}
+    width={600}
+    height={300}
+    alt=""
+    loading="lazy"
+  />
+))}
+```
+
+<Callout type="danger" title="Never ship placeholders to production">
+Lorem Picsum is a free service with no uptime guarantee, and a production page depending on it will one day show broken images. It is a development tool.
+</Callout>
+
+## DiceBear — avatars with nothing to store
+
+Deterministic SVG avatars generated from any string. The same seed always produces the same image, so you get stable per-user avatars with no upload flow, no storage and no moderation problem.
+
+```html
+<img src="https://api.dicebear.com/7.x/initials/svg?seed=Ada%20Lovelace" width="64" height="64" alt="" />
+```
+
+There are styles ranging from plain initials to illustrated characters:
+
+```js
+const avatar = (seed, style = 'initials') =>
+  `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}` +
+  `&backgroundColor=115e56&radius=50`;
+```
+
+For production, the library runs locally and removes the third-party dependency entirely:
+
+```js
+import { createAvatar } from '@dicebear/core';
+import { initials } from '@dicebear/collection';
+
+const svg = createAvatar(initials, { seed: user.name }).toString();
+```
+
+## Processing and generation
+
+**ReSmush.it** does free lossy optimisation by URL:
+
+```bash
+curl -s "http://api.resmush.it/ws.php?img=https://example.com/photo.jpg&qlty=85"
+```
+
+Useful for a one-off batch. For a real pipeline, `sharp` locally is faster and has no upload round trip.
+
+**Screenshot Studio** captures web pages as images, which is handy for link previews and OG cards — though `next/og` at build time is better if you are on Next.js, because it produces the card without a network call.
+
+**Kavel** generates images with AI and needs no key, with the queueing you would expect from a keyless generative endpoint.
+
+## Not wrecking your Core Web Vitals
+
+Every hotlinked image is a third-party connection, and images are the most common cause of layout shift. Three things fix most of it.
+
+**Always set width and height.** This is what reserves the space and prevents CLS:
+
+```html
+<img src="..." width="800" height="400" alt="" />
+```
+
+**Preconnect to the image origin** so DNS and TLS happen early:
+
+```html
+<link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+```
+
+**Lazy-load below the fold, eager-load the hero:**
+
+```html
+<img src="hero.jpg" fetchpriority="high" />
+<img src="thumb.jpg" loading="lazy" decoding="async" />
+```
+
+And where the provider's CDN supports resizing parameters, ask for the size you will actually display rather than shrinking a huge file in the browser:
+
+```js
+const src = `${photo.raw}&w=800&fit=crop&auto=format&q=72`;
+```
+
+`auto=format` is worth knowing: it serves WebP or AVIF to browsers that accept them, with no work from you.
+
+## Alt text is the part everyone skips
+
+An image API hands you a URL and, at best, a machine-generated caption. What it cannot give you is alt text, because alt text depends on why the image is on your page — and the same photograph needs completely different treatment in different contexts.
+
+The question to ask is what the image is doing. If it carries information the surrounding text does not, describe that information. If it is decorative — a hero photograph chosen because the page looked bare without one — the correct alt text is empty, `alt=""`, which tells a screen reader to skip it entirely. An empty alt is a deliberate, correct choice, and it is very different from a missing `alt` attribute, which makes assistive software fall back to reading the filename.
+
+The common failure is the opposite of omission: describing a decorative image at length. A screen-reader user working through an article does not benefit from "photograph of a laptop on a wooden desk beside a cup of coffee" before every section. That is noise dressed as accessibility.
+
+Where a description is warranted, describe the content rather than the fact of the image. "Chart showing sales doubling between March and June" is useful; "image of a chart" is not. And keyword-stuffing alt text is both useless to the people it is supposedly for and treated as a spam signal.
+
+Stock photo APIs return their own `alt_description` field, and it is tempting to pass it straight through. It is machine-generated, frequently generic, and written without any knowledge of your page. Use it as a starting point at most.
+
+## Layout shift is the real performance cost
+
+Images are the leading cause of poor Cumulative Layout Shift, and the mechanism is simple enough to design around once you have seen it.
+
+When the browser lays out a page, an `<img>` with no dimensions occupies no height. Text flows up into the space. Then the image arrives, claims several hundred pixels, and everything below jumps down — usually just as someone has begun reading or reached for a link. The measurement penalises this heavily, and the user experience is genuinely unpleasant.
+
+The fix is to give every image explicit `width` and `height` attributes. Those numbers do not need to match the rendered size; the browser uses their ratio to reserve the correct space before a single byte arrives, and CSS then scales the result. This is the single highest-value change available in this category, and it is two attributes.
+
+A second, subtler cost is the connection itself. Every hotlinked image involves a DNS lookup, a TCP connection and a TLS handshake to a host the browser has not spoken to yet, all before the first byte of the image. On a mobile connection that setup can exceed the download time. A `preconnect` hint in the document head starts that work early and routinely saves a few hundred milliseconds on the largest image on the page.
+
+Then there is loading priority, which most pages get backwards. The hero image should load eagerly and at high priority, because it is very often the element the Largest Contentful Paint measures. Everything below the fold should be lazy, because loading twenty thumbnails nobody has scrolled to competes for bandwidth with the one image that is being looked at. Marking everything lazy, including the hero, is a common and counterproductive mistake.
+
+## Serving the right bytes
+
+The last avoidable waste is sending a 4,000-pixel image to a phone showing it at 400.
+
+Where a provider's CDN supports resizing parameters — Unsplash's does, through imgix — request the size you will actually display. Combine that with a `srcset` listing a few widths and a `sizes` attribute describing the layout, and the browser picks appropriately for the device and the viewport. Without `sizes`, a `srcset` defaults to assuming the image spans the full viewport width, which usually causes it to pick something far larger than needed.
+
+Format matters nearly as much as dimensions. AVIF and WebP are substantially smaller than JPEG at equivalent quality, and providers that support an automatic format parameter will serve whichever the requesting browser accepts. That is a single query parameter for a large saving, with no work and no risk of breaking older clients.
+
+Quality is the last dial and the easiest to overspend on. The difference between quality 90 and quality 72 is hard to see on a photograph and often halves the file. For decorative imagery there is no argument for the higher setting.
+
+## Choosing
+
+**Filling a design during development.** Lorem Picsum with a seed.
+
+**User avatars.** DiceBear, locally in production.
+
+**Real photography on a public site.** Unsplash or Pexels — and follow the regime that matches how you obtained the file.
+
+**Optimisation in a build pipeline.** `sharp` locally, not an API.
+
+**Link preview cards.** `next/og` or an equivalent at build time.
+
+[Browse the photography category](/categories/photography) for all 44 entries we track.

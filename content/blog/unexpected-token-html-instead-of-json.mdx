@@ -2,7 +2,8 @@
 title: "When an API returns HTML instead of JSON"
 description: "\"Unexpected token < in JSON at position 0\" means you parsed an error page as data. Here is how to find what the server actually sent, and why it sent it."
 cluster: errors
-author: editorial
+imageQuery: "tangled cables mess"
+author: sandy
 publishedAt: "2026-09-25"
 updatedAt: "2026-09-25"
 relatedApis:
@@ -197,3 +198,35 @@ Every listing shows whether it currently responds and where it redirects to, so 
 | Empty string | 204 | No content, and `JSON.parse('')` throws |
 
 That last row is worth noting separately: a `204 No Content` has an empty body, and parsing an empty string throws a similar-looking error. Check for `response.status === 204` before parsing anything.
+
+## When it only happens in one environment
+
+A particularly confusing variant: the same code works on your machine and fails in production, or works in production and fails locally. The cause is almost always something between your code and the API that differs between the two, and there are four usual suspects.
+
+**A development proxy.** Vite, Create React App and Angular all support proxying `/api` to a backend during development. That proxy exists only when the dev server is running. Deploy the same build to static hosting and those paths now hit your own host, which returns the application shell for any unmatched route — an HTML document, with a 200 status. The request that worked all week starts returning your own homepage.
+
+**A single-page application fallback.** Related, and the reason a 200 is so common here. Static hosts are configured to serve `index.html` for anything they do not recognise, so the router can handle the path client-side. That rule catches `/api/whatever` too, so a mistyped or missing API route quietly returns your own page instead of a 404.
+
+**A corporate network.** Proxies that inspect traffic frequently return HTML error pages, and some rewrite responses entirely. If a colleague on a different network cannot reproduce your failure, this is high on the list.
+
+**Server versus browser.** Code that runs in both places — a Next.js component, a shared data layer — sends different requests depending on where it executes. A relative URL means nothing on the server, and a server-side request carries no cookies unless you forward them. Either can produce a redirect to a login page, which is HTML.
+
+The way to tell these apart quickly is to run the same request outside your application. If `curl` from your terminal returns JSON and your app returns HTML, the difference is something in your application's environment rather than the API. If `curl` also returns HTML, the API or the URL is the problem and you can stop looking at your own code.
+
+## The empty-body variant
+
+One near-relative that produces a similar message and has a different cause, so it is worth recognising separately.
+
+A `204 No Content` response has no body by design, and `JSON.parse('')` throws. So does a 200 with a zero-length body, which some APIs return for a successful delete or an accepted write. The error mentions unexpected end of input rather than an unexpected token, and the fix is to check the status and the content length before parsing rather than to change how you parse.
+
+The same applies to a `HEAD` request, which never has a body regardless of status. Calling `.json()` on one always fails, and the mistake usually comes from a helper that assumes every response can be parsed.
+
+## Why this error wastes so much time
+
+Worth saying explicitly, because the disproportion between how simple the cause usually is and how long it takes to find is the real story here.
+
+`response.json()` performs no checks. It takes whatever the body contains, hands it to a JSON parser, and the parser objects to the first character it cannot accept. For an HTML document that is the opening angle bracket, so the message describes position zero of a document that was never going to parse. It is accurate at the character level and silent about the thing that actually went wrong, which was the request.
+
+The wording varies by runtime, which makes searching for it unreliable. Chrome and Node name the unexpected token. Firefox reports unexpected characters at line 1 column 1. Safari phrases it differently again. All three mean the body was not JSON.
+
+Underneath it is `fetch`'s central design decision: any completed HTTP exchange is a success, including a 404 and a 500. The promise rejects only when no response arrived at all. So a failed request followed by `.json()` surfaces as a parse error rather than an HTTP error, and developers end up debugging their JSON handling when the URL was wrong all along. Checking `response.ok` before touching the body is the habit that prevents the entire category, and it is why every example in this article does it first.

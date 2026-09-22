@@ -1,0 +1,223 @@
+---
+title: "Free stock market and finance APIs"
+description: "Market data, macroeconomic series and financial utilities without a key, why free equity quotes are always delayed, and what exchange licensing actually forbids."
+cluster: roundups
+imageQuery: "stock exchange trading floor"
+author: sandy
+publishedAt: "2026-10-22"
+updatedAt: "2026-10-22"
+relatedApis:
+  - econdb
+  - portfolio-optimizer
+  - goldprice-dev
+  - binlist
+  - aikstockdata
+  - us-mortgage-calculator
+relatedPosts:
+  - free-cryptocurrency-apis
+  - free-currency-exchange-rate-apis
+  - when-a-free-tier-is-not-enough
+sources:
+  - label: "SEC EDGAR full-text search and APIs"
+    url: "https://www.sec.gov/search-filings/edgar-application-programming-interfaces"
+  - label: "FRED — Federal Reserve Economic Data"
+    url: "https://fred.stlouisfed.org/docs/api/fred/"
+  - label: "ISO 6166 — International Securities Identification Number"
+    url: "https://www.iso.org/standard/78502.html"
+faq:
+  - q: "Is there a free stock market API with no key?"
+    a: "For macroeconomic data and financial utilities, yes — Econdb, Portfolio Optimizer and Goldprice.dev all work keylessly. For real-time equity quotes, effectively no, because exchanges license that data and charge for it."
+  - q: "Why is free stock data always 15 minutes delayed?"
+    a: "Because exchanges sell real-time data as a product and license it per user. The 15-minute delay is the conventional point at which it becomes free to redistribute, and it is a licensing boundary rather than a technical one."
+  - q: "Can I use free market data in a commercial app?"
+    a: "Read the exchange licensing terms, not just the API's. Redistributing even delayed quotes to end users can require a market data agreement. Company fundamentals and macroeconomic series are far less restricted."
+  - q: "What is the best free source of company financials?"
+    a: "SEC EDGAR. It is free, keyless, authoritative and covers every US public filer. It requires a descriptive User-Agent header identifying you, which is enforced."
+  - q: "Are free stock APIs good enough for backtesting?"
+    a: "For daily bars on liquid stocks, usually yes. Be careful about survivorship bias — most free datasets exclude delisted companies, which makes historical strategies look far better than they were."
+---
+
+Finance is the category where the licensing terms matter more than the API design. Nobody gets sued for misusing a weather API. Redistributing exchange data without a market data agreement is a different situation.
+
+The good news is that the genuinely free parts — macroeconomic series, company filings, financial mathematics — are often more useful than the quotes people go looking for.
+
+<Answer>
+For macroeconomic data, use **[Econdb](/apis/econdb)** — keyless, CORS-enabled and global. For company fundamentals, SEC EDGAR is free, authoritative and needs no key. For **real-time equity quotes**, nothing free exists, and that is a licensing constraint rather than a gap in the market.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["econdb", "portfolio-optimizer", "goldprice-dev", "binlist", "aikstockdata", "us-mortgage-calculator"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. aikstockdata was fastest at 61 ms.
+</Tested>
+
+## The licensing boundary
+
+This is the part worth understanding before you choose anything.
+
+Exchanges own their order book data and license it. A vendor redistributing it pays, and often passes per-user reporting obligations down to you. The conventional compromise is the **15-minute delay**: after that window, data is generally free to redistribute.
+
+```text
+Real-time quotes         licensed, per-user fees, reporting obligations
+15-minute delayed        generally free to redistribute
+End-of-day closes        freely available
+Company fundamentals     public filings, free
+Macroeconomic series     public data, free
+```
+
+<Callout type="danger" title="Check the exchange terms, not just the API terms">
+An API can be free while the data it carries is not freely redistributable. If you are showing quotes to end users in a commercial product, that is the question your legal review will ask, and "the API was free" is not an answer.
+</Callout>
+
+## Econdb — macroeconomic data, keyless
+
+Global macro series — GDP, inflation, unemployment, trade — from national statistics offices, in one interface with no key.
+
+```bash
+curl -s "https://www.econdb.com/api/series/CPIUS/?format=json"
+curl -s "https://www.econdb.com/api/series/?search=unemployment&format=json"
+```
+
+```js
+const series = await fetch('https://www.econdb.com/api/series/RGDPUS/?format=json')
+  .then((r) => r.json());
+
+const points = series.data.dates.map((d, i) => ({
+  date: d,
+  value: series.data.values[i],
+}));
+```
+
+Note the parallel-arrays shape — dates in one array, values in another, matched by index. It is compact and it is easy to misalign if you filter one without the other. Zip them into objects immediately, as above, and the problem disappears.
+
+## SEC EDGAR — the best free fundamentals source
+
+Every filing by every US public company, free, keyless and authoritative. It is the primary source that commercial fundamentals APIs resell.
+
+```bash
+curl -s -H "User-Agent: MyApp me@example.com" \
+  "https://data.sec.gov/api/xbrl/companyconcept/CIK0000320193/us-gaap/Revenues.json"
+
+curl -s -H "User-Agent: MyApp me@example.com" \
+  "https://data.sec.gov/submissions/CIK0000320193.json"
+```
+
+<Callout type="warning" title="The User-Agent is mandatory and enforced">
+EDGAR requires a <code>User-Agent</code> identifying your application with contact details, and rate-limits to 10 requests per second. Without it you get blocked, not throttled. This is the single most common reason people conclude "the SEC API is broken".
+</Callout>
+
+The CIK must be zero-padded to ten digits, which is a small detail that causes a lot of 404s:
+
+```js
+const cik = String(rawCik).padStart(10, '0');
+const url = `https://data.sec.gov/submissions/CIK${cik}.json`;
+```
+
+## Portfolio Optimizer — maths, not data
+
+Unusual and genuinely useful: it performs portfolio calculations rather than serving prices. Mean-variance optimisation, risk parity, efficient frontiers — the arithmetic you would otherwise implement yourself and get subtly wrong.
+
+```bash
+curl -s -X POST "https://api.portfoliooptimizer.io/v1/portfolio/optimization/mean-variance" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "assets": 3,
+    "assetsReturns": [[0.01,0.02,-0.01],[0.03,0.01,0.02],[0.00,0.01,0.01]]
+  }'
+```
+
+Because it is computation over data you supply, there is no licensing question at all.
+
+## The specialists
+
+**Goldprice.dev** covers gold, silver and copper spot and futures with 30-year history, CORS-enabled and keyless — precious metals are not exchange-restricted the way equities are.
+
+**Binlist** identifies the issuing bank, card scheme and country from the first six to eight digits of a card number:
+
+```bash
+curl -s "https://lookup.binlist.net/45717360"
+```
+
+```json
+{
+  "scheme": "visa",
+  "type": "debit",
+  "bank": { "name": "Jyske Bank" },
+  "country": { "alpha2": "DK", "name": "Denmark" }
+}
+```
+
+Useful for showing the right card logo during checkout. Note that a BIN is not sensitive data, but the rest of a card number is — never send a full PAN to a third-party lookup.
+
+**aikstockdata** covers Korean markets with daily settled closes and DART filings. **US Mortgage Calculator** does amortisation and affordability with fifty-state property tax data.
+
+## Survivorship bias, if you are backtesting
+
+Worth a warning because it invalidates more amateur backtests than any coding error.
+
+Most free historical datasets contain **only companies that still exist**. Firms that went bankrupt or were delisted are simply absent. A strategy backtested on that data is being tested on a universe selected for having survived, which makes almost any strategy look profitable.
+
+```text
+"S&P 500 constituents"  as of today       <- biased
+"S&P 500 constituents"  as of each date   <- correct, and rarely free
+```
+
+If a free dataset does not explicitly say it includes delisted securities, assume it does not.
+
+## Corporate actions, and why historical prices lie
+
+The trap that invalidates more amateur analysis than any other, and it is invisible unless you know to look for it.
+
+When a company splits its shares, the price halves overnight with no loss of value. When it pays a dividend, the price drops by roughly the dividend on the ex-date. A raw price series records both as sharp falls, and any calculation over that series — a return, a moving average, a volatility figure — is wrong at every one of those points.
+
+The fix is **adjusted** prices, where historical values are restated to account for splits and dividends so the series is comparable across time. Most APIs offer both and are not always explicit about which field is which. Using the raw close where you meant the adjusted close produces results that look plausible and are quietly incorrect, which is the worst kind of error.
+
+The complication is that adjusted series are recalculated whenever a new corporate action occurs, so the "historical" value for a date in 2019 can legitimately change tomorrow. Anything you cache needs to know this. Anything you reconcile against needs to record which vintage it used.
+
+Ticker symbols compound the problem. They are reused after a delisting, reassigned after a merger and differ between exchanges for the same company. A symbol is a display label, not an identity. Where a provider exposes a stable identifier — a CIK for US filers, an ISIN internationally — store that instead, and treat the ticker the way you would treat a display name.
+
+## Survivorship bias, stated plainly
+
+This deserves its own treatment because it is the reason so many backtests look brilliant and perform badly.
+
+Most free historical datasets contain only companies that still exist. Firms that went bankrupt, were acquired or were delisted have simply been removed. So a strategy tested on "the S&P 500" is really being tested on the companies that survived to today, selected with perfect hindsight.
+
+The effect is not subtle. Excluding failures removes precisely the worst outcomes from the sample, which inflates returns and understates risk simultaneously. A strategy that would have lost money badly can test as consistently profitable.
+
+The honest requirement is a point-in-time dataset: one that knows which companies were in the index on each historical date, including those that later disappeared. Those exist, they are expensive, and their price is the clearest possible signal of how much the distinction matters.
+
+If you are working with free data, the right response is not to pretend the problem away but to state it. A backtest caveated as "survivorship-biased, so treat the returns as an upper bound" is honest analysis. The same backtest presented as an expected return is not.
+
+The same caution applies to any "top N" list computed from current membership. Ranking today's largest companies and projecting their past performance backwards measures the selection, not the strategy.
+
+## Time, timezones and the trading day
+
+The last category of quiet errors, and the most tedious to debug.
+
+Markets open and close at local times that shift with daylight saving, and the northern and southern hemispheres change on different dates. A hard-coded UTC offset for a market's open will be an hour wrong for several weeks a year. Storing the exchange's timezone identifier and converting properly is the only approach that survives.
+
+Trading days are not calendar days. Weekends have no data, and every exchange observes its own holidays. A loop over dates expecting a value each day will find gaps, and filling those gaps with zero rather than carrying the last value forward turns a flat weekend into a crash in any chart or calculation.
+
+Daily data is also frequently timestamped at midnight rather than at the close, which is fine until you join it against intraday data and everything is shifted by a session. And a "daily close" on one provider can mean the last trade, the official auction price, or a consolidated figure across venues — three different numbers, none of them labelled.
+
+None of this is difficult. All of it is silent when wrong, which is why it is worth handling deliberately at the point where data enters your system rather than discovering it in a result that looks almost right.
+
+## Choosing
+
+**Macroeconomic series.** Econdb.
+
+**US company fundamentals and filings.** SEC EDGAR, with a real User-Agent.
+
+**Portfolio mathematics.** Portfolio Optimizer.
+
+**Precious metals.** Goldprice.dev.
+
+**Card BIN lookup at checkout.** Binlist.
+
+**Delayed equity quotes for a hobby project.** Alpha Vantage or Finnhub, both with registered free tiers.
+
+**Real-time quotes in a commercial product.** A licensed market data vendor, and a conversation with a lawyer.
+
+For crypto, where the licensing picture is completely different, see [free cryptocurrency APIs](/blog/free-cryptocurrency-apis). [Browse the finance category](/categories/finance) for all 119 entries we track.

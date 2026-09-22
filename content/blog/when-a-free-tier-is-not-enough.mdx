@@ -1,0 +1,238 @@
+---
+title: "When a free tier stops being enough"
+description: "Spotting the ceiling before you hit it, the optimisations that buy another order of magnitude, and how to judge whether paying or self-hosting is cheaper."
+cluster: howto
+imageQuery: "growing plant outgrowing pot"
+author: sandy
+publishedAt: "2026-11-05"
+updatedAt: "2026-11-05"
+relatedApis:
+  - open-meteo-ensemble
+  - musicbrainz
+  - geonames
+  - hugging-face
+relatedPosts:
+  - caching-api-responses-free-tier
+  - client-side-rate-limiting
+  - surviving-breaking-api-changes
+sources:
+  - label: "RFC 6585 — 429 Too Many Requests"
+    url: "https://www.rfc-editor.org/rfc/rfc6585#section-4"
+  - label: "MDN — Cache-Control"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control"
+  - label: "OpenStreetMap Foundation — Nominatim usage policy"
+    url: "https://operations.osmfoundation.org/policies/nominatim/"
+faq:
+  - q: "How do I know when I am about to outgrow a free tier?"
+    a: "Track the X-RateLimit-Remaining header over time rather than waiting for a 429. If your daily peak consumption is above about 70% of the allowance, you are one traffic spike from failing."
+  - q: "What should I optimise before paying for an API?"
+    a: "Caching first, then batching, then removing unnecessary calls. Most projects that outgrow a free tier were making several times more requests than they needed, so these usually buy an order of magnitude."
+  - q: "Is self-hosting cheaper than paying for an API?"
+    a: "Sometimes, but include your own time. A self-hosted Nominatim removes a geocoding bill and adds a server to operate, update and monitor. Below roughly a few hundred pounds a month, paying is usually cheaper overall."
+  - q: "What happens when you exceed a free tier?"
+    a: "It varies dangerously. Some APIs return 429 and stop, which is safe. Others bill you automatically, which is not. Find out which before you scale, and set a hard spend limit where one is offered."
+  - q: "Can I use multiple free tiers to avoid paying?"
+    a: "Using several different providers with fallback is legitimate and sensible for resilience. Creating multiple accounts with one provider to multiply an allowance breaches their terms and gets everything banned at once."
+---
+
+The uncomfortable moment is not the bill. It is the 429 at 11pm on the day something of yours got popular, when your integration stops working for everyone at once.
+
+Free tiers are generous. Most projects that outgrow one were wasting the majority of their allowance, so the first question is not "which plan do I buy" but "why am I making this many requests".
+
+<Answer>
+Before paying, do three things in order: **cache** by how fast the data actually changes, **batch** so one call replaces many, and **delete calls you do not need**. Together these routinely cut usage by 90%. If you are still over after that, compare the paid plan against self-hosting *including your own time*, which usually favours paying.
+</Answer>
+
+## See the ceiling before you hit it
+
+Do not wait for a 429. The headers tell you where you are on every response.
+
+```js
+export async function apiFetch(url, init) {
+  const res = await fetch(url, init);
+
+  const remaining = Number(res.headers.get('x-ratelimit-remaining') ?? NaN);
+  const limit = Number(res.headers.get('x-ratelimit-limit') ?? NaN);
+
+  if (Number.isFinite(remaining) && Number.isFinite(limit)) {
+    const used = 1 - remaining / limit;
+    if (used > 0.8) {
+      alertOps(`API quota ${Math.round(used * 100)}% consumed`, { url, remaining, limit });
+    }
+  }
+
+  return res;
+}
+```
+
+The threshold that matters is your **daily peak**, not your average. A service averaging 40% of its quota but peaking at 85% on Monday mornings is one unusual week from failing.
+
+<Callout type="danger" title="Find out what happens at the limit before you get there">
+Some APIs return 429 and stop, which is safe. Others keep serving and bill you, which is not. If a payment method is attached, set a hard spend cap the same day — several providers default to no cap at all.
+</Callout>
+
+## Optimise in this order
+
+### 1. Cache by how fast the data actually changes
+
+The biggest single win, and the most commonly skipped. A daily exchange rate fix cached for an hour is still 23 wasted refreshes a day.
+
+```text
+No cache                    10,000 requests/day
+Per-user browser cache       ~3,000 requests/day
+Shared server cache, 1 hour      24 requests/day
+```
+
+The jump is from per-user to shared. One server cache serves every visitor. Full detail in [caching API responses to stay inside a free tier](/blog/caching-api-responses-free-tier).
+
+### 2. Batch
+
+Most APIs that serve a list are cheaper to call once and filter than to call per item.
+
+```js
+// 100 requests
+for (const id of ids) await api(`/items/${id}`);
+
+// 1 request
+const all = await api('/items?limit=100');
+const wanted = all.filter((i) => ids.includes(i.id));
+```
+
+Bulk endpoints are frequently undocumented in the quickstart and present in the reference. It is worth looking — see [how to read API documentation](/blog/how-to-read-api-documentation).
+
+### 3. Delete calls you do not need
+
+The ones worth hunting:
+
+- **Calls on render** that should be on an interval. Ten users watching a dashboard should not be ten times the traffic.
+- **Polling a background tab.** Stop on `visibilitychange`.
+- **Fetching static data at runtime.** Country lists and currency codes belong in the build.
+- **Duplicate calls in one request** from several components asking for the same thing. Deduplicate by caching the in-flight promise.
+
+```js
+const inFlight = new Map();
+
+function dedupe(key, fn) {
+  if (inFlight.has(key)) return inFlight.get(key);
+  const p = fn().finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+```
+
+## Then decide: pay, switch, or self-host
+
+Only after the above, because otherwise you are buying capacity to waste.
+
+**Pay.** Usually correct. Work out the real cost at your projected volume and compare it with an hour of your time — most free-tier overruns resolve for less than the cost of an afternoon's engineering.
+
+**Switch to a more generous provider.** Reasonable if you are behind an adapter already (see [surviving breaking API changes](/blog/surviving-breaking-api-changes)). Check the alternative's limits and licence before committing.
+
+**Self-host.** Genuinely cheaper at high volume for some categories — geocoding especially. Nominatim, the OpenStreetMap geocoder, is open source, and self-hosting removes both the per-request cost and the one-request-per-second cap on the public instance.
+
+Be honest about the total cost:
+
+```text
+Self-hosted Nominatim
+  Server (8 GB, SSD)          ~£40/month
+  Initial planet import        6-12 hours
+  Weekly update process        ongoing
+  Monitoring and upgrades      yours now
+  Your time                    the real cost
+```
+
+Against a paid geocoding plan at £50 a month, self-hosting is not obviously cheaper unless volume is high or you already run infrastructure.
+
+<Callout type="warning" title="Do not multiply free accounts">
+Registering several accounts with one provider to multiply an allowance breaches every terms of service that mentions it, and providers detect it. The downside is not a warning — it is every account banned at once, in production. Using several <em>different</em> providers with fallback is entirely legitimate and is the pattern you want.
+</Callout>
+
+## Degrade rather than break
+
+Whatever you choose, decide now what happens when the quota runs out. The default — an error page — is almost never the best answer.
+
+```js
+export async function getRates() {
+  try {
+    return await fetchRates();
+  } catch (err) {
+    if (err.status === 429 && cache.value) {
+      return { ...cache.value, stale: true };   // old data beats no data
+    }
+    throw err;
+  }
+}
+```
+
+```jsx
+{data.stale && (
+  <p className="notice">
+    Showing data from {new Date(data.at).toLocaleString('en-GB')} — live updates
+    are temporarily unavailable.
+  </p>
+)}
+```
+
+A visibly stale figure is a minor annoyance. A broken page is an outage. The exception is anything where acting on old data causes harm — live scores during a match, prices at checkout — where failing visibly is the correct choice.
+
+## A worked example
+
+A weather widget on a site growing from 1,000 to 50,000 daily page views, against a 1,000-request-per-day free tier:
+
+```text
+Start                          1,000 req/day   at the limit already
++ shared 1-hour server cache      24 req/day   2% of quota
++ stop polling hidden tabs        24 req/day   no change, but no waste
++ batch the 5 cities into one     24 req/day   was going to be 120
+
+At 50,000 page views/day          24 req/day   unchanged
+```
+
+That is the shape of it. Once the cache is shared and correctly scoped, traffic growth stops translating into API growth at all, and the free tier outlasts a fiftyfold increase in visitors.
+
+## Reading the pricing page properly
+
+Once paying is on the table, the comparison is harder than the headline number suggests, and a few patterns recur across providers.
+
+**The unit is rarely one request.** Pricing may be per thousand calls, per record returned, per megabyte, per seat or per monthly active user. Two providers quoting similar numbers against different units can differ by an order of magnitude at your volume. Work out the cost of *your* usage pattern rather than comparing the figures on the page.
+
+**Find out what happens at the limit.** Some plans hard-stop, which is safe and inconvenient. Some throttle, which is usually ideal. Some bill overage automatically, which is where surprise invoices come from. This is often not on the pricing page at all and has to be found in the terms or asked about directly — and it is the single most important thing to know before attaching a card.
+
+**Check the annual commitment.** Monthly pricing with a large annual discount is common, and the discount usually assumes you are certain about next year. For a first paid tier, monthly is worth the premium.
+
+**Look for the feature cliff.** The thing you actually need — commercial use, a higher rate limit, historical data, an SLA — is often gated several tiers above where the volume alone would put you. It is worth confirming that the plan you priced actually includes the capability you are paying for.
+
+**Ask about the cheaper option that is not advertised.** Startup programmes, open-source discounts, academic pricing and annual-prepay deals frequently exist without appearing on the page. An email asking is free and works more often than people expect.
+
+## Multiple providers, and when that is worth it
+
+Spreading across several free tiers is legitimate and has a real benefit beyond cost, but it is not free of complexity.
+
+The genuine argument for it is resilience. Two providers behind one adapter, with automatic fallback, means an outage at either is invisible. That is worth having regardless of quota, and for anything in a critical path it is the stronger reason.
+
+The quota benefit is real too. Two free tiers of a thousand calls each is two thousand calls, legitimately, provided you are using two different companies rather than two accounts at one. The line is clear: several providers is architecture, several accounts at one provider is a terms violation that ends with everything banned simultaneously.
+
+What it costs is normalisation. Two providers return different field names, different date formats, different error shapes and different notions of what a missing value looks like. Absorbing that at the adapter boundary — mapping each to a single internal type — is the work, and it is worth doing properly rather than scattering conditionals through the application.
+
+There is also a correctness question people skip. If two providers disagree, which is right? For weather or exchange rates, a small disagreement is expected and either answer is defensible. For anything where consistency matters, silently alternating between sources produces values that change for no visible reason. Pick a primary, use the secondary only on failure, and record which answered.
+
+## The option that is not on the pricing page
+
+Worth stating because it is frequently the cheapest answer and rarely the first considered: stop calling the API.
+
+A surprising share of API usage is fetching data that does not change. Country lists, currency codes, classification tables, historical records, reference data of every kind. Those belong in your build, not in a request. One import, committed as JSON, and the quota question disappears permanently for that portion of traffic.
+
+The same logic extends further than people expect. Several providers in this catalogue publish their entire dataset for download — MusicBrainz, Open Food Facts, OpenStreetMap, most government statistics offices. Where that exists, high-volume use is *supposed* to be a bulk import rather than an API call per request, and continuing to hammer a hosted endpoint is both slower for you and unfair to them.
+
+The trade is that you now own a refresh process and some storage. For a dataset that updates monthly, that is a scheduled job and a few hundred megabytes, against removing a rate limit, a network dependency and a bill all at once. For anything at real volume it is usually the right call, and it is the answer this whole article is working towards: the cheapest request is the one you never make.
+
+## The checklist
+
+- Quota headroom monitored on peaks, not averages
+- Behaviour at the limit known, spend cap set if billing is possible
+- Shared server-side cache, duration matched to the data
+- Bulk endpoints used where they exist
+- Polling stopped on hidden tabs; static data moved to build time
+- In-flight requests deduplicated
+- Stale-on-failure path implemented and visible to users
+- Provider behind an adapter, with an alternative identified

@@ -2,7 +2,8 @@
 title: "\"Failed to fetch\" in JavaScript: the seven real causes"
 description: "TypeError: Failed to fetch tells you almost nothing, because the browser deliberately withholds the detail. Here is how to work out which of the seven causes you actually have."
 cluster: errors
-author: editorial
+imageQuery: "unplugged network cable"
+author: sandy
 publishedAt: "2026-09-22"
 updatedAt: "2026-09-22"
 relatedApis:
@@ -191,6 +192,34 @@ export async function safeFetch(url: string, init?: RequestInit) {
 ```
 
 Distinguishing a `TypeError` from everything else matters: `fetch` throws `TypeError` specifically for network errors, so that check reliably separates "could not reach the server" from "the server said no".
+
+## Reading the Network tab to narrow it down
+
+The console message is the same for every cause, and the Network tab distinguishes them in about ten seconds. It is worth knowing exactly what to look at.
+
+**No entry at all** means the request was never made. A malformed URL, a blocked extension, or a service worker intercepting and failing. Check what you actually passed to `fetch` — a template literal with an undefined variable produces a URL containing the word "undefined" and fails in a way that looks like a network problem.
+
+**An entry marked as failed with no status** means the request left and nothing came back. DNS failure, connection refused, TLS rejection, or the device being offline. The hostname is the first thing to verify.
+
+**An entry marked blocked** names the mechanism, and the reason is usually mixed content or a content security policy. Both are your page's configuration rather than the API.
+
+**A completed entry with a status, alongside a CORS message in the console**, is the case that confuses people most. The request succeeded. The server answered. The browser is refusing to hand the response to your JavaScript because the headers did not permit your origin. Nothing is broken on the network and no change to your fetch call will fix it.
+
+**A completed entry with a 4xx or 5xx and no console error** is not "failed to fetch" at all — it is a successful exchange reporting a problem, and your code carried on because `fetch` does not throw on those.
+
+That last distinction is the one worth internalising, because it separates "the request failed" from "the request worked and I did not check the result", and those need completely different fixes.
+
+## Making the error tell you something
+
+Since the browser's message is unhelpful, the practical response is to replace it with one that carries the context you will need.
+
+Wrap the call so that a rejection is re-thrown with the URL, the method and what stage it reached. "Failed to fetch" tells you nothing at three in the morning; "GET https://api.example.com/v1/data failed before receiving a response" tells you where to look. The cost is a few lines in one place.
+
+Distinguish the offline case explicitly. `navigator.onLine` is imperfect — it reports whether there is a network connection, not whether the internet is reachable — but combined with a `TypeError` it is a good enough signal to show "you appear to be offline" instead of a generic failure. That single branch removes a large share of confused support messages.
+
+Add a timeout, because `fetch` has none by default and a request to an unresponsive host can hang until the browser gives up minutes later. `AbortSignal.timeout()` turns that into a prompt, catchable error, and an `AbortError` is distinguishable from a network failure so you can report it accurately.
+
+And log the failures you cannot show. A rejection that the user never sees because you handled it gracefully is still worth recording, since a rise in them is how you find out an upstream has started failing before anyone reports it.
 
 ## Avoiding it in the first place
 

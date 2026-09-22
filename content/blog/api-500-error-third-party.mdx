@@ -2,7 +2,8 @@
 title: "Reading a 500 from someone else's API: what you can and cannot do"
 description: "A 5xx is the provider's bug, not yours. Here is how to confirm that, what to do while it lasts, and how to keep your own product usable when a dependency fails."
 cluster: errors
-author: editorial
+imageQuery: "server room racks"
+author: sandy
 publishedAt: "2026-09-27"
 updatedAt: "2026-09-27"
 relatedApis:
@@ -11,7 +12,7 @@ relatedApis:
   - us-weather
 relatedPosts:
   - api-timeouts-and-retries
-  - check-if-api-is-alive
+  - check-if-an-api-is-alive
 sources:
   - label: "RFC 9110 — Server error 5xx"
     url: "https://www.rfc-editor.org/rfc/rfc9110#name-server-error-5xx"
@@ -170,6 +171,32 @@ Roughly 18% of publicly listed free APIs are not working at any given time. That
 </Tested>
 
 Two practical conclusions follow. First, monitor your own dependencies rather than waiting for user reports, because a provider's status page often lags the actual outage. Second, prefer APIs with a track record: every listing in our catalogue shows current status and measured reliability, and [the status page](/status) lists what is failing right now.
+
+## Telling a real outage from your own bad request
+
+Before assuming the provider is broken, it is worth spending two minutes establishing which side the problem is on, because a 500 does not guarantee it is theirs.
+
+The most informative test is whether it reproduces. A genuine infrastructure failure is usually intermittent and affects every request equally, so a 500 that appears for all inputs and then clears is almost certainly theirs. A 500 that occurs reliably for one specific input and never for others points at their unhandled exception triggered by your payload — which is still their bug, and one you can work around by changing what you send.
+
+Narrowing the input is the next step. Strip the request to the minimum that should be valid and add fields back one at a time. When the failure appears, you have found the field their validation does not handle, and that is the detail that makes a bug report actionable rather than a complaint.
+
+Check a different endpoint on the same host. If a simple read works while your specific call fails, the service is up and your request is the variable. If everything fails, it is theirs.
+
+Then look outward. A provider status page, their incident feed, or a quick search for other people reporting the same thing in the same hour usually settles it. The absence of an acknowledgement means little in the first few minutes, since status pages are updated by humans who are busy at exactly that moment.
+
+Finally, check whether it is regional. A request from a different network or region succeeding while yours fails points at their edge or CDN rather than the application, which changes both the expected duration and who at their end can fix it.
+
+## Writing a report that gets a reply
+
+If it is their problem, the quality of what you send largely determines how quickly it is addressed.
+
+Include the exact request, with any credential redacted. A curl command is ideal, because it removes all ambiguity about what was sent and lets someone reproduce it in one paste. Reconstructing it in prose invites a round trip asking what you actually sent.
+
+Include the full response, not just the status. Headers frequently carry a request identifier that maps directly to a trace in their logs, and quoting it can turn an investigation into a lookup.
+
+Include timestamps with the timezone, and the frequency. "Every request since 14:20 UTC" and "roughly one in twenty since Tuesday" describe very different problems and lead to different places in their monitoring.
+
+State what you have already ruled out. Saying that the same request succeeded an hour earlier, or that a simpler variant works, saves them repeating your work and signals that the report is worth reading carefully.
 
 ## When it never recovers
 

@@ -2,7 +2,8 @@
 title: "Why your API key suddenly stopped working"
 description: "The key you have not touched in weeks started returning 401. Here are the causes, ordered by how often they turn out to be the real one, and how to confirm each in under a minute."
 cluster: errors
-author: editorial
+imageQuery: "broken padlock key"
+author: sandy
 publishedAt: "2026-09-21"
 updatedAt: "2026-09-21"
 relatedApis:
@@ -11,7 +12,7 @@ relatedApis:
   - dummyjson
 relatedPosts:
   - 401-vs-403-api-authentication
-  - hide-api-key-frontend
+  - hide-api-keys-frontend
 sources:
   - label: "MDN — Authorization header"
     url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Authorization"
@@ -170,6 +171,16 @@ That last figure is the useful one for front-end work: those 274 can be called d
 </Tested>
 
 Browse them in the [no-key collection](/collections/no-api-key), or the narrower [browser-ready collection](/collections/browser-ready) if you need CORS too.
+
+## The one that is nobody's fault
+
+Worth adding because it accounts for a steady trickle of these and looks nothing like the others: the provider rotated their own infrastructure.
+
+A certificate renewal, a change of authentication host, or a migration between identity systems can invalidate tokens that were issued under the old arrangement. Your key is correct, your code is correct, and it stops working anyway. The signature is that it fails for everyone at once and starts working again without anyone changing anything.
+
+The tell is timing. If the failure began at a round time, affects every environment simultaneously, and your last deploy was days earlier, stop looking at your own code. Check the provider's status feed and changelog before spending an afternoon bisecting.
+
+The same reasoning applies to a key that works from one machine and not another. That is almost never the key and almost always the environment around it — a different variable file, a stale value cached in a build, or an allowlist that includes one address and not the other.
 
 ## The order to work through
 

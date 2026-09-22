@@ -1,0 +1,235 @@
+---
+title: "Free QR code and barcode APIs"
+description: "Generating QR codes and barcodes without a key, why you should generate locally rather than hotlink, and the error-correction setting that decides whether a code scans."
+cluster: roundups
+imageQuery: "qr code scanning phone"
+author: sandy
+publishedAt: "2026-10-25"
+updatedAt: "2026-10-25"
+relatedApis:
+  - qrcode-monkey
+  - orca-scan
+  - qr-code
+  - image-charts-2
+  - qr-code-crafter
+  - qr-code-2
+relatedPosts:
+  - free-recipe-and-nutrition-apis
+  - caching-api-responses-free-tier
+  - hide-api-keys-frontend
+sources:
+  - label: "ISO/IEC 18004 — QR Code bar code symbology"
+    url: "https://www.iso.org/standard/62021.html"
+  - label: "GS1 — barcode standards"
+    url: "https://www.gs1.org/standards/barcodes"
+  - label: "MDN — BarcodeDetector API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/BarcodeDetector"
+faq:
+  - q: "Is there a free QR code API with no key?"
+    a: "Yes. QRCode Monkey, QR code and Orca Scan all generate codes without a key. For most projects, though, generating locally with a library is better than calling any API."
+  - q: "Should I use an API or a library to generate QR codes?"
+    a: "A library, almost always. QR generation is pure computation with no data lookup, so a local library is faster, works offline, has no rate limit and does not put your data in someone else's logs."
+  - q: "What error correction level should a QR code use?"
+    a: "Medium is the sensible default. Use High only if you are placing a logo over the centre or printing on something that will get damaged, because higher correction means a denser code that needs to be printed larger."
+  - q: "Can I read barcodes in the browser without a library?"
+    a: "In Chrome and Edge, yes, via the built-in BarcodeDetector API. Safari and Firefox do not support it, so you need a fallback such as ZXing or jsQR for those."
+  - q: "Is it safe to send data to a QR generation API?"
+    a: "Treat the content as logged by the provider. Never send authentication tokens, payment links or personal data to a third-party generator. Generate those locally."
+---
+
+This is the one category in this series where the honest recommendation is usually **do not use an API at all**.
+
+QR generation is pure computation. There is no database to query and no data you do not already have. A local library does it faster, offline, with no rate limit, and without copying your payload into someone else's access logs.
+
+APIs still earn their place in three situations, and this article covers both sides.
+
+<Answer>
+For most projects, generate locally with a library — `qrcode` in Node, `qrcode.react` in React, `python-qrcode` in Python. Use an API only when you need a **URL rather than a file** (emails, no-code tools), **heavy styling** you do not want to implement, or **retail barcode symbologies** like EAN-13, where **[Orca Scan](/apis/orca-scan)** is the keyless option.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["qrcode-monkey", "orca-scan", "qr-code", "image-charts-2", "qr-code-crafter", "qr-code-2"]} />
+
+<Tested date="2026-09-18" result="All six generated codes with no key attached.">
+Checked from a clean client during our scheduled run. Orca Scan and Image-Charts also send CORS headers.
+</Tested>
+
+## Why local generation usually wins
+
+```js
+// Node — no network, no limit, no third party
+import QRCode from 'qrcode';
+
+const dataUrl = await QRCode.toDataURL('https://getfreeapis.com', {
+  errorCorrectionLevel: 'M',
+  margin: 2,
+  width: 512,
+});
+```
+
+```jsx
+// React — renders as SVG, scales perfectly, zero requests
+import { QRCodeSVG } from 'qrcode.react';
+
+<QRCodeSVG value={url} size={256} level="M" />;
+```
+
+Compare the properties:
+
+```text
+                  Local library      Hotlinked API
+Offline           works              fails
+Rate limit        none               yes
+Latency           ~1 ms              200-1500 ms
+Payload privacy   stays local        in their logs
+Dependency        a package          a running service
+```
+
+<Callout type="danger" title="Never send sensitive payloads to a generation API">
+A QR code containing a password reset link, a payment request or a session token is sensitive data, and sending it to a third-party generator puts it in their request logs. Generate those locally, always.
+</Callout>
+
+## When an API is the right call
+
+**You need a URL, not a file.** In an HTML email, a no-code tool or a CMS field, you cannot run code. An image URL is the only thing that works:
+
+```html
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https%3A%2F%2Fexample.com"
+     width="200" height="200" alt="QR code linking to example.com" />
+```
+
+**You want heavy styling.** Gradient fills, logo embedding, custom eye shapes. QRCode Monkey does this well and implementing it yourself is a real project:
+
+```bash
+curl -s -X POST "https://api.qrcode-monkey.com/qr/custom" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": "https://getfreeapis.com",
+    "config": { "body": "circle", "eye": "frame13", "bodyColor": "#115e56" },
+    "size": 600, "download": false, "file": "svg"
+  }' -o code.svg
+```
+
+**You need retail barcodes.** EAN-13, Code 128, Data Matrix and ITF have symbology rules and check digits that are genuinely fiddly. Orca Scan handles them keylessly and with CORS:
+
+```bash
+curl -s "https://barcode.orcascan.com/?type=code128&data=ABC123456" -o barcode.svg
+curl -s "https://barcode.orcascan.com/?type=ean13&data=5901234123457" -o ean.svg
+```
+
+<Callout type="warning" title="EAN-13 has a check digit you cannot invent">
+The thirteenth digit is computed from the first twelve. Get it wrong and the code scans as an unrelated product or not at all. Let the generator compute it, and if you are assigning your own product codes, you need a real GS1 prefix rather than a made-up number.
+</Callout>
+
+## Error correction, and why codes fail to scan
+
+QR codes carry redundancy so they still read when damaged. The level is a trade-off, and picking wrongly is the usual reason a code does not scan.
+
+```text
+L   ~7%  recovery   smallest code    clean screens only
+M  ~15%  recovery   sensible default most uses
+Q  ~25%  recovery   denser           small logo overlay
+H  ~30%  recovery   densest          printing, large logo
+```
+
+Higher correction means **more modules in the same physical space**, so each module is smaller. On a business card, an H-level code can be harder to scan than an M-level one, because the camera cannot resolve the individual squares.
+
+Two more rules that matter more than the level:
+
+**Keep the quiet zone.** QR codes need a clear margin of four modules. Designers crop it constantly, and cropped codes fail.
+
+**Keep the URL short.** Data length drives density. A 40-character URL produces a sparse, forgiving code; a 300-character URL with tracking parameters produces a dense one that needs good light and a steady hand.
+
+```js
+// Shorten before encoding, not after
+const short = await shorten(longTrackingUrl);
+const qr = await QRCode.toDataURL(short, { errorCorrectionLevel: 'M' });
+```
+
+## Reading barcodes in the browser
+
+Generation is the easy half. For scanning, Chrome and Edge ship `BarcodeDetector` natively:
+
+```js
+if ('BarcodeDetector' in window) {
+  const detector = new BarcodeDetector({
+    formats: ['qr_code', 'ean_13', 'code_128'],
+  });
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: 'environment' },
+  });
+  video.srcObject = stream;
+
+  setInterval(async () => {
+    const codes = await detector.detect(video);
+    if (codes.length) onScan(codes[0].rawValue);
+  }, 250);
+}
+```
+
+Safari and Firefox do not support it, so fall back to ZXing or jsQR compiled to WebAssembly. Feature-detect rather than sniffing the user agent.
+
+Pair a scanner with [Open Food Facts](/blog/free-recipe-and-nutrition-apis) and a barcode becomes a full product record in two calls.
+
+## If you do hotlink, cache the image
+
+A generated code for a given payload never changes, so regenerating it on every page load is pure waste. Generate once, store the result, and serve it from your own origin:
+
+```js
+const cache = new Map();
+
+async function qrUrl(payload) {
+  if (cache.has(payload)) return cache.get(payload);
+  const dataUrl = await QRCode.toDataURL(payload);  // still better done locally
+  cache.set(payload, dataUrl);
+  return dataUrl;
+}
+```
+
+## Why codes fail to scan in the real world
+
+Generation is trivial and scanning is where projects actually lose time. Almost every failure traces to one of five physical causes rather than anything in the encoding.
+
+**Physical size.** A QR code needs each module — each small square — to be large enough for the camera to resolve. The working rule is that the code's width should be at least a tenth of the scanning distance, so a code read from two metres away needs to be about twenty centimetres across. Posters fail this constantly: a code sized for a business card, printed on a poster, read from across a room, is unreadable no matter how good the phone is.
+
+**The quiet zone.** The specification requires a clear margin of four modules on every side, and designers crop it because it looks like wasted space. Without it, scanners cannot find the code's boundary. This is the single most common cause of a code that "worked in testing" and fails in print, because the test was run before the design pass.
+
+**Contrast and inversion.** Scanners expect dark modules on a light background. A light code on a dark background is the inverse, and while many modern scanners cope, plenty do not. Low-contrast colour combinations that look sophisticated on screen fail under poor lighting.
+
+**Curvature and reflection.** A code printed on a bottle, a mug or anything curved distorts. A code behind glass or on a glossy laminate reflects the ambient light straight back into the camera. Neither is a software problem and both are common in retail.
+
+**Density from an over-long payload.** Every extra character adds modules. A URL with three tracking parameters can double the module count, shrinking each square in the same printed area. Shortening the URL before encoding is the cheapest possible improvement to scan reliability, and it is why the earlier advice to shorten first, not after, matters more than it sounds.
+
+The error-correction level interacts with all of these in a way people get backwards. Higher correction tolerates more damage, but it does so by adding redundancy, which means more modules in the same space and therefore smaller ones. On a small printed code, level H can scan *worse* than level M, because the camera cannot resolve the finer grid. Reach for high correction when you are covering part of the code with a logo or printing on something that will get scuffed, not as a general safety margin.
+
+## Testing a code before it goes to print
+
+The mistake is validating on the screen it was designed on. A code that scans instantly from a laptop display at full brightness tells you very little about a code printed at 60mm on matte card under a supermarket's lighting.
+
+A reasonable pre-flight is: print it at the final size on the final material, then scan it with a cheap phone rather than a new one, at the distance a real person will stand, under lighting that is worse than ideal, and at an angle rather than straight on. If it reads under all of those, it will read in practice. Scanning your own generated code programmatically also catches encoding mistakes — particularly a wrong check digit on a retail barcode, which produces a code that scans perfectly and resolves to the wrong product.
+
+For retail symbologies that last point is worth dwelling on. EAN-13's final digit is computed from the preceding twelve, so an invented number is either rejected or, worse, valid for something else entirely. Generators compute it for you, which is the main argument for using one rather than drawing the bars yourself. And if you are assigning product codes rather than reproducing existing ones, you need a real GS1 company prefix — made-up numbers collide with other people's products in any system that looks them up.
+
+## Dynamic codes, and the case for a redirect
+
+A printed code is permanent, and the URL inside it is permanent with it. That is fine until the campaign ends, the page moves, or you want to know how many people scanned it.
+
+Encoding a short redirect on your own domain rather than the destination solves all three at once. The printed artefact stays valid forever, the destination becomes a database row you can change, and every scan passes through a request you can count. It also keeps the payload short, which as above makes the code sparser and easier to scan.
+
+The trade-off is that you now own a dependency: if that redirect service is down, every printed code in the world stops working. That argues for keeping the redirect layer boring and well-hosted rather than clever, and for pointing it at a stable destination rather than a deeply nested URL that will itself move.
+
+## Choosing
+
+**Almost every project.** A local library. `qrcode`, `qrcode.react`, `python-qrcode`.
+
+**HTML email or a no-code tool.** A hotlinked generator URL, with non-sensitive payloads only.
+
+**Branded codes with a logo.** QRCode Monkey, at level Q or H.
+
+**EAN, UPC, Code 128, Data Matrix.** Orca Scan.
+
+**Scanning.** `BarcodeDetector` with a ZXing fallback.
+
+[Browse the full catalogue](/browse?q=barcode) for everything we track in this space.

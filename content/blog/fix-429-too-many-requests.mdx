@@ -2,7 +2,8 @@
 title: "HTTP 429 Too Many Requests: exponential backoff with jitter, done right"
 description: "A 429 means you are sending faster than the API allows. Here is how to read Retry-After, implement backoff that does not stampede, and stop hitting the limit in the first place."
 cluster: errors
-author: editorial
+imageQuery: "crowded queue waiting"
+author: sandy
 publishedAt: "2026-09-19"
 updatedAt: "2026-09-19"
 relatedApis:
@@ -11,7 +12,7 @@ relatedApis:
   - randomuser
 relatedPosts:
   - fix-cors-error-public-api
-  - cache-api-responses-free-tier
+  - caching-api-responses-free-tier
 sources:
   - label: "RFC 6585 — Additional HTTP Status Codes (429)"
     url: "https://www.rfc-editor.org/rfc/rfc6585#section-4"
@@ -257,6 +258,34 @@ export function dedupe<T>(key: string, task: () => Promise<T>): Promise<T> {
 | 429 on the first request of the day | Per-IP limit, shared address | Check whether the limit is per key or per IP |
 | 429 that never clears | Key suspended or daily quota gone | Read the account dashboard, not the response |
 | 429 only in production | Higher traffic, or pooled serverless IPs | Add caching before adding retries |
+
+## Why you are rate limited when you thought you were not
+
+A 429 that arrives well below the documented allowance usually has one of five explanations, and knowing them saves a lot of guessing.
+
+**The limit is per IP, and you are sharing it.** On a serverless platform or behind a NAT gateway, your requests leave from an address other people also use. A keyless API cannot distinguish you from them, so the budget is shared with strangers. This is the most common cause of limits that seem to appear at random.
+
+**Several instances of your own code are sharing it.** Three server processes each politely staying under the limit collectively exceed it threefold. The limiter has to be shared across instances or it is not enforcing anything real.
+
+**Retries are counted.** A rejected request still consumed a slot on most implementations, so an aggressive retry loop against a 429 digs the hole deeper. This is the mechanism behind a brief limit turning into a sustained one.
+
+**There is more than one limit.** Per second, per hour and per day often apply simultaneously, and staying under the per-second figure says nothing about the daily one. A limiter tuned to the wrong dimension passes for hours and then fails all at once.
+
+**Different endpoints have different budgets.** Search is frequently stricter than a lookup by id, and a single global limiter set to the more generous figure will trip on the stricter endpoint.
+
+The way to tell them apart is to read the headers on the rejection rather than inferring. Most APIs report which limit was hit and when it resets, and that turns five possibilities into one fact.
+
+## Making the wait invisible to the user
+
+A 429 handled correctly should rarely reach a person, and where it does the presentation matters.
+
+For anything happening in the background — a sync, a prefetch, a batch job — the user should never learn a limit was hit. Queue it, back off, and complete it late. Surfacing an infrastructure detail they cannot act on is noise.
+
+For something a user triggered, the honest response is to say the system is busy and that you are retrying, rather than presenting a failure. A spinner that keeps spinning through a backoff is better than an error that the user resolves by clicking again, which adds load at the worst moment. Disabling the button during the retry is the small detail that prevents the manual-retry spiral.
+
+Where the wait is genuinely long, `Retry-After` gives you a number to show. "Try again in about 30 seconds" is actionable in a way that "rate limit exceeded" is not.
+
+And if you are the one being limited repeatedly under normal use, the fix is upstream of the error handling. Caching, batching and a shared limiter are what remove the condition; better messaging only makes it more tolerable.
 
 ## What to remember
 

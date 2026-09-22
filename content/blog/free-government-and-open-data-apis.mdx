@@ -1,0 +1,246 @@
+---
+title: "Free government and open-data APIs"
+description: "Public-sector APIs from the UK, US, Germany and Brazil that need no key, why government data is the most reliable free data available, and how to handle its formats."
+cluster: roundups
+imageQuery: "government archive building columns"
+author: sandy
+publishedAt: "2026-10-23"
+updatedAt: "2026-10-23"
+relatedApis:
+  - data-parliament-uk
+  - brazil
+  - autobahn-api
+  - epa-2
+  - collegescorecard-ed-gov
+  - wikipedia
+relatedPosts:
+  - free-geocoding-and-maps-apis
+  - how-to-read-api-documentation
+  - free-stock-market-and-finance-apis
+sources:
+  - label: "UK Open Government Licence v3.0"
+    url: "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/"
+  - label: "US Government Works and copyright"
+    url: "https://www.usa.gov/government-works"
+  - label: "data.gov.uk"
+    url: "https://www.data.gov.uk/"
+faq:
+  - q: "Are government APIs really free to use commercially?"
+    a: "Usually yes. UK public data is generally released under the Open Government Licence, which permits commercial use with attribution, and US federal works are not subject to copyright at all. Always check the specific dataset."
+  - q: "Which government APIs need no key?"
+    a: "Many. Data.parliament.uk, Germany's Autobahn API, Brazil's BrasilAPI, the US EPA and College Scorecard all returned data with no credential in our checks."
+  - q: "Why is government data often XML or CSV rather than JSON?"
+    a: "Because many of these systems predate JSON and were built for institutional data exchange. Expect XML, CSV and occasionally fixed-width text, and budget a parsing step rather than assuming JSON."
+  - q: "How reliable are government APIs compared with commercial ones?"
+    a: "The data is usually more reliable and better documented, and it will not disappear because a startup folded. Uptime and response speed are often worse, because they are not commercial products with SLAs."
+  - q: "Can I build a business on a government API?"
+    a: "Yes, and many do. The licence usually permits it. The real risk is not licensing but change management: endpoints get restructured on government timescales with little notice."
+---
+
+Government data is the most underused free resource in this whole catalogue. It is authoritative, licensed permissively, usually keyless, and it will still be there in five years — which is more than can be said for most free APIs.
+
+The trade-off is that it was built for institutional data exchange rather than for your frontend. Expect XML, expect CSV, and expect documentation written by a statistician.
+
+<Answer>
+For UK data, **[Data.parliament.uk](/apis/data-parliament-uk)** covers bills, petitions and members keylessly. For Brazil, **[BrasilAPI](/apis/brazil)** is one of the best-designed public APIs anywhere. For US federal data, EPA and College Scorecard are keyless, and most federal datasets are public domain outright.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["data-parliament-uk", "brazil", "autobahn-api", "epa-2", "collegescorecard-ed-gov", "wikipedia"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. BrasilAPI and the Autobahn API also send CORS headers.
+</Tested>
+
+## Why the licensing is the good part
+
+This is the reverse of every other category in this series, where licensing is the obstacle.
+
+**UK public data** is generally released under the Open Government Licence v3.0. It permits copying, adapting and commercial exploitation, requiring only attribution. That is close to the most permissive licence a serious data source offers.
+
+**US federal government works** are not subject to copyright at all under 17 U.S.C. § 105. Not "permissively licensed" — genuinely not copyrightable.
+
+**EU and member-state data** varies, but the Open Data Directive has pushed most of it toward permissive re-use.
+
+```text
+UK      Open Government Licence v3.0   attribution only
+US      public domain (federal works)  no restriction
+DE      mostly Datenlizenz Deutschland attribution only
+BR      varies, largely open
+```
+
+<Callout type="tip" title="Attribution is cheap and is usually the entire obligation">
+A line in your footer naming the source and linking the licence satisfies most public-sector terms completely. Compare that with the negotiations behind a commercial data licence.
+</Callout>
+
+## BrasilAPI — the best-designed one here
+
+Worth highlighting even if you have no interest in Brazil, because it is a model of how a public API should be built: keyless, CORS-enabled, consistent, fast, and it aggregates a dozen separate government systems behind one sensible interface.
+
+```bash
+curl -s "https://brasilapi.com.br/api/cep/v2/01310100"
+curl -s "https://brasilapi.com.br/api/cnpj/v1/19131243000197"
+curl -s "https://brasilapi.com.br/api/banks/v1"
+curl -s "https://brasilapi.com.br/api/feriados/v1/2026"
+```
+
+```json
+{
+  "cep": "01310100",
+  "state": "SP",
+  "city": "São Paulo",
+  "neighborhood": "Bela Vista",
+  "street": "Avenida Paulista",
+  "location": { "coordinates": { "latitude": "-23.5613", "longitude": "-46.6565" } }
+}
+```
+
+The public-holiday endpoint is the sort of thing that sounds trivial until you need it and discover the alternative is maintaining the list yourself.
+
+## Data.parliament.uk — bills, petitions, members
+
+Live UK parliamentary data: bills in progress, petition signatures, members and voting records.
+
+```bash
+curl -s "https://petition.parliament.uk/petitions.json?state=open"
+curl -s "https://members-api.parliament.uk/api/Members/Search?House=1&take=5"
+```
+
+Petition signature data is broken down by constituency, which makes it unusually good material for maps and charts:
+
+```js
+const { data } = await fetch(
+  'https://petition.parliament.uk/petitions/700000.json',
+).then((r) => r.json());
+
+const byConstituency = data.attributes.signatures_by_constituency
+  .sort((a, b) => b.signature_count - a.signature_count)
+  .slice(0, 10);
+```
+
+## Autobahn API — Germany, and a good example of scope
+
+Live data on German federal motorways: roadworks, closures, traffic cameras, charging stations, parking.
+
+```bash
+curl -s "https://verkehr.autobahn.de/o/autobahn/"
+curl -s "https://verkehr.autobahn.de/o/autobahn/A1/services/roadworks"
+```
+
+Keyless, CORS-enabled and updated continuously. It is a narrow API that does one thing completely, which is usually more useful than a broad one that does everything shallowly.
+
+## US federal data
+
+**EPA** publishes environmental datasets — air quality, water systems, facility compliance.
+
+**College Scorecard** covers every US higher education institution with costs, completion rates and graduate earnings:
+
+```bash
+curl -s "https://api.data.gov/ed/collegescorecard/v1/schools\
+?school.name=stanford&fields=school.name,latest.cost.tuition.in_state&api_key=DEMO_KEY"
+```
+
+Most `api.data.gov` endpoints accept `DEMO_KEY` for evaluation, with a free personal key raising the limit.
+
+**Wikipedia** deserves a mention here too. Its API is keyless, enormous, and its structured sibling Wikidata answers questions no government API will:
+
+```bash
+curl -s "https://en.wikipedia.org/api/rest_v1/page/summary/Open_data"
+```
+
+## Handling the formats
+
+The main practical friction. A significant share of public data is not JSON.
+
+**XML** is common in older systems:
+
+```js
+import { XMLParser } from 'fast-xml-parser';
+
+const xml = await fetch(url).then((r) => r.text());
+const data = new XMLParser({ ignoreAttributes: false }).parse(xml);
+```
+
+**CSV** is common in statistical releases, and the naive `split(',')` breaks on quoted fields containing commas — which real data always has:
+
+```js
+import { parse } from 'csv-parse/sync';
+
+const rows = parse(await fetch(url).then((r) => r.text()), {
+  columns: true,
+  skip_empty_lines: true,
+  cast: true,
+});
+```
+
+<Callout type="warning" title="Government endpoints change on government timescales">
+A restructure gets announced in a PDF consultation eighteen months in advance and then happens. Nobody emails you. Monitor the response shape in CI rather than discovering it in production — see <a href="/blog/surviving-breaking-api-changes">surviving breaking API changes</a>.
+</Callout>
+
+## Finding datasets
+
+Most countries run a central catalogue, and searching it beats guessing endpoints:
+
+```text
+UK       data.gov.uk
+US       data.gov
+EU       data.europa.eu
+DE       govdata.de
+CA       open.canada.ca
+AU       data.gov.au
+```
+
+These list datasets rather than APIs, so many results are bulk downloads. That is often better anyway: a one-off CSV you import is faster and more reliable than an API call on every request.
+
+## Reading data that was published for statisticians
+
+The friction with public-sector data is rarely access and almost always shape. These datasets were designed for analysts and institutional exchange, not for a frontend, and a few conventions recur often enough to be worth recognising on sight.
+
+**Codes instead of names.** A statistical release will identify a place by a nine-character geography code rather than "Camden", and an industry by a four-digit classification rather than "software development". This is correct — names are ambiguous and change, codes do not — but it means you usually need a second lookup table to render anything human. Those tables are published too, and fetching them once at build time is the right move.
+
+**Suppressed values.** Where a figure would identify an individual, statistical agencies replace it with a marker rather than omit the row. You will meet colons, hyphens, "c", "x" or a footnote symbol in a column your parser expects to be numeric. Coercing those to zero is the standard mistake and it silently understates every total you compute. They mean "unknown", which is different from zero in every way that matters.
+
+**Revisions.** Economic and health statistics are published as provisional and revised later, sometimes substantially. A figure you cached in January may not match the same figure today, and neither is wrong. If you display these numbers, display the vintage alongside them.
+
+**Wide tables.** Statistical releases often put each year or each category in its own column rather than in rows, because that is what a spreadsheet user wants. Most code wants the opposite. Reshaping from wide to long at the boundary, once, saves that awkwardness leaking through your whole application.
+
+**Encoding.** Older government files are frequently not UTF-8, particularly from European agencies, and place names with accents arrive mangled. If you see replacement characters in a CSV, the file is probably Latin-1 and the fix is one parameter rather than a search-and-replace.
+
+## The stability trade-off
+
+Public-sector APIs invert the usual reliability calculation, and it is worth being explicit about both directions.
+
+What you gain is permanence. A national statistics office will still exist in ten years, and its obligation to publish is usually statutory rather than commercial. There is no acquisition, no pivot, no sunset because a funding round fell through. For anything you intend to maintain for years, that is worth a great deal more than a slightly nicer JSON envelope.
+
+What you give up is operational polish. These are not commercial products with uptime commitments. Response times are frequently measured in seconds rather than milliseconds, maintenance windows are announced in places you are not reading, and there is rarely a status page. Some endpoints are fronted by infrastructure that rate-limits invisibly, returning a generic error rather than a 429.
+
+The practical consequence is that you should treat a government API as a **source to import from** rather than a service to call on demand. Fetch on a schedule, store the result yourself, and serve your users from your own copy. That converts their variable latency into your predictable latency, removes the dependency from your request path entirely, and means a maintenance window on their side is invisible on yours.
+
+Where the dataset is small and changes rarely — a list of local authorities, a classification table, a set of public holidays — go further and commit it at build time. There is no reason to make a network call for a fact that changed in 2019.
+
+## Attribution, and being a good citizen
+
+The licences here are permissive enough that it is easy to forget they carry obligations at all, and the obligations are trivial to meet.
+
+Most require attribution, which means naming the source and, where the licence specifies it, reproducing a short statement. A line in your footer or on a data page covers it. The UK's Open Government Licence has standard wording; several EU member states have their own. Copying the exact text the licence asks for takes a minute and is the whole requirement.
+
+A few carry a condition worth reading for rather than assuming: that you do not imply official endorsement. Presenting derived analysis as though it came from the agency, or using their logo, crosses that line. Stating plainly that the data is theirs and the interpretation is yours stays well inside it.
+
+Finally, identify yourself in requests. Several of these services — the SEC, the US National Weather Service, MusicBrainz in the adjacent world — require a descriptive `User-Agent` with contact details and enforce it. Even where it is not required, a public body running a service on public money is entitled to know who is consuming it, and an identifiable client is far more likely to get an email than a block when something goes wrong.
+
+## Choosing
+
+**Brazil.** BrasilAPI, for anything.
+
+**UK politics and petitions.** Data.parliament.uk.
+
+**German road network.** Autobahn API.
+
+**US higher education.** College Scorecard.
+
+**US company filings.** SEC EDGAR — see [free stock market and finance APIs](/blog/free-stock-market-and-finance-apis).
+
+**General reference and structured facts.** Wikipedia and Wikidata.
+
+[Browse the government category](/categories/government) for all 137 entries we track, or the [open data category](/categories/open-data) for 78 more.

@@ -1,0 +1,321 @@
+---
+title: "Free jokes, quotes and trivia APIs"
+description: "Keyless APIs for jokes, quotes and quiz questions, the content-filtering step most projects skip, and why quote attribution is wrong more often than you would expect."
+cluster: roundups
+imageQuery: "vintage typewriter paper"
+author: sandy
+publishedAt: "2026-10-19"
+updatedAt: "2026-10-19"
+relatedApis:
+  - jokeapi-2
+  - quote-garden
+  - kanye-rest
+  - shrek-quotes
+  - echoes
+  - aot-quotes
+relatedPosts:
+  - best-free-apis-for-beginners
+  - your-first-api-call-curl-fetch-python
+  - free-mock-and-test-data-apis
+sources:
+  - label: "JokeAPI documentation"
+    url: "https://jokeapi.dev/"
+  - label: "MDN — Fetch API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+  - label: "Open Trivia Database"
+    url: "https://opentdb.com/api_config.php"
+faq:
+  - q: "What is the best free joke API?"
+    a: "JokeAPI. It needs no key, sends CORS headers, and has the only genuinely useful safety filter in this category via its safe-mode and blacklistFlags parameters."
+  - q: "How do I stop a joke API returning offensive content?"
+    a: "Use its filtering parameters rather than filtering afterwards. JokeAPI's safe-mode plus blacklistFlags for nsfw, religious, political, racist and sexist is the correct approach. Never put an unfiltered joke feed in front of users."
+  - q: "Are quote attributions from free APIs reliable?"
+    a: "Often not. Free quote datasets are scraped from quote sites, which are themselves full of misattributions. Einstein, Twain and Churchill are attributed to a great deal they never said."
+  - q: "Can I use these APIs in a commercial product?"
+    a: "Usually yes for the API call, but the content may be separately copyrighted. Jokes and quotes are short and mostly uncontroversial; song lyrics and poetry are not. Check the terms of the specific API."
+  - q: "What is a good free trivia API for a quiz app?"
+    a: "Open Trivia Database. It is keyless, has categories and difficulty levels, and provides a session token so you do not get the same question twice in one game."
+---
+
+These are the APIs people build their first project against, which means they are also where a surprising number of production incidents start. An unfiltered joke feed on a company intranet is a genuinely bad afternoon.
+
+The technical bar is low here. The editorial bar is the one worth taking seriously.
+
+<Answer>
+Use **[JokeAPI](/apis/jokeapi-2)** for jokes, because it is the only one with real content filtering built in. Use **[Quote Garden](/apis/quote-garden)** for quotes, treating attributions as unverified. For quizzes, Open Trivia Database is keyless and has the session tokens that stop questions repeating.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["jokeapi-2", "quote-garden", "kanye-rest", "shrek-quotes", "echoes", "aot-quotes"]} />
+
+<Tested date="2026-09-18" result="All six returned content with no key attached.">
+Checked from a clean client during our scheduled run. JokeAPI, Quote Garden, kanye.rest, Shrek Quotes and AOT Quotes all send CORS headers, so they work from a static page.
+</Tested>
+
+## JokeAPI — filter at the source
+
+The important feature is not the jokes, it is the filtering. JokeAPI lets you exclude categories of content in the request rather than inspecting the response afterwards.
+
+```bash
+curl -s "https://v2.jokeapi.dev/joke/Programming,Pun\
+?safe-mode\
+&blacklistFlags=nsfw,religious,political,racist,sexist,explicit\
+&type=single"
+```
+
+```json
+{
+  "error": false,
+  "category": "Programming",
+  "type": "single",
+  "joke": "There are 10 types of people: those who understand binary and those who do not.",
+  "flags": { "nsfw": false, "religious": false, "political": false },
+  "safe": true
+}
+```
+
+```js
+const params = new URLSearchParams({
+  'safe-mode': '',
+  blacklistFlags: 'nsfw,religious,political,racist,sexist,explicit',
+  type: 'single',
+});
+
+const joke = await fetch(`https://v2.jokeapi.dev/joke/Any?${params}`)
+  .then((r) => r.json());
+
+if (joke.error) throw new Error(joke.message);
+console.log(joke.joke);
+```
+
+<Callout type="danger" title="Filter in the request, not in your code">
+Post-filtering means the content already reached your server, and one missed case reaches a user. <code>safe-mode</code> plus an explicit <code>blacklistFlags</code> list is belt and braces, and it costs nothing. This is the single most important line in this article.
+</Callout>
+
+Two-part jokes come back as `setup` and `delivery` rather than `joke`, so handle both shapes:
+
+```js
+const text = joke.type === 'twopart'
+  ? `${joke.setup}\n\n${joke.delivery}`
+  : joke.joke;
+```
+
+Also note the API returns `error: true` in a **200 response** rather than using an HTTP status. Checking `response.ok` alone is not enough here — a real and instructive example of why, covered in [why fetch does not throw](/blog/failed-to-fetch-javascript).
+
+## Quote Garden — quotes, with a caveat
+
+Five thousand quotes, searchable by author and genre, keyless and CORS-enabled.
+
+```bash
+curl -s "https://quote-garden.onrender.com/api/v3/quotes/random"
+curl -s "https://quote-garden.onrender.com/api/v3/quotes?author=Mark%20Twain&limit=5"
+```
+
+```js
+const { data } = await fetch(
+  'https://quote-garden.onrender.com/api/v3/quotes/random',
+).then((r) => r.json());
+
+const [{ quoteText, quoteAuthor, quoteGenre }] = data;
+```
+
+<Callout type="warning" title="Attributions are frequently wrong">
+Free quote datasets are scraped from quote websites, which are themselves riddled with misattribution. Einstein, Twain, Churchill and Gandhi are credited with enormous quantities of text they never produced. If attribution matters — a printed product, anything quoting a living person — verify independently. For decoration it does not matter.
+</Callout>
+
+## Open Trivia Database — the one for quizzes
+
+Not a separate entry in our catalogue, but it is the right answer for quiz apps and worth covering. Keyless, categorised, and it solves the repeat-question problem properly.
+
+```bash
+# Get a session token once
+curl -s "https://opentdb.com/api_token.php?command=request"
+
+# Then pass it with every request
+curl -s "https://opentdb.com/api.php?amount=10&category=18&difficulty=medium&token=YOUR_TOKEN"
+```
+
+The token makes the API remember what it has already served you, so a game never repeats a question until the pool is exhausted:
+
+```js
+let token = localStorage.getItem('otdb-token');
+
+if (!token) {
+  const res = await fetch('https://opentdb.com/api_token.php?command=request')
+    .then((r) => r.json());
+  token = res.token;
+  localStorage.setItem('otdb-token', token);
+}
+
+const game = await fetch(
+  `https://opentdb.com/api.php?amount=10&type=multiple&token=${token}`,
+).then((r) => r.json());
+
+// response_code 4 means the pool is exhausted — reset it
+if (game.response_code === 4) {
+  await fetch(`https://opentdb.com/api_token.php?command=reset&token=${token}`);
+}
+```
+
+Questions are HTML-encoded, which must be decoded before display or your quiz will show `&quot;` to users:
+
+```js
+const decode = (s) => new DOMParser()
+  .parseFromString(s, 'text/html').documentElement.textContent;
+```
+
+## The novelty ones
+
+**kanye.rest** returns a random Kanye West quote. **Shrek Quotes** does what it says. **AOT Quotes** covers Attack on Titan. All three are keyless, CORS-enabled and about as simple as an API gets:
+
+```bash
+curl -s "https://api.kanye.rest"
+# {"quote":"I'm nice at ping pong"}
+```
+
+These are genuinely the best first fetch for someone learning, because the response is one field and there is nothing to misread.
+
+**Echoes** is broader, collecting quotes from around the world with more cultural range than the Anglophone datasets.
+
+## Building something that does not repeat itself
+
+The common failure with random-content APIs is showing the same item twice in a row. A short memory fixes it:
+
+```js
+const seen = new Set();
+const MEMORY = 30;
+
+async function freshJoke() {
+  for (let i = 0; i < 8; i++) {
+    const j = await fetchJoke();
+    const key = j.id ?? j.joke ?? j.setup;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    if (seen.size > MEMORY) seen.delete(seen.values().next().value);
+    return j;
+  }
+  return fetchJoke(); // give up rather than loop forever
+}
+```
+
+The bounded attempt count matters. Without it, a small content pool turns this into an infinite loop.
+
+## Rendering user-facing text safely
+
+These APIs return strings that end up in your page, and two of them arrive encoded in ways that break naive rendering.
+
+**HTML entities.** Open Trivia Database encodes everything, and several quote APIs encode apostrophes. Inserting those with `innerHTML` renders them correctly but opens an injection path; inserting them with `textContent` is safe but shows the raw entity.
+
+The correct approach is to decode explicitly, then insert as text:
+
+```js
+const decode = (s) => {
+  const el = document.createElement('textarea');
+  el.innerHTML = s;
+  return el.value;
+};
+
+node.textContent = decode(question.question);   // safe and readable
+```
+
+A `<textarea>` is used rather than a `<div>` because its content is parsed as raw text, so a decoded `<script>` never becomes a live element.
+
+**Newlines.** Two-part jokes and multi-line quotes contain `\n`, which HTML collapses to a space. Either set `white-space: pre-line` on the container or split and render paragraphs:
+
+```jsx
+{text.split('\n').filter(Boolean).map((line, i) => <p key={i}>{line}</p>)}
+```
+
+<Callout type="danger" title="Never use innerHTML with third-party text">
+Even a joke API is untrusted input. Its database is community-contributed, and an entry containing markup will execute in your page. Decode entities deliberately, then assign with <code>textContent</code> or let your framework escape it.
+</Callout>
+
+## Building a quiz that scores correctly
+
+Open Trivia Database returns the correct answer and the incorrect ones separately, which means you have to combine and shuffle them — and the naive shuffle is biased.
+
+```js
+// Biased: sort with a random comparator does not produce a uniform shuffle
+const bad = answers.sort(() => Math.random() - 0.5);
+
+// Fisher-Yates: uniform
+function shuffled(items) {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+const options = shuffled([q.correct_answer, ...q.incorrect_answers]);
+```
+
+The bias in the first version is real and visible: with four options the correct answer lands in the first position noticeably more often than a quarter of the time, and players notice patterns long before they can explain them.
+
+Score against the decoded string rather than the index, since the shuffle moved things:
+
+```js
+const isCorrect = decode(chosen) === decode(q.correct_answer);
+```
+
+And hold the questions for a whole round rather than fetching per question. One request for ten questions is both faster and kinder than ten requests.
+
+## Choosing an API by what happens when it fails
+
+Everything in this category is decorative, which changes the engineering calculus: the right failure mode is to disappear quietly, not to show an error.
+
+```js
+async function dailyJoke() {
+  try {
+    const res = await fetch(JOKE_URL, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return null;
+
+    const joke = await res.json();
+    return joke.error ? null : joke;
+  } catch {
+    return null;         // offline, timeout, malformed — all the same here
+  }
+}
+
+const joke = await dailyJoke();
+if (joke) mount(joke);   // no joke, no empty box, no error message
+```
+
+Three deliberate choices there. A **short timeout**, because nobody should wait three seconds for a joke. **Returning null rather than throwing**, so the caller does not need a try/catch. And **rendering nothing on failure**, because a missing joke is invisible while an error box is a bug report.
+
+This is the opposite of how you would treat a payment API, and it is worth being explicit about which category a dependency falls into before writing its error handling.
+
+## Who is actually responsible for what gets shown
+
+Worth stating plainly, because the informality of this category disguises a real obligation.
+
+If your site displays a joke, your site displayed it. That the text came from a third-party API is an implementation detail to everyone who reads it, and it is not a defence if the content is offensive, defamatory or unsuitable for the audience. The editorial responsibility sits with whoever published the page.
+
+That matters most where the audience is not general. An application used in schools, a workplace tool, anything aimed at children, or a product operating in a jurisdiction with specific content rules — all carry requirements that a community-contributed joke database has never heard of. Filtering parameters help and they are the provider's best effort, not a compliance guarantee.
+
+The proportionate response scales with exposure. A personal project can rely on the API's own filters. Something customer-facing should add an allowlist of categories rather than a blocklist of flags, because a blocklist only excludes what someone thought to tag. Something aimed at a vulnerable audience should not pull unreviewed third-party text at all — a curated set of a few hundred items you have read is both safer and, honestly, better.
+
+The practical middle ground for most products is to filter at the source, keep a local denylist of terms for anything that slips through, and provide a way for users to report an item. That last part is the one people skip, and it is what turns a problem into a fixed problem rather than a complaint nobody can act on.
+
+## Keep a local fallback
+
+A small habit that costs nothing and prevents an empty widget. Ship a handful of items — a dozen jokes, twenty quotes — in your own code, and fall back to them when the API is unreachable.
+
+For decorative content this is strictly better than an error state or a gap in the layout, and nobody will ever notice the rotation is smaller than usual. It also means the feature works offline and during a cold start, which is more than most third-party integrations manage.
+
+## Choosing
+
+**Jokes, anywhere users will see them.** JokeAPI with full filtering.
+
+**Quotes as decoration.** Quote Garden.
+
+**Quotes where attribution is published.** Verify independently first.
+
+**A quiz.** Open Trivia Database, with a session token.
+
+**Teaching someone their first fetch.** kanye.rest. One field, no parameters, nothing to get wrong.
+
+[Browse the entertainment category](/categories/entertainment) for more, or the [no key required collection](/collections/no-api-key) for everything keyless we track.

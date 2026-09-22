@@ -1,13 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
+import { site } from '@/lib/site';
 
 export const CLUSTERS = {
   errors: {
     slug: 'errors',
     name: 'Fixing API errors',
     short: 'Errors',
-    emoji: '🚨',
     description:
       'Something is broken right now. These are the failures developers actually hit, with the real cause and the fix, not a restatement of the error message.',
   },
@@ -15,7 +15,6 @@ export const CLUSTERS = {
     slug: 'fundamentals',
     name: 'API fundamentals',
     short: 'Fundamentals',
-    emoji: '📘',
     description:
       'The concepts worth getting right early: authentication, status codes, pagination, and how to read documentation without getting lost.',
   },
@@ -23,7 +22,6 @@ export const CLUSTERS = {
     slug: 'roundups',
     name: 'Best free APIs',
     short: 'Roundups',
-    emoji: '⭐',
     description:
       'Which free API to use for a given job, chosen with the reliability and latency data from our own daily checks rather than from marketing copy.',
   },
@@ -31,7 +29,6 @@ export const CLUSTERS = {
     slug: 'howto',
     name: 'Practical guides',
     short: 'Guides',
-    emoji: '🛠️',
     description:
       'Building things: keeping keys out of your bundle, caching to stay inside a free tier, mocking APIs, and handling breaking changes.',
   },
@@ -106,8 +103,21 @@ function readAll(): Post[] {
         body: content,
       };
     })
-    .filter((post) => process.env.NODE_ENV === 'development' || !post.draft)
+    .filter((post) => process.env.NODE_ENV === 'development' || isPublished(post))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+}
+
+/**
+ * A post is live unless it is a draft, or — when `site.scheduledPublishing` is on —
+ * its publish date has not arrived. Compared as YYYY-MM-DD strings so the decision
+ * does not shift with the build machine's timezone.
+ */
+function isPublished(post: Post): boolean {
+  if (post.draft) return false;
+  if (!site.scheduledPublishing) return true;
+
+  const today = new Date().toISOString().slice(0, 10);
+  return !post.publishedAt || post.publishedAt <= today;
 }
 
 let cache: Post[] | null = null;

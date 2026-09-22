@@ -1,0 +1,232 @@
+---
+title: "Endpoints, resources and base URLs: reading an API's shape"
+description: "What an endpoint actually is, how base URL, path, version and resource fit together, and how to find the one you need in unfamiliar documentation."
+cluster: fundamentals
+imageQuery: "signpost direction marker"
+author: sandy
+publishedAt: "2026-10-03"
+updatedAt: "2026-10-03"
+relatedApis:
+  - zippopotam-us
+  - postcodes-io
+  - dummyjson
+  - newton
+relatedPosts:
+  - your-first-api-call-curl-fetch-python
+  - query-params-vs-path-params
+sources:
+  - label: "RFC 3986 — Uniform Resource Identifier"
+    url: "https://www.rfc-editor.org/rfc/rfc3986"
+  - label: "MDN — What is a URL?"
+    url: "https://developer.mozilla.org/en-US/docs/Learn/Common_questions/Web_mechanics/What_is_a_URL"
+  - label: "OpenAPI Specification"
+    url: "https://spec.openapis.org/oas/latest.html"
+faq:
+  - q: "What is an API endpoint?"
+    a: "A specific URL that accepts requests and returns a response, combined with the HTTP method used to reach it. GET /users and POST /users share a path but are two different endpoints because they do different things."
+  - q: "What is the difference between an endpoint and a resource?"
+    a: "A resource is the thing, such as a user. An endpoint is an address where you act on it. One resource usually has several endpoints: list, read one, create, update, delete."
+  - q: "Why do API URLs contain v1 or v2?"
+    a: "Version prefixes let a provider change response shapes without breaking existing integrations. Old clients keep calling v1 while new ones use v2. The alternative, changing responses in place, breaks everyone at once."
+  - q: "What is a base URL?"
+    a: "The part common to every endpoint, such as https://api.example.com/v1. Documentation states it once and then shows only the paths, which is why a path alone will not work if you have missed the base URL."
+  - q: "How do I find the right endpoint in unfamiliar documentation?"
+    a: "Look for the endpoint reference or a machine-readable OpenAPI specification, then search for the noun you care about. Failing that, the quickstart example usually shows a working URL you can adapt."
+---
+
+Documentation says:
+
+```text
+GET /v1/forecast
+```
+
+That is not a URL you can call. It is a path, and you need three more pieces to turn it into a request.
+
+<Answer>
+An endpoint is a **method plus a full URL** that does one thing. The full URL is the **base URL** (scheme, host, and often a version prefix) joined to the **path** the documentation shows. `GET /v1/forecast` becomes `GET https://api.open-meteo.com/v1/forecast`. The same path with a different method is a different endpoint.
+</Answer>
+
+## Anatomy of an endpoint
+
+```text
+https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.13
+└─┬─┘   └────────┬──────┘└┬┘└───┬───┘ └────────────┬─────────────┘
+scheme       host      version  path          query string
+└──────────────┬──────────────┘
+           base URL
+```
+
+**Scheme.** Effectively always `https` now. If documentation shows `http`, check for an HTTPS version, because browsers refuse plain HTTP requests from a secure page.
+
+**Host.** Often a dedicated `api.` subdomain, separating the API from the marketing site.
+
+**Version.** Usually `/v1` or `/v2`. This lets the provider ship breaking changes without breaking you.
+
+**Path.** What you are acting on. Plural nouns for collections, an identifier for a specific item.
+
+**Query string.** Parameters that filter, shape or paginate the result.
+
+## Method plus path, not path alone
+
+This is the part that trips people up. These are four different endpoints sharing one path:
+
+```http
+GET    /v1/articles/42     read it
+PUT    /v1/articles/42     replace it
+PATCH  /v1/articles/42     change part of it
+DELETE /v1/articles/42     remove it
+```
+
+An API supporting `GET /articles/42` may not support `DELETE /articles/42`, and you will get a `405 Method Not Allowed` rather than a 404. That distinction is useful: 405 means the path exists and your method does not apply, which is a much better clue than "not found".
+
+## Reading path conventions
+
+Most REST APIs follow the same shape, so once you can read one you can guess the others.
+
+```http
+GET  /articles              all articles
+GET  /articles/42           article 42
+GET  /articles/42/comments  comments on article 42
+POST /articles/42/comments  add a comment to article 42
+```
+
+Three conventions do most of the work:
+
+**Plural nouns for collections.** `/articles` rather than `/article` or `/getArticles`. The method already says what you are doing, so the path does not need a verb.
+
+**Identifiers select one item.** `/articles/42` is one article. The identifier may be a number, a UUID or a slug.
+
+**Nesting expresses ownership.** `/articles/42/comments` means comments belonging to article 42, which is distinct from `/comments` meaning all comments everywhere.
+
+<Callout type="note" title="Verbs in paths are not wrong">
+You will meet `/articles/42/publish` and similar. Strict REST says this should be a state change via PATCH, but "publish" is an action rather than a field, and most API designers accept the pragmatic version. Do not be confused when you see it.
+</Callout>
+
+## Joining base URL and path correctly
+
+String concatenation is where this breaks:
+
+```js
+const base = 'https://api.example.com/v1';
+const path = '/articles';
+
+const url = base + path;          // fine
+const url = base + 'articles';    // https://api.example.com/v1articles
+```
+
+Use `URL`, which handles the joining rules for you:
+
+```js
+new URL('articles', 'https://api.example.com/v1/');   // .../v1/articles
+new URL('/articles', 'https://api.example.com/v1/');  // .../articles  <- v1 dropped
+```
+
+Note the difference. A **leading slash makes the path absolute**, discarding everything after the host, including your version prefix. This is a real and frequent source of 404s.
+
+The safe pattern is a trailing slash on the base and no leading slash on the path:
+
+```js
+const API_BASE = 'https://api.example.com/v1/';
+
+function endpoint(path: string, params?: Record<string, string>) {
+  const url = new URL(path, API_BASE);
+  for (const [key, value] of Object.entries(params ?? {})) {
+    url.searchParams.set(key, value);
+  }
+  return url;
+}
+
+endpoint('articles', { limit: '20' });
+// https://api.example.com/v1/articles?limit=20
+```
+
+## Finding the endpoint you need
+
+Unfamiliar documentation, in order of usefulness:
+
+**1. The OpenAPI specification.** If the provider publishes one, often at `/openapi.json` or `/swagger.json`, it is the complete authoritative list. Every endpoint, parameter and response shape, machine readable.
+
+```bash
+curl -s https://api.example.com/openapi.json | jq -r '.paths | keys[]'
+```
+
+**2. The endpoint reference.** Usually a sidebar section listing every path. Search it for the noun you want, not the verb.
+
+**3. The quickstart.** Even when the reference is poor, the quickstart nearly always contains one complete working URL. Adapt it.
+
+**4. The API root.** Some APIs return an index of their own endpoints:
+
+```bash
+curl -s https://api.example.com/v1/ | head -20
+```
+
+## Versioning, and what it means for you
+
+A version prefix is a promise: as long as you call `/v1`, the response shape will not change underneath you.
+
+That promise has limits. Providers deprecate versions, usually with a long notice period and a `Deprecation` or `Sunset` header on responses:
+
+```http
+Sunset: Sat, 31 Dec 2026 23:59:59 GMT
+```
+
+Nobody reads response headers in production, which is precisely why deprecations catch teams by surprise. Logging unexpected headers in your API client is a cheap way to find out early.
+
+Some APIs version by header or by date instead:
+
+```http
+Accept: application/vnd.example.v2+json
+Example-Version: 2026-01-15
+```
+
+The date-based approach is increasingly common: you pin a date, and the provider serves whatever the API looked like then.
+
+## Why paths are shaped the way they are
+
+The conventions above are not arbitrary aesthetics, and knowing the reasoning makes unfamiliar APIs predictable rather than something to memorise.
+
+The central idea is that a URL names a **thing**, and the method says what you want done to it. That split is why verbs in paths are discouraged: `/getArticles` puts the action in two places at once, and then you need `/deleteArticle` and `/updateArticle` as well, each a separate name to learn. With the split, one path serves four operations and the method distinguishes them.
+
+Plurals for collections follow from the same idea. `/articles` is the set; `/articles/42` is one member of it. Once that pattern is established, you can guess `/articles/42/comments` without being told, and be right most of the time. That predictability is the entire payoff — an API you can guess is one you barely have to read.
+
+Nesting expresses ownership, and it is worth being precise about what it means. `/articles/42/comments` is the comments belonging to article 42. That is a different resource from `/comments`, which is every comment in the system. Well-designed APIs offer both, because listing a thing's children and searching across all children are genuinely different needs.
+
+Where the convention breaks down is actions that are not really state changes. Publishing an article, sending an invitation, retrying a job — these are verbs with no natural noun, and strict REST has no comfortable answer. Most designers accept a pragmatic `/articles/42/publish`, and it is more useful to recognise the pattern than to object to it.
+
+The second place it breaks down is search and filtering, which do not fit the hierarchy at all. Those live in the query string, and the reason is worth knowing: the path identifies *what* you are asking about, the query string modifies *which ones* and *how presented*. That distinction is covered further in [query params vs path params](/blog/query-params-vs-path-params).
+
+## Trailing slashes, casing and other small traps
+
+A handful of details that produce 404s disproportionate to how interesting they are.
+
+**Trailing slashes are not always equivalent.** Some servers treat `/articles` and `/articles/` as the same resource, some redirect one to the other, and some serve one and 404 the other. Django's default is to redirect, which is why APIs built on it often require the slash. If a path 404s and you are confident it exists, toggling the trailing slash is worth trying before anything else.
+
+**Paths are case-sensitive; hostnames are not.** `example.com` and `EXAMPLE.COM` reach the same server, but `/Articles` and `/articles` are different paths and most APIs will only serve one.
+
+**Identifiers need encoding.** An id containing a slash, a space or a plus sign will break the path unless encoded. `encodeURIComponent` on each segment — not on the whole URL — is the correct tool, and forgetting it is a common source of intermittent failures that only appear for certain records.
+
+**Query strings are not part of the path.** Two URLs differing only in query parameters hit the same endpoint. That matters for caching, for rate limiting and for reading logs, where the path is often what gets grouped.
+
+**The version prefix is easy to lose.** As shown above, a leading slash in `new URL()` discards everything after the host, version included. It is the single most common way a correctly-constructed base URL produces a wrong request.
+
+## When the shape is not REST at all
+
+Worth knowing so you recognise it rather than assuming the documentation is wrong.
+
+**GraphQL** has one endpoint, usually `/graphql`, and everything goes through POST. There are no resource paths, because the query body describes what you want. If you find an API with a single endpoint and no path reference, this is why — and the shape you need is in the schema rather than in a list of URLs.
+
+**RPC-style** APIs put the operation in the path deliberately: `/api/createUser`, `/api/sendEmail`. This is out of fashion and entirely functional, and some large public APIs still work this way.
+
+**Batch endpoints** accept several operations in one request, which breaks the one-URL-one-thing model on purpose to save round trips.
+
+The reason to recognise these is that trying to read an RPC or GraphQL API as though it were REST is confusing in a way that has nothing to do with your understanding. The conventions in this article describe the dominant style, not a rule the whole industry follows.
+
+## Practising on something readable
+
+Endpoints make more sense when you can see a whole small API at once. These have few endpoints, plain JSON responses, no key, and are currently responding:
+
+<ApiTable ids={["zippopotam-us", "postcodes-io", "newton", "dummyjson"]} />
+
+[Zippopotam.us](/apis/zippopotam-us) is a good first example because the path encodes the parameters directly: `/gb/SW1A` is country then postcode, and you can read the URL and predict the response before you send it.
+
+[DummyJSON](/apis/dummyjson) is the opposite end: a full set of CRUD endpoints across several resources, which makes it useful for seeing how collections, items and nesting fit together.

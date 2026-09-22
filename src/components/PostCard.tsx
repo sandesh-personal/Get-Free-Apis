@@ -12,7 +12,6 @@ export function PostCard({ post, featured = false }: { post: PostMeta; featured?
     >
       <Link href={`/blog/category/${cluster.slug}`} className="mb-3 w-fit">
         <span className="inline-flex items-center gap-1.5 rounded-md bg-surface px-2 py-1 text-xs font-medium text-muted transition hover:text-accent">
-          <span aria-hidden>{cluster.emoji}</span>
           {cluster.short}
         </span>
       </Link>

@@ -2,7 +2,8 @@
 title: "401 vs 403: diagnosing API authentication failures"
 description: "A 401 means the API does not know who you are. A 403 means it knows and is refusing anyway. Telling them apart points you at completely different fixes."
 cluster: errors
-author: editorial
+imageQuery: "security gate access control"
+author: sandy
 publishedAt: "2026-09-20"
 updatedAt: "2026-09-20"
 relatedApis:
@@ -200,6 +201,28 @@ Roughly two in five free public APIs require no key, no token and no sign-up. Fo
 </Tested>
 
 Our [no-key collection](/collections/no-api-key) lists them, and every one is health-checked daily.
+
+## When the code is wrong and the body is right
+
+A practical complication: plenty of APIs do not follow the distinction, and your client has to cope regardless.
+
+Some return 403 for everything authentication-related, including a missing credential. Some return 401 for a permission failure because the developer read "Unauthorized" literally. A few return 404 for a resource you are not permitted to see — which is deliberate rather than sloppy, since confirming that something exists is itself a disclosure, and this is standard practice for private repositories and similar.
+
+The body usually disambiguates even when the status does not. An error message mentioning a token, a signature or an expiry is an authentication problem whatever the code says. One mentioning scope, permission, plan or role is an authorisation problem. And the `WWW-Authenticate` header, when present, is a strong signal of a genuine 401, since it exists specifically to tell the client how to authenticate.
+
+The safe client behaviour is to treat the status as the primary signal, then refine on the body where the distinction changes what you do. The action that matters is binary: is it worth trying again with a different credential, or not? A 401 says the credential is the problem, so refreshing a token and retrying once is reasonable. A 403 says it is not, so retrying with the same identity will fail identically and the loop is pure waste.
+
+One specific trap: retrying a 401 in a loop without refreshing anything is a good way to trigger an account lockout or a rate limit, turning a recoverable problem into a longer outage. Refresh once, retry once, then stop and surface it.
+
+## Telling a user what to do about it
+
+The two codes need genuinely different messages, and the generic "access denied" serves neither.
+
+A 401 means the person can fix this. Their session expired, their token is stale, they signed out elsewhere. The message should say so and give them the action: sign in again. Automatically redirecting to a login screen is usually right, provided you preserve where they were going.
+
+A 403 means they cannot fix it themselves. They are correctly identified and lack permission, so offering a sign-in link is actively unhelpful — they are already signed in, and trying again changes nothing. What helps is saying what is missing and who can grant it: an administrator, an upgraded plan, a different account.
+
+The difference is worth the small effort because getting it backwards produces a specific frustration. A user shown a login prompt who is already logged in concludes the application is broken, and a user told to contact an administrator when their session merely expired contacts one unnecessarily.
 
 ## If you are designing an API
 

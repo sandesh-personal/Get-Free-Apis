@@ -1,0 +1,244 @@
+---
+title: "Free email validation APIs"
+description: "Disposable-address detection and email verification without a key, what validation can and cannot actually prove, and the regex you should stop writing."
+cluster: roundups
+imageQuery: "envelopes mail sorting"
+author: sandy
+publishedAt: "2026-10-24"
+updatedAt: "2026-10-24"
+relatedApis:
+  - disify
+  - mailcheck-ai
+  - email-validator-by-lifestep
+  - kickbox
+  - mail-tm
+  - guerrilla-mail
+relatedPosts:
+  - free-mock-and-test-data-apis
+  - api-authentication-types-explained
+  - caching-api-responses-free-tier
+sources:
+  - label: "RFC 5322 — Internet Message Format"
+    url: "https://www.rfc-editor.org/rfc/rfc5322"
+  - label: "RFC 5321 — Simple Mail Transfer Protocol"
+    url: "https://www.rfc-editor.org/rfc/rfc5321"
+  - label: "WHATWG HTML — valid email address"
+    url: "https://html.spec.whatwg.org/multipage/input.html#valid-e-mail-address"
+faq:
+  - q: "Is there a free email validation API with no key?"
+    a: "Yes. Disify checks syntax and disposable-domain status keylessly, and MailCheck.ai focuses on temporary-address detection. Both answered without a credential in our checks."
+  - q: "Can an API tell me whether an email address really exists?"
+    a: "Not reliably. SMTP verification is unreliable because most large providers accept mail for any address and reject it later, and catch-all domains accept everything. The only proof an address works is sending to it."
+  - q: "How do I block disposable email addresses?"
+    a: "Use a maintained blocklist through an API such as Disify or MailCheck.ai rather than your own list. New throwaway domains appear daily, and a static list is out of date within weeks."
+  - q: "What is the correct regex for validating an email address?"
+    a: "There isn't a practical one. RFC 5322 permits quoted strings, comments and nested constructs that no sensible regex handles. Use the WHATWG HTML pattern, or just check for one @ with something either side, then send a confirmation email."
+  - q: "Should I block disposable addresses at sign-up?"
+    a: "It depends on your product. Blocking reduces abuse and also blocks legitimate privacy-conscious users. For most consumer products, flagging for review beats hard blocking."
+---
+
+Email validation promises more than it can deliver. An API can tell you an address is **syntactically plausible**, that the domain **has mail servers**, and that it is **a known throwaway**. None of that proves anyone will read the message.
+
+Knowing exactly where that line falls is what stops you building a sign-up flow that rejects real customers.
+
+<Answer>
+For disposable-address detection, use **[Disify](/apis/disify)** — keyless, and it does the one job that genuinely cannot be done locally. Do not attempt to prove an address exists: the only reliable verification is sending a confirmation email and waiting for the click.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["disify", "mailcheck-ai", "email-validator-by-lifestep", "kickbox", "mail-tm", "guerrilla-mail"]} />
+
+<Tested date="2026-09-18" result="All six responded without a key.">
+Checked from a clean client during our scheduled run. Note that mail.tm and Guerrilla Mail are the disposable-inbox services themselves, useful for testing your own delivery.
+</Tested>
+
+## What validation can and cannot prove
+
+Worth being precise, because most bugs here come from expecting the wrong thing.
+
+```text
+Syntax valid          cheap, local, proves almost nothing
+Domain has MX records cheap, proves mail could be delivered somewhere
+Not a known throwaway needs a maintained list — this is what APIs are for
+Mailbox exists        unreliable, see below
+Someone reads it      only a confirmation email proves this
+```
+
+**Why mailbox existence cannot be checked reliably.** The SMTP `RCPT TO` trick — connecting to the mail server and asking whether an address is accepted — fails in practice because Gmail, Outlook and most large providers accept mail for any address at SMTP time and bounce later. Many domains are configured catch-all and accept everything by design. And aggressive probing gets your IP blocklisted.
+
+<Callout type="danger" title="Never hard-block on a validation API's verdict alone">
+These services return false negatives. A legitimate customer on an unusual domain gets rejected, tries twice, and leaves. Use validation to <em>flag</em>, and let a confirmation email be the actual gate.
+</Callout>
+
+## Stop writing the regex
+
+RFC 5322 permits quoted local parts, comments, and nested parentheses. `"very.unusual.@.unusual.com"@example.com` is a valid address. No regex you write on a Tuesday handles it, and the elaborate ones circulating online reject addresses that are perfectly legal.
+
+The pragmatic position is the WHATWG HTML specification's pattern, which is deliberately narrower than the RFC and is what `<input type="email">` enforces:
+
+```js
+const HTML_EMAIL =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+```
+
+Or accept that syntax checking is nearly worthless and do the minimum:
+
+```js
+const plausible = (email) => {
+  const parts = email.trim().split('@');
+  return parts.length === 2 && parts[0].length > 0 && parts[1].includes('.');
+};
+```
+
+Then send the confirmation email, which is the only check that matters.
+
+## Disify — disposable detection, keyless
+
+Does syntax, domain and disposable checks in one call with no credential.
+
+```bash
+curl -s "https://www.disify.com/api/email/test@mailinator.com"
+```
+
+```json
+{
+  "format": true,
+  "domain": "mailinator.com",
+  "disposable": true,
+  "dns": true
+}
+```
+
+```js
+async function screen(email) {
+  const res = await fetch(`https://www.disify.com/api/email/${encodeURIComponent(email)}`);
+  if (!res.ok) return { ok: true, reason: 'check-unavailable' }; // fail open
+
+  const { format, dns, disposable } = await res.json();
+  if (!format) return { ok: false, reason: 'malformed' };
+  if (!dns) return { ok: false, reason: 'no-mail-server' };
+  if (disposable) return { ok: true, flag: 'disposable' };      // flag, not block
+  return { ok: true };
+}
+```
+
+Two decisions in there are deliberate. **Fail open** when the API is unreachable — an outage at a validation service should not stop sign-ups. And **flag rather than block** disposables, so a human decides the policy.
+
+## MailCheck.ai and LifeStep
+
+**MailCheck.ai** specialises narrowly in temporary-address detection and maintains its list aggressively:
+
+```bash
+curl -s "https://api.mailcheck.ai/domain/mailinator.com"
+```
+
+**Email Validator by LifeStep** is the most thorough keyless option, covering syntax, MX, disposable and role-address detection in one response, and it sends CORS headers.
+
+Role addresses are worth catching separately. `info@`, `support@` and `admin@` usually reach a shared mailbox rather than a person, which matters for onboarding flows and for marketing consent.
+
+```js
+const ROLE = new Set(['info', 'support', 'admin', 'sales', 'contact', 'help', 'noreply']);
+const isRole = (email) => ROLE.has(email.split('@')[0].toLowerCase());
+```
+
+## Cache by domain, not by address
+
+The expensive part of the check is the domain, and domains repeat constantly. Caching per address wastes almost all of the benefit.
+
+```js
+const domainCache = new Map();
+const TTL = 7 * 86_400_000;   // disposable lists change slowly
+
+async function domainInfo(domain) {
+  const hit = domainCache.get(domain);
+  if (hit && Date.now() - hit.at < TTL) return hit.data;
+
+  const data = await fetch(`https://api.mailcheck.ai/domain/${domain}`)
+    .then((r) => r.json())
+    .catch(() => ({ disposable: false }));  // fail open
+
+  domainCache.set(domain, { at: Date.now(), data });
+  return data;
+}
+```
+
+One lookup for `gmail.com` covers every Gmail user who ever signs up.
+
+## Testing your own delivery
+
+The other half of this category, and the more useful half during development. **mail.tm** and **Guerrilla Mail** create real disposable inboxes over an API, which lets you test a sign-up flow end to end automatically.
+
+```js
+// Create an inbox, then poll it for the confirmation email
+const { token } = await fetch('https://api.mail.tm/accounts', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ address, password }),
+}).then((r) => r.json());
+
+const messages = await fetch('https://api.mail.tm/messages', {
+  headers: { Authorization: `Bearer ${token}` },
+}).then((r) => r.json());
+```
+
+That turns "did the verification email arrive and is the link correct" into an automated test rather than a manual one.
+
+## A sensible sign-up flow
+
+```text
+1. <input type="email" required>        browser does basic syntax
+2. Check MX + disposable via API        flag, do not block
+3. Send a confirmation email            the real gate
+4. Activate on click                    now you know it works
+```
+
+Steps 1 and 2 improve the experience by catching typos early. Step 3 is the only one that proves anything.
+
+## Typos cost more than throwaways
+
+Disposable addresses get all the attention, and for most consumer products the more expensive problem is the ordinary typo. Someone types `gmial.com` or `hotmial.co.uk`, the address is perfectly valid syntactically, the domain may even exist and accept mail, and the person never receives their confirmation. From their side your product is broken. From your side the sign-up simply never completes, and you have no idea why.
+
+The fix is a suggestion rather than a rejection. Compare the domain against a list of the twenty or thirty most common providers using an edit-distance measure, and if it is one or two characters away from a popular domain, ask. "Did you mean name@gmail.com?" with a one-click accept recovers a large share of failed sign-ups, and unlike blocking it cannot lock out someone with an unusual but correct address.
+
+Two details make the difference between this helping and annoying. Only suggest when the distance is small — at a threshold of three or more you start proposing gmail.com to people with legitimate company domains. And never auto-correct silently: someone whose real domain genuinely resembles a popular one will be quietly signed up with the wrong address and never know.
+
+The same technique applies to the top-level domain, where `.con` for `.com` and `.co.ku` for `.co.uk` are common enough to be worth their own check.
+
+## Role addresses and plus-addressing
+
+Two categories that need a decision rather than a default, because both are legitimate and both cause problems if treated as ordinary.
+
+**Role addresses** — info@, support@, sales@, admin@ — reach a shared mailbox rather than a person. For a newsletter that is fine. For an account with a password, it means several people share credentials and nobody owns the account, and for marketing consent it is questionable, because whoever submitted it cannot consent on behalf of colleagues. Detecting them is a simple prefix check. What to do about them is a product decision, and the reasonable middle ground is to allow but flag, so support knows why an account behaves oddly.
+
+**Plus-addressing** — `name+something@gmail.com` — is a standard feature that lets people tag mail they receive. It is used legitimately by organised people and also to create many accounts on one mailbox. Rejecting it outright is hostile to the first group and only mildly inconvenient to the second, who can register another address in seconds.
+
+The useful middle ground is to store the address exactly as given, because that is where mail must be sent, while also storing a normalised form with the tag and any provider-specific quirks removed. Deduplicate and rate-limit on the normalised form, deliver to the original. That prevents one mailbox creating a hundred accounts without refusing anyone a valid address.
+
+Be careful about generalising normalisation rules across providers, though. Gmail ignores dots in the local part; almost nobody else does. Applying Gmail's rules to another domain will merge two genuinely different people into one account, which is a considerably worse failure than the abuse you were preventing.
+
+## Bounces are the only real feedback
+
+Everything an API can tell you is a prediction. The delivery attempt is the measurement, and a sign-up flow that ignores what happens afterwards is throwing away the only reliable signal it will ever get.
+
+A **hard bounce** means the address does not exist. That is definitive: mark it invalid, stop sending, and prompt the user for a correction next time they appear. Continuing to send to hard-bounced addresses is what damages your sending reputation, and a damaged reputation means your mail starts landing in spam for everyone, including the addresses that are fine.
+
+A **soft bounce** is temporary — a full mailbox, a server problem, a greylist. Retry, and only treat it as permanent after several consecutive failures over some days.
+
+A **complaint**, where someone marks your mail as spam, matters more than either. Providers weight it heavily, and a complaint rate above a fraction of a percent affects deliverability across your whole domain. Honour it immediately and unconditionally.
+
+Every mainstream email provider exposes these through webhooks. Wiring them into the same record the validation API wrote to means your data improves over time from real evidence rather than staying frozen at whatever a prediction said on the day of sign-up. That feedback loop is worth more than any validation service, and it is the part most projects never build.
+
+## Choosing
+
+**Catching throwaway addresses at sign-up.** Disify or MailCheck.ai, cached by domain, failing open.
+
+**One call covering syntax, MX, disposable and role.** LifeStep's validator.
+
+**Cleaning a large existing marketing list.** Kickbox or another paid service. Free tiers will not carry the volume.
+
+**Testing that your own emails arrive.** mail.tm, driven from your test suite.
+
+**Proving an address is real.** Send a confirmation email. No API does this.
+
+[Browse the email category](/categories/email) for all 36 entries we track.

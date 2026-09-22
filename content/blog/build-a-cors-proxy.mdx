@@ -1,0 +1,289 @@
+---
+title: "Building a CORS proxy the legitimate way"
+description: "Why public CORS proxies are a security hole, how to write a locked-down one in about twenty lines, and when you do not need a proxy at all."
+cluster: howto
+imageQuery: "bridge over river crossing"
+author: sandy
+publishedAt: "2026-10-30"
+updatedAt: "2026-10-30"
+relatedApis:
+  - 7timer
+  - coinlore
+  - musicbrainz
+  - jikan
+relatedPosts:
+  - fix-cors-error-public-api
+  - preflight-options-requests-explained
+  - hide-api-keys-frontend
+sources:
+  - label: "MDN — Cross-Origin Resource Sharing"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS"
+  - label: "OWASP — Server Side Request Forgery Prevention"
+    url: "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html"
+  - label: "RFC 1918 — Address Allocation for Private Internets"
+    url: "https://www.rfc-editor.org/rfc/rfc1918"
+faq:
+  - q: "Why can I not just use a public CORS proxy?"
+    a: "Because it reads every request you send through it, including headers and tokens, and it can modify responses. Public proxies also go down without notice. cors-anywhere, the best known one, now requires you to request access precisely because of abuse."
+  - q: "Is a CORS proxy a security risk?"
+    a: "An unrestricted one is. It lets anyone make requests appear to come from your server, which can reach internal addresses and cloud metadata endpoints. That is server-side request forgery, and an allowlist is the fix."
+  - q: "Do I need a proxy if the API already sends CORS headers?"
+    a: "No. If the API sends Access-Control-Allow-Origin, browsers will let you read the response directly. Check with curl -I before building anything."
+  - q: "Can a proxy hide my API key as well?"
+    a: "Yes, and that is usually the better reason to build one. The proxy holds the key server-side and the browser never sees it, which solves CORS and key exposure in the same component."
+  - q: "What is the difference between a CORS proxy and a reverse proxy?"
+    a: "A CORS proxy exists only to add permissive CORS headers to someone else's API. A reverse proxy is a general routing layer you run in front of your own services. The techniques overlap but the purposes differ."
+---
+
+A CORS error tells you the API did not grant your page permission to read the response. The request succeeded; the browser is refusing to hand it over. See [fixing CORS errors](/blog/fix-cors-error-public-api) for why.
+
+Once you understand that, a proxy is the obvious fix — and the obvious implementation is dangerous. A proxy that forwards any URL to anyone is a server-side request forgery vulnerability with a friendly interface.
+
+<Answer>
+Do not use a public CORS proxy, and do not write an open one. Write a **locked-down** proxy: an allowlist of upstream hosts, an allowlist of your own origins, a method restriction, a timeout and a size cap. That is about twenty lines, and it is the difference between a tool and a hole.
+</Answer>
+
+## First, check whether you need one
+
+A surprising share of CORS proxies exist because nobody checked.
+
+```bash
+curl -sI "https://api.coinlore.net/api/tickers/?limit=1" | grep -i access-control
+# access-control-allow-origin: *
+```
+
+If that header is present, the API already allows browser access and a proxy adds latency for nothing. Our catalogue records this per entry — the [browser-ready collection](/collections/browser-ready) lists every API we have confirmed sends CORS headers.
+
+Three other things to rule out first:
+
+**Is it actually a CORS error?** A failed DNS lookup or a blocked mixed-content request can surface similarly. Check the Network tab: a CORS failure shows a completed request with a console message, not a failed one.
+
+**Do you have a backend already?** Then fetch server-side and skip the proxy entirely.
+
+**Does the provider offer a JSONP or server-side option?** Some do, and it is less machinery.
+
+## Why public proxies are a bad idea
+
+Routing your traffic through someone else's server means they see every request: URLs, headers, and any token you attach. They can also alter responses, which for anything involving prices or authentication is a real risk rather than a theoretical one.
+
+They also disappear. `cors-anywhere`, the most widely used one, restricted itself to allowlisted users after sustained abuse — breaking every tutorial that referenced it.
+
+<Callout type="danger" title="Never send credentials through a third-party proxy">
+An <code>Authorization</code> header through a public proxy is an API key handed to a stranger. If you need both a proxy and a key, you need your own proxy, without exception.
+</Callout>
+
+## The dangerous version
+
+This is the code in most tutorials, and it should not be deployed:
+
+```js
+// DO NOT DEPLOY THIS
+export async function GET(request) {
+  const target = new URL(request.url).searchParams.get('url');
+  const res = await fetch(target);               // any URL at all
+  return new Response(res.body, {
+    headers: { 'Access-Control-Allow-Origin': '*' },
+  });
+}
+```
+
+It will fetch anything, from anyone, including addresses only your server can reach:
+
+```text
+?url=http://169.254.169.254/latest/meta-data/   cloud credentials
+?url=http://localhost:6379/                     your Redis
+?url=http://10.0.0.5/admin                      internal services
+?url=file:///etc/passwd                         depending on runtime
+```
+
+Your proxy is now an authenticated position inside your own network, available to the public.
+
+## The version to actually deploy
+
+```js
+// app/api/proxy/route.ts
+const ALLOWED_HOSTS = new Set([
+  'www.7timer.info',
+  'api.coinlore.net',
+  'musicbrainz.org',
+]);
+
+const ALLOWED_ORIGINS = new Set([
+  'https://getfreeapis.com',
+  'http://localhost:3000',
+]);
+
+const TIMEOUT_MS = 8_000;
+const MAX_BYTES = 2_000_000;
+
+function corsHeaders(origin: string | null) {
+  const allowed = origin && ALLOWED_ORIGINS.has(origin);
+  return {
+    'Access-Control-Allow-Origin': allowed ? origin : 'null',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
+export async function OPTIONS(request: Request) {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders(request.headers.get('origin')),
+  });
+}
+
+export async function GET(request: Request) {
+  const origin = request.headers.get('origin');
+  const headers = corsHeaders(origin);
+
+  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    return Response.json({ error: 'origin not allowed' }, { status: 403, headers });
+  }
+
+  const raw = new URL(request.url).searchParams.get('url');
+  if (!raw) return Response.json({ error: 'url required' }, { status: 400, headers });
+
+  let target: URL;
+  try {
+    target = new URL(raw);
+  } catch {
+    return Response.json({ error: 'malformed url' }, { status: 400, headers });
+  }
+
+  // The two checks that matter most
+  if (target.protocol !== 'https:') {
+    return Response.json({ error: 'https only' }, { status: 400, headers });
+  }
+  if (!ALLOWED_HOSTS.has(target.hostname)) {
+    return Response.json({ error: 'host not allowed' }, { status: 403, headers });
+  }
+
+  const abort = AbortSignal.timeout(TIMEOUT_MS);
+
+  try {
+    const upstream = await fetch(target, {
+      signal: abort,
+      headers: { 'User-Agent': 'getfreeapis-proxy/1.0 (+https://getfreeapis.com)' },
+      redirect: 'error',        // a redirect could escape the allowlist
+    });
+
+    const length = Number(upstream.headers.get('content-length') ?? 0);
+    if (length > MAX_BYTES) {
+      return Response.json({ error: 'response too large' }, { status: 502, headers });
+    }
+
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: {
+        ...headers,
+        'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=3600',
+      },
+    });
+  } catch {
+    return Response.json({ error: 'upstream failed' }, { status: 502, headers });
+  }
+}
+```
+
+The non-obvious lines are the ones worth keeping:
+
+**`redirect: 'error'`** — without it, an allowlisted host can 302 you to an internal address and defeat the whole allowlist.
+
+**`protocol !== 'https:'`** — blocks `file:`, `ftp:` and plain HTTP to internal hosts.
+
+**A host allowlist, not a blocklist.** Blocklists always miss something: `127.0.0.1`, `[::1]`, `0.0.0.0`, decimal-encoded IPs, DNS names resolving to private ranges.
+
+**`Access-Control-Allow-Origin` echoing a checked origin**, never `*`, so only your pages can use it.
+
+<Callout type="warning" title="Do not forward the incoming Authorization header">
+If the upstream needs a key, read it from your own environment inside the proxy. Passing through whatever the client sent turns your proxy into a credential relay.
+</Callout>
+
+## Add caching and a rate limit
+
+Your proxy is a shared resource. Both of these protect it and your upstream quota:
+
+```js
+const hits = new Map();
+
+function allowed(ip: string, limit = 60, windowMs = 60_000) {
+  const now = Date.now();
+  const rec = hits.get(ip) ?? { n: 0, reset: now + windowMs };
+  if (now > rec.reset) { rec.n = 0; rec.reset = now + windowMs; }
+  rec.n += 1;
+  hits.set(ip, rec);
+  return rec.n <= limit;
+}
+```
+
+The `Cache-Control` header in the handler above means a CDN serves repeat requests without touching your function at all — see [caching API responses](/blog/caching-api-responses-free-tier).
+
+## A Cloudflare Worker version
+
+Same rules, fewer moving parts, and it runs at the edge:
+
+```js
+const HOSTS = new Set(['www.7timer.info', 'api.coinlore.net']);
+const ORIGINS = new Set(['https://getfreeapis.com']);
+
+export default {
+  async fetch(request) {
+    const origin = request.headers.get('Origin');
+    if (!ORIGINS.has(origin)) return new Response('Forbidden', { status: 403 });
+
+    const target = new URL(new URL(request.url).searchParams.get('url'));
+    if (target.protocol !== 'https:' || !HOSTS.has(target.hostname)) {
+      return new Response('Forbidden', { status: 403 });
+    }
+
+    const upstream = await fetch(target, { redirect: 'error' });
+    return new Response(upstream.body, {
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
+        'Cache-Control': 'public, s-maxage=300',
+      },
+    });
+  },
+};
+```
+
+## What an open proxy actually costs you
+
+It is worth being concrete about why the allowlist matters, because "SSRF" is an acronym that makes a serious problem sound abstract.
+
+An open proxy makes requests **from your server**, with your server's network position. That position is privileged in ways that are easy to forget. Cloud instances can reach a metadata endpoint at a link-local address that hands out temporary credentials for the machine's role — credentials that may be able to read your storage buckets or launch resources on your account. Internal services that are unauthenticated precisely because they are not reachable from the internet become reachable. Databases, admin panels, health endpoints and message queues bound to localhost are all in scope.
+
+Attackers do not need to guess much, because the addresses are standardised and published. This is not a theoretical risk: it is the mechanism behind several of the largest cloud breaches of the last decade, and the entry point in each case was a service that fetched a URL supplied by a user.
+
+Blocklists do not work here, and it is worth understanding why rather than taking it on faith. To block internal addresses you would need to catch every representation of them: dotted decimal, plain decimal, octal, hexadecimal, IPv6, IPv4-mapped IPv6, the many shorthand forms that resolve to loopback, and any hostname anywhere in the world that happens to have an A record pointing at a private range. The last of those defeats any purely textual check, because the URL looks entirely ordinary and only becomes dangerous at DNS resolution time.
+
+There is a subtler version of the same problem even with a host allowlist. A permitted host can respond with a redirect to somewhere you would never allow, and the default behaviour of every HTTP client is to follow it. Your allowlist was checked against the original URL and never against the destination. That is why `redirect: 'error'` appears in the handler above and why it is not an optional refinement — without it, the allowlist is advisory.
+
+The most rigorous fix, if you need to accept arbitrary user-supplied hosts, is to resolve the hostname yourself, verify the resulting IP is publicly routable, and connect to that IP directly while passing the original hostname for TLS. That closes the gap between the check and the connection. For most projects this is unnecessary, because most projects are proxying a handful of known APIs and a fixed allowlist of hostnames is both simpler and stronger.
+
+## Proxy or backend endpoint?
+
+A question worth asking before building either, because the generic proxy is often the worse choice.
+
+A **proxy** forwards a URL. It is flexible, it is a single component serving many upstreams, and its interface is "give me any URL from this list". That flexibility is exactly what makes it a security surface, and it means your client still needs to know the upstream's URL shapes, its parameter names and its response format.
+
+A **purpose-built endpoint** exposes something your application needs — `/api/forecast?lat=&lon=` — and decides internally how to get it. There is no user-supplied URL, so the entire SSRF category disappears by construction. You can validate inputs meaningfully, narrow the response to the handful of fields the client uses, cache with a key that reflects the real query, and swap the upstream provider without touching the client at all.
+
+The trade-off is that you write one endpoint per thing rather than one proxy for everything. In practice most applications need three or four, which is less work than it sounds and considerably less than hardening a general proxy properly.
+
+A reasonable rule: reach for a purpose-built endpoint by default, and only build a general proxy when you genuinely cannot enumerate the upstreams in advance — a feed reader or a link previewer, for instance. In that case the resolve-and-verify approach above is not optional, and you should also cap response size, enforce a timeout, and rate-limit hard.
+
+## The checklist
+
+- Confirmed the API does not already send CORS headers
+- Upstream **hosts** allowlisted, not blocklisted
+- Your **origins** allowlisted; never `Access-Control-Allow-Origin: *`
+- HTTPS only
+- `redirect: 'error'`
+- Timeout and response size cap
+- Incoming `Authorization` never forwarded
+- Rate limited and cached
+
+For the preflight mechanics behind all of this, see [preflight OPTIONS requests explained](/blog/preflight-options-requests-explained).

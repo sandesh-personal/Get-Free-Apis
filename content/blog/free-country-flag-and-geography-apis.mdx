@@ -1,0 +1,315 @@
+---
+title: "Free country, flag and geography APIs"
+description: "Country data, flags and postal geography without a key, why you should not fetch a flag image at all, and the ISO codes worth storing instead of names."
+cluster: roundups
+imageQuery: "world flags row"
+author: sandy
+publishedAt: "2026-10-27"
+updatedAt: "2026-10-27"
+relatedApis:
+  - zippopotam-us
+  - geonames
+  - postalcodes
+  - ziptastic
+  - ip-2-country
+  - wikipedia
+relatedPosts:
+  - free-geocoding-and-maps-apis
+  - free-ip-geolocation-apis
+  - best-free-apis-for-beginners
+sources:
+  - label: "ISO 3166 — Codes for the representation of names of countries"
+    url: "https://www.iso.org/iso-3166-country-codes.html"
+  - label: "REST Countries documentation"
+    url: "https://restcountries.com/"
+  - label: "Unicode CLDR — locale data"
+    url: "https://cldr.unicode.org/"
+faq:
+  - q: "What is the best free country API?"
+    a: "REST Countries. It is keyless, covers every country with names, codes, currencies, languages, borders and flags, and it is the de facto standard for this data."
+  - q: "How do I display a country flag without an API?"
+    a: "Use the regional indicator emoji, which you can compute from any ISO 3166-1 alpha-2 code in one line. It needs no network request and no image file, though Windows renders letters rather than flags."
+  - q: "Should I store country names or country codes?"
+    a: "Codes. Store the ISO 3166-1 alpha-2 code and render the name at display time with Intl.DisplayNames. Names change, differ by language and are ambiguous; codes are stable."
+  - q: "Is there a free API for postcodes worldwide?"
+    a: "Zippopotam.us covers more than 60 countries with no key. Coverage of individual countries varies, and no free service covers every postal system completely."
+  - q: "Why do some APIs list different numbers of countries?"
+    a: "Because 'country' is politically contested. ISO 3166 lists 249 entries including territories, the UN recognises 193 members, and different APIs draw the line differently. Check the count before assuming a list is complete."
+---
+
+Country data looks like the most boring category here, and it contains the single most common avoidable network request on the web: fetching a flag image.
+
+You do not need an API for that. You do not need an image file either. One line of JavaScript turns a country code into a flag.
+
+<Answer>
+For country data, **REST Countries** is the standard: keyless, complete, and covering names, codes, currencies, languages and borders. For flags, **compute the emoji from the ISO code** and make no request at all. For postcodes, **[Zippopotam.us](/apis/zippopotam-us)** covers 60+ countries keylessly.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["zippopotam-us", "geonames", "postalcodes", "ziptastic", "ip-2-country", "wikipedia"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. REST Countries is covered below but is not a separate catalogue entry.
+</Tested>
+
+## Stop fetching flag images
+
+Every ISO 3166-1 alpha-2 code maps to a flag emoji through Unicode regional indicator symbols. The transformation is arithmetic:
+
+```js
+const flag = (code) =>
+  code
+    .toUpperCase()
+    .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+
+flag('GB'); // 🇬🇧
+flag('JP'); // 🇯🇵
+flag('BR'); // 🇧🇷
+```
+
+That is the whole implementation. No request, no image, no CDN, no layout shift, and it scales with font size automatically.
+
+<Callout type="warning" title="Windows does not render flag emoji">
+Windows shows the two letters — "GB" rather than 🇬🇧 — because Microsoft ships no flag glyphs. That is often acceptable, since the letters are still meaningful. If you need flags to render everywhere, use SVGs from a package such as <code>flag-icons</code> bundled locally, which is still better than fetching each one over the network.
+</Callout>
+
+## REST Countries — the one to use
+
+Keyless, comprehensive, and the answer to nearly every country-data question.
+
+```bash
+curl -s "https://restcountries.com/v3.1/alpha/gb"
+curl -s "https://restcountries.com/v3.1/all?fields=name,cca2,currencies,languages"
+curl -s "https://restcountries.com/v3.1/region/europe?fields=name,cca2"
+```
+
+```json
+[{
+  "name": { "common": "United Kingdom", "official": "United Kingdom of Great Britain and Northern Ireland" },
+  "cca2": "GB",
+  "currencies": { "GBP": { "name": "British pound", "symbol": "£" } },
+  "languages": { "eng": "English" },
+  "borders": ["IRL"]
+}]
+```
+
+Always pass `fields`. The full dataset for every country is several megabytes; trimmed to what you need it is a few kilobytes:
+
+```js
+const countries = await fetch(
+  'https://restcountries.com/v3.1/all?fields=name,cca2,currencies',
+).then((r) => r.json());
+
+const options = countries
+  .map((c) => ({
+    code: c.cca2,
+    label: c.name.common,
+    currency: Object.keys(c.currencies ?? {})[0],
+  }))
+  .sort((a, b) => a.label.localeCompare(b.label));
+```
+
+Because this data changes perhaps once a decade, fetch it at build time and ship it as JSON. A country dropdown should not make a network request.
+
+## Store codes, render names
+
+The design decision that saves the most pain later.
+
+```js
+// Wrong: the name is the key
+{ country: 'United Kingdom' }
+
+// Right: the code is the key
+{ country: 'GB' }
+```
+
+Names change (Swaziland became Eswatini; Turkey became Türkiye), vary by language, and are ambiguous. Codes are stable and standardised. Render the name at display time from the code, in the user's own language, with no lookup table:
+
+```js
+const names = new Intl.DisplayNames(['en'], { type: 'region' });
+names.of('GB');   // "United Kingdom"
+
+new Intl.DisplayNames(['fr'], { type: 'region' }).of('GB');  // "Royaume-Uni"
+new Intl.DisplayNames(['ja'], { type: 'region' }).of('GB');  // "イギリス"
+```
+
+`Intl.DisplayNames` is built into every current browser and Node. Combined with the flag function above, a complete localised country picker needs no API at all:
+
+```js
+const picker = ['GB', 'FR', 'DE', 'JP'].map((code) => ({
+  code,
+  label: `${flag(code)} ${names.of(code)}`,
+}));
+```
+
+## Which codes, and when
+
+Three ISO 3166-1 forms exist and they are not interchangeable:
+
+```text
+alpha-2   GB    2 letters   use this — matches flags, TLDs, most APIs
+alpha-3   GBR   3 letters   common in sport and some datasets
+numeric   826   3 digits    language-independent, used in statistics
+```
+
+Default to alpha-2. Two traps worth knowing: the United Kingdom's TLD is `.uk` but its ISO code is `GB`, and Greece is `GR` in ISO but `EL` in European Union statistics.
+
+## Postal geography
+
+**Zippopotam.us** is the broadest keyless option, covering 60+ countries with the same URL shape everywhere:
+
+```bash
+curl -s "https://api.zippopotam.us/gb/NW1"
+curl -s "https://api.zippopotam.us/de/10115"
+```
+
+**GeoNames** covers eleven million place names and handles the "city, not postcode" case:
+
+```bash
+curl -s "http://api.geonames.org/searchJSON?q=Manchester&maxRows=5&username=demo"
+```
+
+**Ziptastic** and **PostalCodes** are alternatives with different coverage; useful as a fallback when one lacks a country you need.
+
+For full address geocoding, see [free geocoding and maps APIs](/blog/free-geocoding-and-maps-apis), where the licensing questions are more involved.
+
+## "How many countries are there" has no single answer
+
+Worth knowing before you assert a number in a UI or write a test asserting a count.
+
+```text
+ISO 3166-1        249   includes territories and dependencies
+UN member states  193   the usual political answer
+FIFA              211   football has its own boundaries
+REST Countries    250   its own editorial line
+```
+
+Taiwan, Kosovo, Palestine and Western Sahara are handled differently by different sources, and those differences are political rather than technical. Pick a source, document it, and do not hard-code a count in an assertion.
+
+## Building the country list at build time
+
+Since this data changes about once a decade, fetching it at runtime is pure waste. Generate it once and commit the result.
+
+```js
+// scripts/build-countries.mjs
+import { writeFile } from 'node:fs/promises';
+
+const FIELDS = 'name,cca2,cca3,currencies,languages,region,flag,idd';
+
+const raw = await fetch(`https://restcountries.com/v3.1/all?fields=${FIELDS}`)
+  .then((r) => r.json());
+
+const countries = raw
+  .map((c) => ({
+    code: c.cca2,
+    code3: c.cca3,
+    name: c.name.common,
+    region: c.region,
+    currency: Object.keys(c.currencies ?? {})[0] ?? null,
+    dialCode: c.idd?.root
+      ? `${c.idd.root}${c.idd.suffixes?.length === 1 ? c.idd.suffixes[0] : ''}`
+      : null,
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+await writeFile('data/countries.json', JSON.stringify(countries, null, 2));
+console.log(`Wrote ${countries.length} countries`);
+```
+
+That produces a file of roughly 40 KB that ships with your bundle, needs no network call, works offline, and cannot break because a third party went down. Re-run it once a year.
+
+The `idd` field is worth capturing while you are there — international dialling codes are otherwise a separate lookup, and the structure (a root like `+4` plus suffixes) is easy to get wrong if you derive it later.
+
+## A country picker that does not need a library
+
+Combining the two techniques above gives a complete, localised, flag-bearing picker with no dependencies and no requests:
+
+```jsx
+import countries from '@/data/countries.json';
+
+const flag = (code) =>
+  code.replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+
+export function CountrySelect({ value, onChange, locale = 'en' }) {
+  const names = new Intl.DisplayNames([locale], { type: 'region' });
+
+  const options = countries
+    .map((c) => ({ code: c.code, label: names.of(c.code) ?? c.name }))
+    .sort((a, b) => a.label.localeCompare(b.label, locale));
+
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      {options.map((o) => (
+        <option key={o.code} value={o.code}>
+          {flag(o.code)} {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+```
+
+Sorting with `localeCompare` and the user's locale matters: alphabetical order differs between languages, and sorting Swedish country names with English rules puts Ö in the wrong place.
+
+<Callout type="tip" title="Put the likely answers at the top">
+A picker of 250 entries is a scrolling exercise. Pre-pending three or four likely countries — from the visitor's IP, or your own traffic — above a separator removes most of that work. See <a href="/blog/free-ip-geolocation-apis">free IP geolocation APIs</a> for the country guess, and let the user override it.
+</Callout>
+
+## Phone numbers, addresses and the assumptions that break
+
+Country data tends to arrive attached to a form, and forms encode assumptions that do not survive contact with other countries.
+
+**Not every country has postcodes.** Ireland only introduced them in 2015; several nations have none at all. A required postcode field makes your form unusable for those users.
+
+**Address formats are not universal.** The house-number-then-street order, the existence of a "state", and the position of the postcode all vary. A single free-text address block plus a country code is more robust than five rigid fields.
+
+**Phone number validation cannot be done with a regex.** Lengths and formats vary by country and by carrier, and the rules change. Use `libphonenumber-js` and the country code you already collected:
+
+```js
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
+
+const phone = parsePhoneNumberFromString(input, countryCode);
+const valid = phone?.isValid() ?? false;
+const normalised = phone?.number;      // E.164, e.g. +447700900123
+```
+
+Store the E.164 form. It is unambiguous, sortable and what every SMS provider expects.
+
+## Country is not the only question you are asking
+
+A recurring design mistake: collecting one country field and using it for four different purposes that do not always agree.
+
+Where someone **is** — their physical location — determines shipping, delivery estimates and often tax. Where they **bank** determines the currency they want to pay in. Where they are **legally resident** determines which consumer protections and data rights apply. And which **language** they read is independent of all three.
+
+These coincide often enough that a single field appears to work, and diverge often enough to cause real problems. Someone living in Berlin with a UK bank account and a preference for reading in English is entirely ordinary, and an application that infers language from country will serve them German, infer currency from language and quote dollars, and get both wrong.
+
+The specific pairing worth separating is country and language. There are countries with several official languages and languages spoken across many countries, so a mapping from one to the other is wrong in both directions. The browser already reports a language preference through `navigator.language` and the `Accept-Language` header, and that is a far better source than an inference from location.
+
+Currency deserves the same treatment. Defaulting from country is a reasonable starting guess and should remain overridable, because a traveller or an expatriate will want something else and no amount of geolocation will tell you which.
+
+The principle is the same one that runs through this article: use the data to set a sensible default, make the default easy to change, and store what the person actually chose rather than what you guessed.
+
+## A note on names that are disputed
+
+One last practical caution. Some country and territory names are politically contested, and the name a dataset uses is a position, not a neutral fact.
+
+REST Countries, GeoNames and the ISO list do not always agree, and neither do your users. Where this matters for your audience, the safe route is to follow the ISO 3166 naming, since it is the most widely accepted reference and the easiest to defend as a choice rather than an opinion. Where it matters a great deal, the answer is to let the name be configurable rather than to pick one and hope.
+
+It is worth knowing this exists before someone raises it, rather than discovering it through a complaint about a dropdown.
+
+## Choosing
+
+**Country names, codes, currencies, languages.** REST Countries, fetched at build time.
+
+**Flags.** The emoji function above. No request at all.
+
+**Localised country names.** `Intl.DisplayNames`, built in.
+
+**Postcode lookup.** Zippopotam.us.
+
+**Place names and populations.** GeoNames.
+
+**Country from an IP address.** IP 2 Country — see [free IP geolocation APIs](/blog/free-ip-geolocation-apis).
+
+[Browse the full catalogue](/browse?q=country) for everything we track in this space.

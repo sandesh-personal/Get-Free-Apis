@@ -16,8 +16,10 @@ import { mdxComponents } from './MdxComponents';
  * mismatch entirely and drops a dependency.
  *
  * Highlighting runs here at build time via Shiki, so no highlighter ships to the browser.
- * Both themes are emitted at once and CSS chooses between them, which keeps code
- * readable in dark mode with no hydration step and no flash.
+ *
+ * Both themes are emitted as custom properties on each token, and `globals.css`
+ * chooses between them. That keeps theme switching a pure CSS change — no second
+ * copy of the markup, and no re-highlighting in the browser.
  */
 const prettyCodeOptions: PrettyCodeOptions = {
   theme: { light: 'github-light', dark: 'github-dark-dimmed' },

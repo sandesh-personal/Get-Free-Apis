@@ -2,7 +2,8 @@
 title: "Handling API timeouts and retries without making things worse"
 description: "fetch has no default timeout, so a hung request waits forever. Here is how to set one properly, and which failures are safe to retry without duplicating work."
 cluster: errors
-author: editorial
+imageQuery: "stopwatch timing"
+author: sandy
 publishedAt: "2026-09-26"
 updatedAt: "2026-09-26"
 relatedApis:
@@ -218,6 +219,42 @@ await resilientFetch(url, { signal: deadline }, { timeoutMs: 4000, maxAttempts: 
 ```
 
 Now each attempt gets 4 seconds and the entire operation is capped at 12, regardless of how the retries fall.
+
+## Choosing the timeout number
+
+Most timeouts are set to a round number someone liked. There is a better way to pick one, and it changes behaviour under load more than the retry policy does.
+
+Start from the API's observed latency rather than from intuition. If the median response is 300 ms and the slowest one-in-a-hundred is 1.2 seconds, a timeout somewhere above that tail — two or three seconds — abandons genuinely stuck requests while letting slow-but-fine ones complete. A thirty-second timeout on that API is not cautious; it is thirty seconds of a connection held open, a user waiting, and a worker unavailable, for a request that was never going to arrive.
+
+The opposite error is just as common. A timeout below the normal tail turns ordinary slowness into failures, and because those failures trigger retries, it increases load on a service that was already struggling. A too-short timeout under load is an amplifier.
+
+Two refinements are worth knowing. **Separate the connection timeout from the total**, where your client supports it: failing to connect within a second or two is clearly broken, while a response legitimately taking longer is not. And **give the timeout a budget across retries** rather than per attempt — three attempts with a five-second timeout each can occupy fifteen seconds, which is well past the point a user has given up.
+
+That last idea generalises usefully. Decide how long the whole operation may take, and let the retry logic spend that budget rather than rediscovering it each attempt. When the budget is exhausted, stop, regardless of how many attempts remain.
+
+## Idempotency decides what is safe to retry
+
+The question that should come before any retry policy, and the one most often skipped.
+
+A retry sends the request again. That is harmless if repeating it has the same effect as doing it once, and potentially damaging if it does not. GET and DELETE are naturally safe — reading twice changes nothing, and deleting an already-deleted thing is usually a no-op. PUT is safe by design, because it sets a value rather than adjusting one.
+
+POST is the problem. A retried POST can create two records, send two emails or take two payments. Worse, the most dangerous case is the one that looks like a failure: the request arrived, the server processed it, and the response was lost on the way back. From your side that is indistinguishable from the request never arriving, and retrying duplicates the effect.
+
+The standard solution is an **idempotency key** — a unique value you generate per logical operation and send with the request. The server records it and, on seeing it again, returns the original result rather than repeating the work. Payment providers pioneered this and most now require it. Where an API supports it, use it; where it does not, treat POST as not retryable and surface the uncertainty to the user rather than guessing.
+
+The key must be generated once per operation and reused across retries of that operation. Generating a fresh one per attempt defeats the entire mechanism, and it is an easy mistake to make if the key is created inside the retry loop rather than outside it.
+
+## Knowing when to stop trying
+
+Retries handle transient problems. Applied to a persistent one, they turn a small outage into a larger one by hammering a service that is already failing.
+
+The pattern that prevents this is a **circuit breaker**. Count consecutive failures against a dependency, and once the count passes a threshold, stop calling it for a while and fail immediately instead. After a cooling period, let a single request through: if it succeeds, resume normally; if it fails, wait again.
+
+Two things make this valuable. It stops your traffic contributing to the overload, which shortens the outage for everyone. And it makes your own failures fast — a request that fails instantly is far better for a user than one that spends fifteen seconds retrying before failing anyway, and far better for your own capacity, since nothing is tied up waiting.
+
+The complement is a **bulkhead**: capping how many concurrent requests can be in flight to any one dependency, so a slow third party cannot consume every worker you have. Without it, one degraded API can take down an application that has four healthy ones.
+
+Both are more valuable than a cleverer backoff curve. The failure that takes a service down is rarely a badly chosen delay; it is unbounded concurrency against something slow, with retries multiplying it.
 
 ## The failure you cannot retry away
 

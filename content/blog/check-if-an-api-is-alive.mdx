@@ -1,0 +1,275 @@
+---
+title: "How to check whether an API is still alive"
+description: "Telling a dead API from a moved one, why a 200 response does not mean working, and the monitoring script we run against 2,712 listings."
+cluster: howto
+imageQuery: "heart rate monitor pulse"
+author: sandy
+publishedAt: "2026-11-01"
+updatedAt: "2026-11-01"
+relatedApis:
+  - open-meteo-ensemble
+  - zippopotam-us
+  - flaky
+  - randomuser
+relatedPosts:
+  - api-timeouts-and-retries
+  - surviving-breaking-api-changes
+  - unexpected-token-html-instead-of-json
+sources:
+  - label: "RFC 9110 — HTTP Semantics, status codes"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-status-codes"
+  - label: "MDN — HEAD request method"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/HEAD"
+  - label: "RFC 9110 — 410 Gone"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-410-gone"
+faq:
+  - q: "How can I tell if an API is dead or just down?"
+    a: "Check it several times over a few hours from more than one network. A transient failure recovers; a dead API returns the same thing consistently, and its documentation page is usually gone or its domain has lapsed."
+  - q: "Does a 200 response mean the API is working?"
+    a: "No. A parked domain, a login page or a 'service discontinued' notice all return 200 with an HTML body. You have to check the content type and parse the body to know it still works."
+  - q: "Should I use HEAD or GET to check an API?"
+    a: "Try HEAD first because it skips the body and is cheaper for both sides, but fall back to GET, since many APIs return 405 for HEAD even when GET works fine."
+  - q: "What does a 410 Gone mean from an API?"
+    a: "The endpoint existed and has been deliberately removed permanently. Unlike a 404, which may be a typo or a temporary condition, a 410 is the provider telling you explicitly not to come back."
+  - q: "How often should I health-check a third-party API?"
+    a: "For a dependency in production, every few minutes is reasonable. For cataloguing, daily is plenty. Checking more often than the data changes just consumes someone else's capacity."
+---
+
+"The API is down" is usually one of five different situations, and they need different responses. Telling them apart is most of the work.
+
+We run this check against 2,712 catalogue entries, which is how we know that a meaningful share of every public API list is quietly broken.
+
+<Answer>
+Do not trust the status code alone. A **200 with an HTML body** is the most common failure mode for a dead API — parked domains and "service discontinued" pages both return 200. Check the status, then the `content-type`, then that the body actually parses as the shape you expect.
+</Answer>
+
+## Five failures that look the same
+
+```text
+Transient outage    recovers by itself          retry later
+Rate limited        429, or 403 from some APIs  slow down
+Moved               301/302, or 404 on old path follow, then update
+Deprecated          410 Gone, or a notice       migrate
+Dead                DNS fails, domain parked    replace it
+```
+
+The expensive mistake is treating a move as a death and rewriting your integration, or treating a death as an outage and waiting for a recovery that never comes.
+
+## A 200 does not mean working
+
+This is the single most important point, and the reason naive uptime checks report healthy on APIs that have not worked in a year.
+
+```bash
+# Looks fine
+curl -s -o /dev/null -w "%{http_code}\n" "https://dead-api.example.com/v1/data"
+# 200
+
+# Actually
+curl -s "https://dead-api.example.com/v1/data" | head -3
+# <!DOCTYPE html>
+# <html><head><title>Domain for sale</title>
+```
+
+Parked domains, login redirects and sunset notices all return 200 with HTML. A checker that only reads the status code marks them healthy for ever.
+
+```js
+async function check(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+
+  const type = res.headers.get('content-type') ?? '';
+  if (!type.includes('json')) {
+    return { ok: false, reason: `content-type was ${type || 'absent'}` };
+  }
+
+  try {
+    const body = await res.json();
+    if (body == null || (Array.isArray(body) && body.length === 0)) {
+      return { ok: false, reason: 'empty response' };
+    }
+    return { ok: true, status: res.status };
+  } catch {
+    return { ok: false, reason: 'body was not valid JSON' };
+  }
+}
+```
+
+That content-type check alone catches most dead APIs. Our post on [when an API returns HTML instead of JSON](/blog/unexpected-token-html-instead-of-json) covers the same failure from the debugging side.
+
+## HEAD first, then GET
+
+`HEAD` returns headers without a body, which is cheaper for you and politer to them. But plenty of APIs return 405 for HEAD while GET works perfectly, so it cannot be the only attempt.
+
+```js
+async function probe(url, timeoutMs = 10_000) {
+  const started = performance.now();
+
+  const attempt = (method) =>
+    fetch(url, {
+      method,
+      redirect: 'follow',
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: { 'User-Agent': 'myapp health check (+https://example.com/about)' },
+    });
+
+  let res;
+  try {
+    res = await attempt('HEAD');
+    if (res.status === 405 || res.status === 501) res = await attempt('GET');
+  } catch (err) {
+    return { up: false, error: String(err), latencyMs: null };
+  }
+
+  return {
+    up: res.ok,
+    status: res.status,
+    latencyMs: Math.round(performance.now() - started),
+    redirectedTo: res.redirected ? res.url : undefined,
+  };
+}
+```
+
+<Callout type="tip" title="Send a real User-Agent with contact details">
+Several APIs — the US National Weather Service, MusicBrainz, SEC EDGAR — reject anonymous clients with a 403 that looks exactly like an auth failure. A descriptive User-Agent is also simple courtesy when you are probing someone else's service.
+</Callout>
+
+## Distinguishing dead from moved
+
+A redirect is information. Follow it and compare:
+
+```js
+if (res.redirected && new URL(res.url).hostname !== new URL(url).hostname) {
+  // Moved to a different host — update the record, do not mark it dead
+}
+```
+
+And check the domain itself before concluding anything:
+
+```bash
+# Does the name still resolve?
+dig +short api.example.com
+
+# Is the registration still live?
+whois example.com | grep -iE "expiry|expiration"
+```
+
+A domain that no longer resolves is dead. A 404 on a live domain with working documentation is a moved endpoint.
+
+## Retry before declaring anything
+
+A single failed check proves almost nothing. Networks are unreliable, deploys happen, and a one-off timeout is not a death.
+
+```js
+async function confirm(url, attempts = 3, gapMs = 2000) {
+  const results = [];
+  for (let i = 0; i < attempts; i++) {
+    results.push(await probe(url));
+    if (results.at(-1).up) return { up: true, results };
+    if (i < attempts - 1) await new Promise((r) => setTimeout(r, gapMs));
+  }
+  return { up: false, results };
+}
+```
+
+For cataloguing, we go further and require consistent failure across separate runs hours apart before changing a listing's status. Marking a working API as dead is worse than being slow to notice a real death.
+
+## Checking politely, at scale
+
+If you are probing many endpoints, the concurrency cap matters more than the speed.
+
+```js
+async function checkAll(urls, concurrency = 8) {
+  const out = [];
+  const queue = [...urls];
+
+  const worker = async () => {
+    while (queue.length) {
+      const url = queue.shift();
+      out.push({ url, ...(await probe(url)) });
+      await new Promise((r) => setTimeout(r, 200));   // stagger
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+  return out;
+}
+```
+
+<Callout type="warning" title="A health checker is indistinguishable from a scraper">
+Unbounded concurrency against someone else's API is an attack, whatever you meant. Cap it, stagger it, set a timeout, identify yourself, and never check more often than the data could plausibly change.
+</Callout>
+
+## Monitoring a dependency you rely on
+
+Different problem from cataloguing: you want to know before your users do.
+
+```js
+// A /health route that reports on your upstreams
+export async function GET() {
+  const deps = {
+    weather: 'https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0&current=temperature_2m',
+    postcodes: 'https://api.zippopotam.us/gb/NW1',
+  };
+
+  const entries = await Promise.all(
+    Object.entries(deps).map(async ([name, url]) => [name, await probe(url)]),
+  );
+
+  const results = Object.fromEntries(entries);
+  const healthy = Object.values(results).every((r) => r.up);
+
+  return Response.json(
+    { healthy, checkedAt: new Date().toISOString(), results },
+    { status: healthy ? 200 : 503 },
+  );
+}
+```
+
+Point an uptime service at that route and you find out about an upstream failure from a notification rather than a support ticket. To test that the unhealthy path actually works, point it at [flaky](/apis/flaky) and force a 500.
+
+## What we do, and what it found
+
+Our checker runs against every catalogue entry, tries HEAD then GET, applies a 10-second timeout, staggers requests, sends an identifying User-Agent, and records status, latency and whether CORS headers came back. Results feed the [live status page](/status) and the badge on every listing.
+
+Of 2,712 entries, **487 were not responding** at the last full run. That is roughly 18% — and those same entries still appear, unmarked, on most public API lists, because nobody checks.
+
+## What "alive" should mean for your application
+
+There is a gap between the generic checks above and the question you actually care about, which is not "does this host respond" but "can my application still do its job".
+
+A health check that asks for the API's root URL proves very little. The root can return a cheerful welcome page while the one endpoint you depend on has been removed. Equally, a provider's own status page can show all-green while a specific parameter combination you rely on has started returning errors. Both situations are common, and both are invisible to a check that only looks at the front door.
+
+So the useful check calls the endpoint your application calls, with parameters resembling what it really sends, and asserts something about the response beyond its status code. If you read three fields, assert those three fields exist and have plausible types. If you depend on an array having at least one element, assert that. The goal is to fail when your integration would fail, not merely when the host is unreachable.
+
+The temptation is to go further and assert exact values, which turns the check into a source of false alarms. A weather API returning a different temperature than yesterday is working correctly. The line to hold is that a check should assert **shape and plausibility**, never specific content: a number within a sane range rather than a particular number, a non-empty string rather than a particular string.
+
+There is a cost to this, and it is worth naming. A deeper check consumes more of your rate limit and puts more load on someone else's service. Checking a representative endpoint every few minutes is reasonable; running your full integration test suite against a live third party every minute is not, and it is the kind of thing that gets an IP blocked.
+
+## Deciding what to do about it
+
+Detection is only useful if something follows from it, and the right response depends on how the dependency is used.
+
+For a dependency in the critical path — the thing your product is for — the response is to alert someone, because a human needs to decide whether to switch providers or post a status notice. For a peripheral feature, the right response is usually to degrade quietly: hide the component, serve cached data with a timestamp, and log it for later. Paging an engineer at three in the morning because a decorative widget's API is slow is how alerting gets ignored.
+
+The distinction worth encoding is between **down** and **degraded**. An API returning errors is down. An API responding in eight seconds when it usually takes three hundred milliseconds is degraded, and degraded is often more damaging, because requests still succeed while your own pages crawl and your timeouts start firing intermittently. A check that only records success and failure will report everything as fine throughout. Recording latency alongside status, and alerting on a sustained multiple of the normal figure, catches the case that actually hurts.
+
+Flapping is the other thing to handle. A dependency that fails one check in ten produces a stream of alerts that quickly get muted, after which a real outage goes unnoticed. Requiring several consecutive failures before declaring a problem, and several consecutive successes before declaring recovery, removes nearly all of that noise at the cost of a minute or two of detection delay. That trade is almost always worth making.
+
+## Keeping a record, not just a reading
+
+The final piece, and the one that turns monitoring into something useful rather than merely reactive: store the results.
+
+A single check answers "is it up now". A history answers the questions you will actually be asked. Has this provider got slower over the last month? Did the failures start before or after our deploy? Is this the third outage this quarter, and should we move? None of those can be answered by a check that overwrites its result each time.
+
+The storage does not need to be sophisticated. A row per check with a timestamp, the status, the latency and any error message covers nearly every question, and at a few thousand rows a day it stays small for years. What matters is keeping it long enough to see trends, which means months rather than days.
+
+That record is also what makes a conversation with a provider productive. "Your API seems slow" invites a shrug; "median response time went from 240 ms to 1.9 seconds on the 14th and has stayed there" gets a real answer. It is the same principle behind publishing our own measurements rather than repeating vendor claims — the data is the argument.
+
+## The checklist
+
+- Status code **and** content type **and** a parse of the body
+- HEAD first, GET on 405
+- Explicit timeout on every probe
+- Identifying User-Agent with contact details
+- Retry across hours before declaring a death
+- Follow redirects and compare hosts before assuming the worst
+- Bounded concurrency and staggered requests

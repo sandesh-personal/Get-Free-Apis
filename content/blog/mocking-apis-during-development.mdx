@@ -1,0 +1,272 @@
+---
+title: "Mocking APIs during development"
+description: "Intercepting requests instead of stubbing your own code, recording real responses so mocks stay honest, and the drift problem that makes mocks lie."
+cluster: howto
+imageQuery: "theatre stage set backdrop"
+author: sandy
+publishedAt: "2026-11-03"
+updatedAt: "2026-11-03"
+relatedApis:
+  - dummyjson
+  - flaky
+  - randomuser
+  - beeceptor-s-crud-apis
+relatedPosts:
+  - free-mock-and-test-data-apis
+  - testing-apis-postman-curl-httpie
+  - surviving-breaking-api-changes
+sources:
+  - label: "Mock Service Worker documentation"
+    url: "https://mswjs.io/docs/"
+  - label: "MDN — Service Worker API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API"
+  - label: "Martin Fowler — Test Doubles"
+    url: "https://martinfowler.com/bliki/TestDouble.html"
+faq:
+  - q: "What is the best way to mock an API in JavaScript tests?"
+    a: "Intercept at the network layer with Mock Service Worker rather than stubbing your fetch wrapper. Your code then runs unchanged, which means the test exercises the real request-building and parsing logic."
+  - q: "Why should I not mock my own API client?"
+    a: "Because then the test never runs the code that builds the URL, sets the headers or parses the response — which is exactly where the bugs are. You end up testing your mock."
+  - q: "How do I stop mocks drifting from the real API?"
+    a: "Record them from real responses rather than writing them by hand, and run a scheduled contract test against the live API that fails when the shape changes."
+  - q: "Should I mock in end-to-end tests too?"
+    a: "Mock third-party dependencies, not your own stack. You want the real browser, your real frontend and your real backend, with only the external services replaced so the tests are deterministic."
+  - q: "What is the difference between a mock, a stub and a fake?"
+    a: "A stub returns canned answers. A mock additionally asserts how it was called. A fake is a working lightweight implementation, such as an in-memory database. For API work you almost always want stubs at the network layer."
+---
+
+The usual way to mock an API is to replace your own API client with a function returning fixed data. It is also the way that produces tests which pass while the application is broken.
+
+If you stub `getUser()`, the test never runs the code that builds the URL, attaches the headers, or parses the response. Those three things are where the bugs live.
+
+<Answer>
+Intercept at the **network layer**, not in your own code. Mock Service Worker is the standard tool: your `fetch` calls run unchanged and a handler answers the request. Record handlers from real responses rather than inventing them, and run a scheduled contract test so drift is caught.
+</Answer>
+
+## Mock the network, not your module
+
+```js
+// Weak: the code under test never runs
+vi.mock('./api', () => ({
+  getUser: () => ({ id: 1, name: 'Ada' }),
+}));
+```
+
+Everything interesting is bypassed. If the real `getUser` builds a malformed URL or misreads a nested field, this test still passes.
+
+```js
+// Better: real code runs, the network is intercepted
+import { setupServer } from 'msw/node';
+import { http, HttpResponse } from 'msw';
+
+const server = setupServer(
+  http.get('https://api.example.com/users/:id', ({ params }) =>
+    HttpResponse.json({ id: Number(params.id), name: 'Ada' }),
+  ),
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+```
+
+`onUnhandledRequest: 'error'` is the setting worth keeping. It fails the test if your code calls something you did not mock, which is how you discover an unexpected request rather than silently letting it reach the internet.
+
+## The same handlers in the browser
+
+The reason MSW is worth adopting over a Node-only library is that the same handlers drive local development:
+
+```js
+// mocks/browser.js
+import { setupWorker } from 'msw/browser';
+import { handlers } from './handlers';
+
+export const worker = setupWorker(...handlers);
+```
+
+```js
+if (process.env.NODE_ENV === 'development' && process.env.MOCK_API === 'true') {
+  const { worker } = await import('./mocks/browser');
+  await worker.start({ onUnhandledRequest: 'bypass' });
+}
+```
+
+You can now build the frontend before the backend exists, work offline, and demonstrate the app without a network — with the same definitions your tests use.
+
+## Record, do not invent
+
+Hand-written mocks encode what you *believe* the API returns. That belief is often slightly wrong, and it is wrong in the direction that makes your code look correct.
+
+Capture the real thing once:
+
+```bash
+mkdir -p mocks/fixtures
+
+curl -s "https://dummyjson.com/products?limit=5" > mocks/fixtures/products.json
+curl -s "https://randomuser.me/api/?results=3&seed=test" > mocks/fixtures/users.json
+```
+
+Then serve the fixture:
+
+```js
+import products from './fixtures/products.json' with { type: 'json' };
+
+export const handlers = [
+  http.get('https://dummyjson.com/products', () => HttpResponse.json(products)),
+];
+```
+
+The fixture contains the fields you forgot about, the nulls you did not expect, and the date format the API really uses. A hand-written mock contains none of those.
+
+<Callout type="tip" title="Seed the recording where you can">
+<code>randomuser.me/api/?seed=test</code> returns the same people every time. Recording a seeded response gives you a fixture that is stable and reproducible, which makes snapshot tests meaningful.
+</Callout>
+
+## Mock the failures, not just the successes
+
+Most error-handling code has never executed. Mocks are the cheapest way to fix that.
+
+```js
+export const handlers = [
+  http.get('https://api.example.com/data', () => HttpResponse.json({ ok: true })),
+];
+
+// Override per test
+test('shows a message when rate limited', async () => {
+  server.use(
+    http.get('https://api.example.com/data', () =>
+      HttpResponse.json({ error: 'slow down' }, { status: 429 }),
+    ),
+  );
+
+  render(<Widget />);
+  expect(await screen.findByText(/too many requests/i)).toBeVisible();
+});
+
+test('survives a timeout', async () => {
+  server.use(
+    http.get('https://api.example.com/data', async () => {
+      await delay(15_000);
+      return HttpResponse.json({});
+    }),
+  );
+  // assert the timeout path
+});
+
+test('survives malformed JSON', async () => {
+  server.use(
+    http.get('https://api.example.com/data', () =>
+      HttpResponse.text('<html>502 Bad Gateway</html>', {
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    ),
+  );
+  // assert you do not crash — see the HTML-instead-of-JSON post
+});
+```
+
+That last case is the [HTML instead of JSON](/blog/unexpected-token-html-instead-of-json) failure, and it is worth an explicit test because it is what a proxy returns during an outage.
+
+For exercising the same paths against a live endpoint, [flaky](/apis/flaky) returns whatever status you ask for.
+
+## The drift problem
+
+Here is the failure mode that makes people distrust mocks entirely.
+
+```text
+Month 1   mock matches the API      tests pass, app works
+Month 4   API renames a field       tests pass, app broken
+```
+
+Your tests are now testing a historical version of someone else's API. The mock has become a fiction that agrees with your code.
+
+Two defences.
+
+**Contract tests on a schedule.** Run these nightly, against the real API, outside your normal CI:
+
+```js
+// contract.test.js — scheduled, not on every commit
+test('product shape is unchanged', async () => {
+  const res = await fetch('https://dummyjson.com/products?limit=1');
+  const { products } = await res.json();
+
+  expect(products[0]).toMatchObject({
+    id: expect.any(Number),
+    title: expect.any(String),
+    price: expect.any(Number),
+  });
+});
+```
+
+If the provider renames `price`, this fails and tells you why — before a user finds out.
+
+**Validate at the boundary in production too.** A schema check on real responses catches drift the moment it ships:
+
+```js
+import { z } from 'zod';
+
+const Product = z.object({
+  id: z.number(),
+  title: z.string(),
+  price: z.number(),
+});
+
+export async function getProduct(id) {
+  const raw = await fetch(`https://dummyjson.com/products/${id}`).then((r) => r.json());
+  return Product.parse(raw);   // throws loudly at the boundary
+}
+```
+
+Failing at the boundary with a clear message beats `undefined is not a function` three components deeper. More on this in [surviving breaking API changes](/blog/surviving-breaking-api-changes).
+
+## Where mocks do not belong
+
+**Do not mock in production.** Obvious, and it still happens via a flag that defaults wrong. Gate it on `NODE_ENV` and an explicit opt-in, as above.
+
+**Do not mock your own backend in end-to-end tests.** Mock third parties so the tests are deterministic; keep your own stack real, or you are not testing integration.
+
+**Do not mock what you are testing.** If the subject is your API client, the network is the thing to fake — never the client itself.
+
+## What to mock, and what that decision costs
+
+The instinct is to mock anything that leaves the process. That produces fast tests that prove very little, because the boundaries you replaced are exactly where the interesting failures live.
+
+A more useful rule is to mock by **ownership**. Things you do not control — a third-party API, a payment provider, an email service — should be replaced, because their behaviour is not your concern and their availability should not determine whether your build passes. Things you do control — your own backend, your own database — should generally be real, because the integration between your parts is a thing you are responsible for and want tested.
+
+That rule survives contact with practice better than "mock everything slow", which is the other common heuristic. A slow real database in tests is an argument for a faster test database, not for a fake one that accepts writes your real schema would reject.
+
+The cost of every mock is the same: it encodes an assumption, and assumptions drift. Each one is a small bet that the real thing behaves as you believe. Well-placed bets are worth making; a suite with hundreds of them is a suite that can pass while the application is entirely broken, and teams in that situation tend to conclude that tests are useless rather than that their mocks are.
+
+A reasonable shape for most projects is a pyramid of fidelity. The bulk of tests run against network-level mocks built from recorded responses, because they are fast and deterministic. A much smaller set of contract tests runs against the real API on a schedule, catching drift. And a handful of end-to-end tests exercise the real stack with only third parties replaced. Each layer catches what the one below it cannot.
+
+## Mocking in development, not just in tests
+
+The half of this that gets least attention is using mocks while building, and it changes how a frontend can be developed.
+
+With handlers defined once and a browser worker started behind a flag, the interface can be built before the backend exists. That is not merely convenient; it inverts a dependency that usually delays work. The frontend defines the shape it wants, the handlers encode that shape, and the eventual backend has a concrete specification to implement rather than a conversation to have.
+
+It also makes a class of situations reachable that are otherwise painful to reproduce. Empty states, where a new user has no data. Pathological states, where someone has four hundred items and the layout breaks. Error states, where the server is failing. Slow states, where the spinner has to be looked at for once. Every one of those is a flag away when the data comes from a handler, and a database-seeding exercise when it does not.
+
+The one discipline this requires is that the mock must be obviously a mock while you are using it. A development build serving fabricated data that looks real is a good way to demonstrate a feature to a stakeholder who then asks why the numbers changed. A small persistent banner costs nothing and prevents that conversation.
+
+Turning mocks off before shipping is the other half of that discipline. Gate on an explicit environment variable rather than on `NODE_ENV` alone, fail loudly if the flag is set in a production build, and never let the default be "on".
+
+## Keeping fixtures honest over time
+
+Recorded fixtures solve the invention problem and introduce an ageing one. A response captured in March describes the API as it was in March.
+
+The cheapest defence is to make refreshing them a single command. If updating every fixture means re-running one script, it happens; if it means hand-editing twelve JSON files, it does not. Keep the capture script alongside the fixtures, with the exact requests that produced them, so anyone can regenerate the set without reconstructing what was originally called.
+
+Reviewing the diff when you refresh is where the value lands. A fixture update that changes nothing confirms stability. One that shows a field renamed, a type changed or a new object appearing is advance warning of work you would otherwise discover through a production incident. That diff is the single most useful artefact this whole practice produces, and it costs one command to generate.
+
+Two habits keep those diffs readable. Redact anything sensitive at capture time rather than afterwards, because a token committed once stays in history. And prune the fixture to the fields you actually use — a full response can be hundreds of lines of noise, and a trimmed one makes a meaningful change obvious rather than buried.
+
+## The checklist
+
+- Intercept at the network layer, not in your own modules
+- `onUnhandledRequest: 'error'` in tests
+- Fixtures recorded from real responses, seeded where possible
+- Explicit tests for 429, 500, timeout and non-JSON bodies
+- Contract tests on a schedule against the live API
+- Runtime schema validation at the boundary
+- Mocking gated behind an explicit development-only flag

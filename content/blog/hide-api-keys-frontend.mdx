@@ -1,0 +1,260 @@
+---
+title: "How to keep API keys out of your frontend bundle"
+description: "Why NEXT_PUBLIC_ and VITE_ variables are not secrets, how to find keys already leaking in your build, and the proxy pattern that fixes it properly."
+cluster: howto
+imageQuery: "safe vault door lock"
+author: sandy
+publishedAt: "2026-10-28"
+updatedAt: "2026-10-28"
+relatedApis:
+  - hugging-face
+  - open-meteo-ensemble
+  - randomuser
+relatedPosts:
+  - api-key-stopped-working
+  - api-authentication-types-explained
+  - build-a-cors-proxy
+sources:
+  - label: "OWASP — Secrets Management Cheat Sheet"
+    url: "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"
+  - label: "MDN — Content Security Policy"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP"
+  - label: "Next.js — Environment variables"
+    url: "https://nextjs.org/docs/app/building-your-application/configuring/environment-variables"
+faq:
+  - q: "Is NEXT_PUBLIC_ or VITE_ safe for an API key?"
+    a: "No. Both prefixes exist specifically to inline the value into the JavaScript bundle that ships to browsers. Anyone can read it by opening DevTools or viewing the source. They are for public configuration, not secrets."
+  - q: "How do I hide an API key in a static site with no backend?"
+    a: "You cannot hide it in the client. You need something server-side, but it can be tiny — a serverless function or edge function that holds the key and forwards the request. Most static hosts include these free."
+  - q: "How do I check whether my API key is already in my bundle?"
+    a: "Build the project and grep the output directory for the key. If it appears in any file under dist or .next/static, it is public. Do this in CI so it fails the build rather than reaching production."
+  - q: "Can I obfuscate or encrypt a key in frontend code?"
+    a: "No. Anything the browser can decrypt, an attacker can decrypt, because they have the same code and the same key. Obfuscation delays a determined person by minutes and provides no real protection."
+  - q: "What do I do if a key has already leaked?"
+    a: "Rotate it immediately, then check the provider's usage logs for unexpected activity. Removing it from the code is not enough — it stays in your git history and in anyone's cached copy of the bundle."
+---
+
+There is one rule, and everything else follows from it: **anything the browser can read, the user can read.** Minification is not encryption. Environment variables are not secrets once they have been compiled in.
+
+<Answer>
+Never put a secret key in frontend code, including in `NEXT_PUBLIC_*` or `VITE_*` variables, which exist precisely to inline values into the public bundle. Put the key on a server — a serverless function is enough — and have the browser call your endpoint instead of the provider's.
+</Answer>
+
+## The prefixes are the trap
+
+Both of these do exactly what they say, and people read them backwards.
+
+```bash
+# .env
+API_KEY=sk_live_secret           # server only, never bundled
+NEXT_PUBLIC_API_KEY=sk_live_secret   # INLINED into the browser bundle
+VITE_API_KEY=sk_live_secret          # INLINED into the browser bundle
+```
+
+The prefix is not a permission. It is an instruction to the bundler to **copy the literal value into the JavaScript it ships**. Adding it because "the variable was undefined in the browser" is the most common way keys leak, and the error message that prompts it gives no hint of the consequence.
+
+```js
+// What you wrote
+const key = process.env.NEXT_PUBLIC_API_KEY;
+
+// What ships, visible in DevTools
+const key = "sk_live_secret";
+```
+
+<Callout type="danger" title="A leaked key is spent within hours, not months">
+Bots scan public bundles and GitHub commits continuously. Leaked keys for paid APIs — especially AI providers — get found and drained fast. There is no "nobody will look at my small site" tier of safety here.
+</Callout>
+
+## Find out whether you are already leaking
+
+Do this now; it takes ten seconds and the answer is sometimes unpleasant.
+
+```bash
+npm run build
+
+# Search the built output for the key itself
+grep -r "sk_live" .next/static dist build 2>/dev/null
+
+# Or search for any suspicious-looking literal
+grep -rEo "(sk|pk|api|key)[-_][A-Za-z0-9]{16,}" dist 2>/dev/null | sort -u
+```
+
+Any hit means the value is public. Make it a build step so it cannot regress:
+
+```json
+{
+  "scripts": {
+    "build": "next build && npm run check:secrets",
+    "check:secrets": "! grep -rqE 'sk_(live|test)_[A-Za-z0-9]{8,}' .next/static || (echo 'SECRET IN BUNDLE' && exit 1)"
+  }
+}
+```
+
+## The fix: a proxy you control
+
+The browser calls your endpoint. Your endpoint holds the key and calls the provider. The key never leaves the server.
+
+```text
+Before:  browser --[key]--> provider
+After:   browser ---------> your endpoint --[key]--> provider
+```
+
+In Next.js that is a route handler:
+
+```js
+// app/api/weather/route.ts
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const city = searchParams.get('city');
+
+  if (!city) {
+    return Response.json({ error: 'city is required' }, { status: 400 });
+  }
+
+  const upstream = await fetch(
+    `https://api.provider.com/v1/weather?q=${encodeURIComponent(city)}` +
+      `&key=${process.env.API_KEY}`,   // server-side only
+  );
+
+  if (!upstream.ok) {
+    return Response.json({ error: 'upstream failed' }, { status: 502 });
+  }
+
+  const data = await upstream.json();
+
+  // Return only what the client needs, not the whole upstream payload
+  return Response.json(
+    { temp: data.current.temp_c, condition: data.current.condition.text },
+    { headers: { 'Cache-Control': 's-maxage=600, stale-while-revalidate=3600' } },
+  );
+}
+```
+
+```js
+// The client, now with no key
+const data = await fetch(`/api/weather?city=${city}`).then((r) => r.json());
+```
+
+Three details in that handler matter beyond hiding the key. **Validate the input** rather than forwarding it blindly. **Return a narrowed response** so you are not leaking upstream fields you did not intend to expose. And **cache**, which your proxy can do and the browser could not.
+
+## Your proxy needs its own limits
+
+Removing the key from the client does not stop abuse — it moves it. Your endpoint is now an open, unauthenticated way to spend your quota.
+
+```js
+const hits = new Map();
+const LIMIT = 30;
+const WINDOW = 60_000;
+
+function allowed(ip: string) {
+  const now = Date.now();
+  const rec = hits.get(ip) ?? { count: 0, reset: now + WINDOW };
+
+  if (now > rec.reset) { rec.count = 0; rec.reset = now + WINDOW; }
+  rec.count += 1;
+  hits.set(ip, rec);
+
+  return rec.count <= LIMIT;
+}
+
+export async function GET(request: Request) {
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0] ?? 'unknown';
+  if (!allowed(ip)) {
+    return Response.json({ error: 'rate limited' }, { status: 429 });
+  }
+  // ...
+}
+```
+
+An in-memory map is fine for a single instance. Across several, use Redis or your platform's KV store, since each instance otherwise keeps its own count.
+
+## Static sites still have somewhere to put it
+
+"I have no backend" is usually not true any more. Netlify Functions, Cloudflare Workers, Vercel Functions and GitHub Pages with a Worker in front all give you a server-side execution point on free tiers.
+
+```js
+// Cloudflare Worker
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const upstream = await fetch(
+      `https://api.provider.com/data?key=${env.API_KEY}&q=${url.searchParams.get('q')}`,
+    );
+    return new Response(upstream.body, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  },
+};
+```
+
+## When there genuinely is no key
+
+The simplest solution to key management is not having a key. A large share of what most projects need is available keylessly — our catalogue tracks 1,051 such APIs, and [Open-Meteo](/apis/open-meteo-ensemble), [RandomUser](/apis/randomuser) and [Zippopotam.us](/apis/zippopotam-us) all work directly from the browser with CORS enabled.
+
+If your only reason for a backend is hiding a key, check the [no key required collection](/collections/no-api-key) first.
+
+## Keys that are meant to be public
+
+Some are, and treating them as secrets causes its own confusion. Stripe publishable keys, Google Maps browser keys and Firebase config are designed to ship to clients. They are safe because the **provider** restricts them — by referrer, by domain, by allowed operation.
+
+The test is simple: does the provider's dashboard let you restrict where the key may be used? If yes, it is a public key and you should set those restrictions. If not, it is a secret.
+
+<Callout type="warning" title="Restrict public keys anyway">
+A Google Maps key with no HTTP referrer restriction can be lifted and used on someone else's site, billed to you. Public does not mean unrestricted.
+</Callout>
+
+## If a key has leaked
+
+1. **Rotate it.** Immediately, before investigating.
+2. **Check usage logs** for activity you do not recognise.
+3. **Remember git history.** Removing the line does not remove the commit. Assume anything ever committed is compromised, even in a private repo.
+4. **Add the build-time check** above so it cannot happen again silently.
+
+## The other places keys leak
+
+The bundle is the obvious one and rarely the only one. Four others account for most real incidents.
+
+**Git history.** Removing a key in a later commit does not remove it from the repository — it is still in the history, still in every clone, and still in any fork. Making a repository private afterwards does not help either, because anyone who cloned it while it was public has a complete copy. Rotation is the only real remedy, and it is why "I deleted the line" is not a fix.
+
+**Build logs and CI output.** Continuous integration systems print commands, and a command containing a key prints the key. Many platforms mask registered secrets automatically and only those; a key passed inline, or echoed for debugging, appears in plain text in a log that is often readable by anyone with repository access.
+
+**Error tracking and analytics.** An exception report frequently includes the request that caused it, headers and all. Sentry and similar tools can scrub these, but only if configured to, and the default scrubbing lists do not cover every custom header name. A key in an `X-Company-Key` header will sail through unless you add it.
+
+**Screenshots and recordings.** A demo video with DevTools open, a screenshot of a terminal, a pasted stack trace in a public issue. These are the ones that feel too trivial to worry about and are exactly how keys reach search indexes.
+
+The common thread is that a key is text, and text spreads. That is the argument for short-lived credentials wherever a provider offers them: a token that expires in an hour limits the damage of every one of these paths, without depending on anyone remembering not to paste it.
+
+## Detecting it before an attacker does
+
+Three cheap controls catch most leaks early.
+
+**Scan on commit.** A pre-commit hook using `gitleaks` or a similar scanner blocks the key before it ever enters history, which is far cheaper than rotating afterwards. It runs in a second and catches the accidental paste.
+
+**Scan in CI as well**, because hooks can be skipped and not everyone installs them. A scan on pull requests is the backstop, and it also covers anything committed before the hook existed.
+
+**Watch the provider's usage graph.** A leaked key usually shows as an abrupt change in volume or a shift in the geographic distribution of requests. Most dashboards expose both, and an alert on a daily threshold costs nothing and is the control most likely to actually fire.
+
+Several providers also scan public repositories themselves and will notify you, or automatically revoke, if they find one of their keys. That is a genuine safety net and not one to rely on, since it only covers public code.
+
+## Rotation, and designing for it
+
+The uncomfortable question worth answering before you need to: how long would it take to replace a key right now?
+
+If the answer involves editing a file, rebuilding and redeploying, then rotation is a deployment and you will hesitate to do it — which means a suspected leak turns into a debate about whether it is worth the disruption. That hesitation is the actual risk.
+
+Keys stored in a platform's secret manager and read at runtime can be rotated without a deploy. Supporting two valid keys briefly makes it seamless: add the new one, let both work while instances pick it up, then remove the old. Providers that allow multiple active keys are built for exactly this, and using that capability turns rotation from an event into a routine.
+
+It is worth rehearsing once, on a quiet afternoon, so the procedure is known rather than improvised. The same applies to knowing which keys exist at all — an inventory of every credential, where it lives and what it can do, is unglamorous and is the thing that makes an incident twenty minutes rather than a day.
+
+Finally, scope keys down wherever the provider allows it. A key restricted to the one endpoint you call, from the one region you deploy in, with a spending cap attached, is a much smaller problem when it leaks than an unrestricted one. Least privilege is not just a server-side idea.
+
+## The checklist
+
+- No secret in any `NEXT_PUBLIC_*` or `VITE_*` variable
+- `grep` the built bundle for key patterns, in CI
+- Secrets only in server-side code or platform secret storage
+- `.env.local` gitignored, `.env.example` committed with empty values
+- Proxy endpoints validate input, narrow the response and rate-limit
+- Public keys restricted by domain in the provider's dashboard
+
+For the related problem of calling a keyless API that blocks browser requests, see [building a CORS proxy the legitimate way](/blog/build-a-cors-proxy).

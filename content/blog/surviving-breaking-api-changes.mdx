@@ -1,0 +1,284 @@
+---
+title: "Surviving breaking API changes and versioning"
+description: "How providers signal a breaking change before it lands, why validating at the boundary turns silent corruption into a loud error, and what to do when an API dies entirely."
+cluster: howto
+imageQuery: "cracked concrete wall"
+author: sandy
+publishedAt: "2026-11-04"
+updatedAt: "2026-11-04"
+relatedApis:
+  - ai-model-watch
+  - dummyjson
+  - open-meteo-ensemble
+  - jikan
+relatedPosts:
+  - check-if-an-api-is-alive
+  - mocking-apis-during-development
+  - when-a-free-tier-is-not-enough
+sources:
+  - label: "RFC 8594 — The Sunset HTTP Header Field"
+    url: "https://www.rfc-editor.org/rfc/rfc8594"
+  - label: "RFC 9745 — The Deprecation HTTP Header Field"
+    url: "https://www.rfc-editor.org/rfc/rfc9745"
+  - label: "Semantic Versioning 2.0.0"
+    url: "https://semver.org/"
+faq:
+  - q: "How do I find out an API is being deprecated?"
+    a: "Usually from response headers rather than email. The Deprecation and Sunset headers carry the dates, and almost nobody logs them, which is why deprecations feel like surprises."
+  - q: "What is the Sunset header?"
+    a: "A standard HTTP header (RFC 8594) giving the date and time after which a resource will stop working. Deprecation (RFC 9745) marks when it became deprecated. Log both and you get months of warning."
+  - q: "Should I pin an API version?"
+    a: "Yes, always. Calling an unversioned endpoint means the provider can change the response shape underneath you with no warning at all. Pin the version and upgrade deliberately."
+  - q: "How do I stop a renamed field silently breaking my app?"
+    a: "Validate responses at the boundary with a schema. Without validation a renamed field becomes undefined and flows through your app until something unrelated crashes, far from the cause."
+  - q: "What should I do if a free API shuts down completely?"
+    a: "Have an alternative identified before it happens. Isolating each provider behind a small adapter in your own code means swapping one is a contained change rather than a rewrite."
+---
+
+Breaking changes rarely arrive as an outage. They arrive as a field that is now `undefined`, a date format that changed, or a number that became a string — and the failure surfaces somewhere unrelated, hours later.
+
+The providers usually did warn you. The warning was in a response header nobody logged.
+
+<Answer>
+Do three things and most of this problem disappears: **pin the version** so nothing changes underneath you, **log `Deprecation` and `Sunset` headers** so warnings reach a human, and **validate responses at the boundary** so a changed shape fails loudly at the edge rather than silently corrupting data downstream.
+</Answer>
+
+## The warning is in the headers
+
+Two standard headers carry this, and almost nobody reads them.
+
+```http
+Deprecation: @1789890326
+Sunset: Sat, 31 Dec 2026 23:59:59 GMT
+Link: <https://api.example.com/docs/v2-migration>; rel="deprecation"
+```
+
+`Deprecation` (RFC 9745) says it is on the way out. `Sunset` (RFC 8594) says when it stops. That is typically months of notice, delivered on every single response, and discarded by every client.
+
+Capturing it costs a few lines:
+
+```js
+export async function apiFetch(url, init) {
+  const res = await fetch(url, init);
+
+  const sunset = res.headers.get('sunset');
+  const deprecation = res.headers.get('deprecation');
+
+  if (sunset || deprecation) {
+    console.warn('[api] deprecation notice', {
+      url,
+      deprecation,
+      sunset,
+      docs: res.headers.get('link'),
+    });
+    // Better: send to your error tracker so it reaches a human
+  }
+
+  return res;
+}
+```
+
+<Callout type="tip" title="Route deprecation warnings to wherever you would see an error">
+A console warning in a server process is a warning nobody reads. Send it to Sentry, Slack or whatever you actually check. The whole value is that it reaches a person while there is still time to act.
+</Callout>
+
+Turn it into a build failure when the date gets close:
+
+```js
+const sunset = res.headers.get('sunset');
+if (sunset) {
+  const daysLeft = (new Date(sunset) - Date.now()) / 86_400_000;
+  if (daysLeft < 30) throw new Error(`API sunsets in ${Math.round(daysLeft)} days: ${url}`);
+}
+```
+
+## Pin the version
+
+An unversioned endpoint is a promise that the provider can break at any time.
+
+```js
+// Fragile — whatever "current" means today
+fetch('https://api.example.com/products');
+
+// Pinned — the shape is stable until you choose to move
+fetch('https://api.example.com/v2/products');
+```
+
+Some APIs version by header or by date instead, which is increasingly common:
+
+```http
+Accept: application/vnd.example.v2+json
+Example-Version: 2026-01-15
+```
+
+Date-based pinning is the friendliest variant: you pin a date and get whatever the API looked like then, upgrading when you choose.
+
+Keep the version in one place so upgrading is a single edit:
+
+```js
+const API = {
+  base: 'https://api.example.com',
+  version: 'v2',
+  url(path) { return `${this.base}/${this.version}/${path}`; },
+};
+```
+
+## Validate at the boundary
+
+This is the change that converts silent corruption into an obvious error.
+
+Without validation, a renamed field becomes `undefined` and travels:
+
+```js
+const product = await fetch(url).then((r) => r.json());
+cart.add({ price: product.price });      // undefined, no error here
+const total = cart.items.reduce((n, i) => n + i.price, 0);  // NaN
+// The crash happens in the checkout component, far from the cause
+```
+
+With validation, it fails at the edge with a message naming the field:
+
+```js
+import { z } from 'zod';
+
+const Product = z.object({
+  id: z.number(),
+  title: z.string(),
+  price: z.number(),
+  stock: z.number().optional(),
+});
+
+export async function getProduct(id: number) {
+  const res = await fetch(API.url(`products/${id}`));
+  if (!res.ok) throw new Error(`Product ${id}: HTTP ${res.status}`);
+
+  const parsed = Product.safeParse(await res.json());
+  if (!parsed.success) {
+    throw new Error(`Product ${id} shape changed: ${parsed.error.message}`);
+  }
+  return parsed.data;
+}
+```
+
+Be deliberate about strictness. Mark genuinely optional fields `.optional()`, and do **not** use `.strict()` unless you mean it — providers add fields all the time, and that is not a breaking change.
+
+```text
+Field added      not breaking   your schema should tolerate it
+Field removed    breaking       schema catches it
+Field renamed    breaking       schema catches it
+Type changed     breaking       schema catches it
+```
+
+## Isolate each provider behind an adapter
+
+If provider calls are scattered across forty components, swapping providers is a rewrite. Behind one adapter, it is one file.
+
+```js
+// lib/weather/index.ts — the only shape the app knows about
+export type Forecast = { tempC: number; description: string; at: Date };
+
+export async function getForecast(lat: number, lon: number): Promise<Forecast> {
+  return openMeteo(lat, lon);
+}
+
+// lib/weather/open-meteo.ts
+async function openMeteo(lat, lon): Promise<Forecast> {
+  const data = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m`,
+  ).then((r) => r.json());
+
+  return {
+    tempC: data.current.temperature_2m,
+    description: describe(data.current.weather_code),
+    at: new Date(data.current.time),
+  };
+}
+```
+
+The rest of the application depends on `Forecast`, not on any provider's field names. Adding a fallback then becomes straightforward:
+
+```js
+export async function getForecast(lat, lon) {
+  try {
+    return await openMeteo(lat, lon);
+  } catch (err) {
+    console.warn('primary weather provider failed, falling back', err);
+    return metNorway(lat, lon);
+  }
+}
+```
+
+## Watch for the change before it reaches you
+
+A scheduled contract test against the live API is the early warning system:
+
+```js
+// Runs nightly, separate from normal CI
+test('forecast response shape is unchanged', async () => {
+  const res = await fetch(
+    'https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.13&current=temperature_2m',
+  );
+  expect(res.status).toBe(200);
+
+  const body = await res.json();
+  expect(body.current).toMatchObject({
+    time: expect.any(String),
+    temperature_2m: expect.any(Number),
+  });
+});
+```
+
+Keep it out of the commit-triggered pipeline so a provider outage does not block your deploys — see [mocking APIs during development](/blog/mocking-apis-during-development) for why CI itself should use recorded fixtures.
+
+## When an API dies entirely
+
+It happens, especially with free services. Our own checks found **487 of 2,712** catalogue entries not responding at the last full run — roughly 18%.
+
+Preparation, in order of value:
+
+1. **Know your alternative now.** For any provider you depend on, have a second one identified. Our [category pages](/categories) exist partly for this.
+2. **Cache aggressively.** A good cache means a dead upstream degrades over hours rather than instantly. See [caching API responses](/blog/caching-api-responses-free-tier).
+3. **Adapter per provider**, as above, so switching is contained.
+4. **Monitor**, so you find out first — see [how to check whether an API is still alive](/blog/check-if-an-api-is-alive).
+
+For model APIs specifically, [AI Model Watch](/apis/ai-model-watch) publishes deprecation and end-of-life dates as structured data, which makes the monitoring job trivial.
+
+## What counts as breaking, and who decides
+
+Providers and consumers disagree about this more often than either side realises, and the disagreement is the source of most unpleasant surprises.
+
+From the provider's side, the conventional rule is that adding is safe and removing is not. A new field, a new optional parameter, a new endpoint — none of these should break a well-written client, so they ship without ceremony in a minor release. Removing a field, renaming one, changing a type, tightening validation or altering a default are breaking, and get a version bump and a deprecation notice.
+
+From the consumer's side that rule has a large hole in it, because plenty of changes that are additive by the letter are breaking in practice. A new field breaks a client that validates strictly and rejects unknown keys. A new optional parameter with a non-null default changes what existing calls return. A performance change that doubles response times breaks a client with a two-second timeout. Fixing a bug you had worked around breaks the workaround. None of these will appear in a changelog under "breaking changes", and all of them will page you.
+
+The asymmetry is worth internalising because it tells you where to put your defences. You cannot rely on the provider's definition of breaking, so your schema validation should tolerate additions and reject removals — strict mode is exactly backwards for a client. You should also be suspicious of any code that depends on undocumented behaviour, because undocumented behaviour is by definition not covered by anyone's compatibility promise, and the ordering of an array or the precise wording of an error message will change without anyone considering it a change at all.
+
+The related habit worth building is to depend on the smallest possible surface. Every field you read is a field that can be removed underneath you, so destructuring the three values you need rather than passing the whole response object around limits how much of someone else's API your codebase is coupled to.
+
+## Deprecation notices, and why they are missed
+
+It is tempting to treat a surprise deprecation as the provider's failure to communicate. Usually they did communicate, through channels nobody was watching.
+
+The email went to whoever registered the API key, which was a developer who has since left, at an address that now bounces. The changelog was updated, but nobody subscribed to it. The dashboard shows a banner that only appears to whoever logs in, and nobody logs in once the integration works. The response headers have been carrying a `Sunset` date for four months, and no client logs response headers.
+
+Every one of those is a fixable organisational problem rather than a technical one. Register integrations to a shared team address rather than an individual. Subscribe the team channel to the provider's changelog feed where one exists. And log the deprecation headers, because that is the one channel that cannot go stale — it arrives on every single response, addressed to the running code rather than to a person.
+
+The deeper point is that the warning needs to reach somewhere a human looks regularly. A `console.warn` in a server process that nobody tails is technically logging and practically identical to silence. Route it to the same place your errors go, and give it a threshold that escalates as the sunset date approaches, so it moves from background noise to something that blocks a release.
+
+## Rehearsing the migration before you need it
+
+The final habit, and the one most teams skip. When you know a version is going away, the instinct is to schedule the migration for later. The cheaper approach is to find out now how much work it is.
+
+Point a test run at the new version and see what fails. That costs an afternoon and converts an unknown into a list, and the list is nearly always shorter than feared. Where the provider supports it, run both versions side by side for a period and compare responses on real traffic — differences that no test anticipated show up immediately, and you can migrate with evidence rather than hope.
+
+If the provider offers no overlap period, the adapter pattern above is what buys you one. With each provider behind a stable internal type, you can implement the new version alongside the old, switch with a flag, and switch back in seconds if something is wrong. Without that boundary, a migration is a large simultaneous change to every call site, which is the situation where deadlines get missed.
+
+## The checklist
+
+- Version pinned, and held in one constant
+- `Deprecation` and `Sunset` headers logged where a human will see them
+- Build fails when a sunset is within 30 days
+- Responses validated at the boundary, tolerant of added fields
+- Each provider behind an adapter with a stable internal type
+- Scheduled contract tests against the live API
+- A named alternative for every dependency

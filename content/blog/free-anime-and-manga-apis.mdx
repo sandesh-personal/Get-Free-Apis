@@ -1,0 +1,336 @@
+---
+title: "Free anime and manga APIs"
+description: "Anime and manga APIs that need no key, how Jikan's rate limit actually works, and the reverse image search that identifies a scene from a screenshot."
+cluster: roundups
+imageQuery: "japanese street neon signs"
+author: sandy
+publishedAt: "2026-10-16"
+updatedAt: "2026-10-16"
+relatedApis:
+  - jikan
+  - mangadex
+  - trace-moe
+  - animefacts
+  - aot-quotes
+  - nekosia-api
+relatedPosts:
+  - free-movie-and-tv-apis
+  - fix-429-too-many-requests
+  - api-pagination-patterns
+sources:
+  - label: "Jikan API documentation"
+    url: "https://docs.api.jikan.moe/"
+  - label: "MangaDex API documentation"
+    url: "https://api.mangadex.org/docs/"
+  - label: "trace.moe documentation"
+    url: "https://soruly.github.io/trace.moe-api/"
+faq:
+  - q: "What is the best free anime API?"
+    a: "Jikan, an unofficial MyAnimeList wrapper. It needs no key and covers essentially the whole MyAnimeList catalogue, including ratings, seasons, characters and staff."
+  - q: "Does Jikan require an API key?"
+    a: "No. It is rate-limited instead, at roughly three requests per second and sixty per minute. There is no registration and no key to manage."
+  - q: "How can I identify an anime from a screenshot?"
+    a: "trace.moe does reverse image search across anime frames and returns the title, episode and timestamp, usually with a similarity score. It needs no key for light use."
+  - q: "Is there an official MyAnimeList API?"
+    a: "Yes, but it requires OAuth and a registered client. Jikan is the unofficial read-only wrapper most projects use because it needs no authentication at all."
+  - q: "Can I read manga through the MangaDex API?"
+    a: "You can retrieve chapter metadata and page image URLs, but you must use their at-home server endpoint and respect its token, which exists so the load is distributed. Do not hotlink page images directly."
+---
+
+Anime is unusually well served by free APIs, largely because the community built them. Most need no key, several send CORS headers, and one of them does something genuinely difficult — identifying an episode from a single screenshot.
+
+<Answer>
+Start with **[Jikan](/apis/jikan)**, an unofficial MyAnimeList wrapper that needs no key and covers the whole catalogue. For manga, **[MangaDex](/apis/mangadex)** is the equivalent and sends CORS headers. For identifying a scene from an image, **[trace.moe](/apis/trace-moe)** does reverse frame search and returns the exact timestamp.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["jikan", "mangadex", "trace-moe", "animefacts", "aot-quotes", "nekosia-api"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. MangaDex, trace.moe, AnimeFacts and AOT Quotes also send CORS headers.
+</Tested>
+
+## Jikan — the one you will actually use
+
+Jikan mirrors MyAnimeList's data without requiring the OAuth flow the official API demands. Search, seasons, rankings, characters, staff and recommendations are all there.
+
+```bash
+curl -s "https://api.jikan.moe/v4/anime?q=cowboy%20bebop&limit=3"
+curl -s "https://api.jikan.moe/v4/seasons/now?limit=10"
+curl -s "https://api.jikan.moe/v4/top/anime?type=tv&limit=10"
+```
+
+```json
+{
+  "pagination": { "last_visible_page": 47, "has_next_page": true },
+  "data": [{
+    "mal_id": 1,
+    "title": "Cowboy Bebop",
+    "episodes": 26,
+    "score": 8.75,
+    "year": 1998
+  }]
+}
+```
+
+### The rate limit is the thing to get right
+
+Jikan allows roughly **three requests per second and sixty per minute**, with no key and no exceptions. Exceed it and you get a 429. Because there is no key, the limit is per IP, which means everyone behind your server's address shares it.
+
+A simple queue is enough:
+
+```js
+let chain = Promise.resolve();
+const GAP = 400; // ms — comfortably under 3/sec
+
+function jikan(path) {
+  const run = chain.then(async () => {
+    const res = await fetch(`https://api.jikan.moe/v4${path}`);
+    if (res.status === 429) {
+      await new Promise((r) => setTimeout(r, 2000));
+      return jikan(path);
+    }
+    if (!res.ok) throw new Error(`Jikan ${res.status}`);
+    return res.json();
+  });
+
+  chain = run.then(() => new Promise((r) => setTimeout(r, GAP)), () => {});
+  return run;
+}
+```
+
+This serialises every call with a gap between them. Slower than firing in parallel, and the only approach that does not get you blocked. Our post on [client-side rate limiting](/blog/client-side-rate-limiting) covers queues and token buckets properly.
+
+<Callout type="warning" title="Do not Promise.all against Jikan">
+The parallel-fetch pattern that works beautifully on SWAPI will trip Jikan's limiter immediately. Twenty simultaneous requests is twenty times over budget, and you will get 429s for all of them.
+</Callout>
+
+Jikan also caches upstream, so data can lag MyAnimeList by a few hours. For a catalogue that is fine; for airing schedules, check the timestamps.
+
+## MangaDex — manga, with a token step
+
+Free, keyless for reads, CORS-enabled and comprehensive.
+
+```bash
+curl -s "https://api.mangadex.org/manga?title=frieren&limit=5"
+```
+
+Retrieving actual pages takes two steps, and the second is not optional:
+
+```js
+// 1. Chapter metadata
+const { data } = await fetch(
+  'https://api.mangadex.org/chapter?manga=' + mangaId + '&translatedLanguage[]=en',
+).then((r) => r.json());
+
+// 2. The at-home server that will serve those pages
+const chapterId = data[0].id;
+const home = await fetch(`https://api.mangadex.org/at-home/server/${chapterId}`)
+  .then((r) => r.json());
+
+const pages = home.chapter.data.map(
+  (file) => `${home.baseUrl}/data/${home.chapter.hash}/${file}`,
+);
+```
+
+The `at-home` step exists so load is spread across community-run nodes. Constructing image URLs yourself and skipping it works briefly and then stops working.
+
+## trace.moe — the clever one
+
+Give it a screenshot, get back which anime it is, which episode, and the timestamp.
+
+```bash
+curl -s "https://api.trace.moe/search?anilistInfo&url=$(
+  printf %s 'https://example.com/screenshot.jpg' | jq -sRr @uri
+)"
+```
+
+```json
+{
+  "result": [{
+    "anilist": { "title": { "romaji": "Kimi no Na wa." } },
+    "episode": null,
+    "from": 1234.5,
+    "to": 1239.2,
+    "similarity": 0.978
+  }]
+}
+```
+
+Uploading a local file works too:
+
+```js
+const form = new FormData();
+form.append('image', fileInput.files[0]);
+
+const { result } = await fetch('https://api.trace.moe/search?anilistInfo', {
+  method: 'POST',
+  body: form,
+}).then((r) => r.json());
+
+const best = result[0];
+if (best.similarity > 0.9) {
+  console.log(best.anilist.title.romaji, 'at', Math.round(best.from), 's');
+}
+```
+
+<Callout type="tip" title="Always check the similarity score">
+Below about 0.90 the match is usually wrong. trace.moe returns its best guess regardless, so a threshold is what separates a useful feature from a confidently incorrect one.
+</Callout>
+
+## The small ones
+
+**AnimeFacts** and **AOT Quotes** are single-purpose and CORS-enabled, which makes them good filler content or a first fetch for someone learning:
+
+```bash
+curl -s "https://anime-facts-rest-api.herokuapp.com/api/v1"
+curl -s "https://attackontitanquotes.vercel.app/api/random"
+```
+
+**Nekosia** and **Catboy** return curated images, with the usual caveat that community image APIs need content filtering before anything user-facing.
+
+## AniList, when you outgrow Jikan
+
+Worth knowing about because it solves the problem Jikan creates. Jikan is a REST wrapper, so building a page that shows an anime plus its characters plus its staff means three or four requests — and Jikan's limiter turns that into two seconds of waiting.
+
+AniList is GraphQL, so the same page is one request:
+
+```graphql
+query ($search: String) {
+  Media(search: $search, type: ANIME) {
+    title { romaji english }
+    episodes
+    averageScore
+    season
+    seasonYear
+    characters(perPage: 6) {
+      nodes { name { full } image { medium } }
+    }
+    studios(isMain: true) { nodes { name } }
+  }
+}
+```
+
+```js
+const query = `query ($search: String) { ... }`;
+
+const { data } = await fetch('https://graphql.anilist.co', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+  body: JSON.stringify({ query, variables: { search: 'Frieren' } }),
+}).then((r) => r.json());
+```
+
+No key is needed for public read queries, and the limit is 90 requests per minute — thirty times Jikan's budget. The trade-off is that you have to write GraphQL and handle its error convention, where failures arrive as HTTP 200 with an `errors` array rather than a status code:
+
+```js
+if (data?.errors?.length) throw new Error(data.errors[0].message);
+```
+
+Use Jikan when you want MyAnimeList's own scores and rankings specifically. Use AniList when you are assembling a page from several related pieces and the round trips are hurting.
+
+## Content safety is not optional here
+
+Anime APIs return adult content by default more often than people expect, and the community image APIs in particular will happily serve something you cannot put in front of users.
+
+Jikan exposes the ratings classification, and filtering on it is the fix:
+
+```js
+const SAFE = new Set(['G - All Ages', 'PG - Children', 'PG-13 - Teens 13 or older']);
+
+const results = (await jikan('/anime?q=' + encodeURIComponent(term)))
+  .data
+  .filter((a) => SAFE.has(a.rating) && !a.genres.some((g) => g.name === 'Hentai'));
+```
+
+Two separate checks, deliberately. `rating` covers the classification, and the genre check catches entries where the rating field is missing — which happens on older records.
+
+Jikan also accepts the filter server-side, which is better because the excluded items never reach you:
+
+```bash
+curl -s "https://api.jikan.moe/v4/anime?q=test&sfw=true&rating=pg13"
+```
+
+<Callout type="danger" title="sfw=true is not a complete filter">
+It removes the explicit categories and it is not a content policy. If your audience includes minors, combine the server-side flag with your own allowlist of ratings, and review what actually renders before shipping.
+</Callout>
+
+For the image APIs — Nekosia, Catboy and similar — there is often no reliable safety flag at all. Treat those as unsuitable for anything user-facing unless you are curating the output yourself.
+
+## Caching, given the rate limits
+
+Jikan's three-per-second budget disappears quickly on a page that shows a list. The data barely moves, so caching is unusually effective here.
+
+```js
+const TTL = {
+  anime: 7 * 86_400_000,    // a finished show's metadata never changes
+  season: 6 * 3_600_000,    // airing schedules shift occasionally
+  search: 3_600_000,        // cheap to refresh, often repeated
+};
+
+const store = new Map();
+
+async function cached(key, ttl, fetcher) {
+  const hit = store.get(key);
+  if (hit && Date.now() - hit.at < ttl) return hit.value;
+
+  const value = await fetcher();
+  store.set(key, { at: Date.now(), value });
+  return value;
+}
+
+const anime = (id) => cached(`anime:${id}`, TTL.anime, () => jikan(`/anime/${id}`));
+```
+
+A completed series from 1998 is not going to change. Caching those permanently and only refreshing the current season's schedule cuts most projects from constant 429s to comfortably inside the budget. See [caching API responses to stay inside a free tier](/blog/caching-api-responses-free-tier).
+
+## Titles are the hard problem here
+
+Anime has the worst title-matching situation of any media category, and an application that assumes a title is a stable identifier will misbehave constantly.
+
+A single series can have a romanised Japanese title, an English localisation, an abbreviation the community actually uses, and an official alternative that differs by region. None is more correct than the others, and different databases pick different ones as canonical. Users search with whichever they know, which is usually the community abbreviation.
+
+Seasons compound it. A second season may be a separate entry with a subtitle, a continuation under the same entry, or a differently-named series entirely. Sequels, prequels, recap films, side stories and alternative-timeline retellings are all distinct records that share most of a name, and sorting them into a coherent watch order is a genuine problem the metadata does not solve for you.
+
+Manga adds another dimension: the adaptation and the source are separate records in separate parts of the database, linked by a relation rather than by identity.
+
+The practical approach is to resolve once and store the numeric identifier — MyAnimeList's `mal_id` through Jikan, or AniList's id — and treat every title form as a search alias rather than as the thing itself. Both APIs return the synonym list, and indexing those alongside the canonical title is what makes search find the series when someone types the abbreviation.
+
+For ordering a franchise, use the relation graph the APIs expose rather than inferring from titles or dates. It is the only reliable route, and even then "correct watch order" is frequently a matter of community opinion rather than metadata.
+
+## Community data has community caveats
+
+Both major sources are community-maintained, which is what makes them free and comprehensive, and also what shapes their limitations.
+
+Scores are self-selected. People who disliked a series often do not finish or rate it, which pushes averages upward and compresses the useful range into the top third of the scale. A score of 6.5 is not mediocre in this dataset; it is poor. Presenting these numbers as though they were calibrated across the full range misleads anyone reading them at face value.
+
+Popularity and score measure different things and correlate weakly. A niche series with a small devoted audience can outscore something ten times more watched. Ranking by score alone surfaces obscure titles with few votes, which is why both APIs expose a vote count and why any sensible ranking uses it — a weighted score that pulls low-vote entries toward the mean is the standard fix.
+
+Airing data is the least reliable field. Schedules shift, broadcasts are delayed, and streaming release times vary by region. A "currently airing" flag can lag reality by days, and an episode countdown built on it will be wrong often enough to be noticed.
+
+Finally, these are unofficial wrappers around consumer services. Jikan mirrors MyAnimeList without any agreement to do so, and its availability depends on both the wrapper and the upstream. That is fine for a personal project and a genuine risk for anything you intend to maintain, which is the argument for the adapter boundary described in [surviving breaking API changes](/blog/surviving-breaking-api-changes).
+
+## Images, and where they come from
+
+A practical note that catches people building anything visual.
+
+Neither API hosts its own artwork. The image URLs point at the upstream service's CDN, which means three things. The images can disappear or change without notice. Hotlinking places load on infrastructure that did not agree to serve your users. And the artwork itself is licensed to the publisher, not to the database and certainly not to you.
+
+For a personal project none of this matters much. For anything public, the position to be aware of is that cover art is promotional material owned by a publisher, and its presence in a free API is not a grant of rights. The same distinction covered in the [movie and TV article](/blog/free-movie-and-tv-apis) applies identically here.
+
+Practically, always handle the image failing to load — an `onError` that hides the element or swaps a placeholder — because a proportion of URLs will be dead at any moment. And never assume dimensions are consistent; they are not, and a grid built on that assumption will look broken for a handful of entries.
+
+## Choosing
+
+**Anime metadata, search, rankings, seasons.** Jikan, with a request queue.
+
+**Manga, including chapter pages.** MangaDex, via the at-home endpoint.
+
+**"What anime is this screenshot from?"** trace.moe, with a similarity threshold.
+
+**Filler content or a learning exercise.** AnimeFacts or AOT Quotes.
+
+**A commercial product.** Consider the official MyAnimeList or AniList API. Jikan is unofficial, community-run and offers no uptime guarantee.
+
+[Browse the anime category](/categories/anime) for all 36 entries we track.

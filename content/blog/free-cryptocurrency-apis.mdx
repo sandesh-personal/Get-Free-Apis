@@ -1,0 +1,259 @@
+---
+title: "Free cryptocurrency APIs"
+description: "Price, market-cap and on-chain APIs that work without a key, how often free tiers actually refresh, and why the price you display will never match the price on an exchange."
+cluster: roundups
+imageQuery: "cryptocurrency trading chart screen"
+author: sandy
+publishedAt: "2026-10-12"
+updatedAt: "2026-10-12"
+relatedApis:
+  - coinlore
+  - coincap
+  - coinpaprika
+  - coindesk-2
+  - bitcoin-halving
+  - blazephoenix
+relatedPosts:
+  - free-stock-market-and-finance-apis
+  - caching-api-responses-free-tier
+  - fix-429-too-many-requests
+sources:
+  - label: "CoinGecko API documentation"
+    url: "https://www.coingecko.com/en/api/documentation"
+  - label: "IEEE 754 floating point arithmetic"
+    url: "https://standards.ieee.org/ieee/754/6210/"
+  - label: "Bitcoin developer reference"
+    url: "https://developer.bitcoin.org/reference/"
+faq:
+  - q: "Which crypto price API is free with no key?"
+    a: "Coinlore, CoinCap, Coinpaprika and CoinDesk all return prices with no key. Coinlore was fastest in our checks at 277 ms; CoinDesk and Bitcoin Halving also send CORS headers, so they work from browser JavaScript."
+  - q: "How often do free crypto APIs update prices?"
+    a: "Typically every 30 to 300 seconds on a free tier, not per tick. If you need per-trade data you need a websocket feed from an exchange, which is a different kind of product."
+  - q: "Why does the price from a free API differ from the exchange?"
+    a: "Aggregators publish a volume-weighted average across many exchanges, while an exchange quotes its own order book. They will never match exactly, and during volatility the gap widens."
+  - q: "Can I build a trading bot on a free crypto API?"
+    a: "No. Free aggregator prices are delayed and averaged, which is precisely the wrong input for execution. Trading needs a direct exchange connection with authenticated order endpoints."
+  - q: "How do I avoid rate limits on free crypto APIs?"
+    a: "Fetch many coins in one request rather than one per coin, cache for at least as long as the refresh interval, and poll on a fixed timer rather than on page load. One request for 100 coins is the single biggest win."
+---
+
+Crypto APIs are unusually easy to get started with and unusually easy to misuse. The data is free and abundant; the trouble is that most projects treat an aggregated, cached, volume-weighted average as though it were a live quote.
+
+<Answer>
+For prices and market data, **[Coinlore](/apis/coinlore)** is the pick — no key, generous limits, and <Measured label="median" value="277 ms" /> in our checks. For a single authoritative Bitcoin figure from the browser, **[CoinDesk](/apis/coindesk-2)** sends CORS headers. Whatever you choose, cache it and label it as indicative, because it is not a live quote.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["coinlore", "coincap", "coinpaprika", "coindesk-2", "bitcoin-halving", "blazephoenix"]} />
+
+<Tested date="2026-09-18" result="All six returned market data with no key attached.">
+Called without credentials during our scheduled run. Latencies are medians from that run.
+</Tested>
+
+## What "price" means here
+
+An aggregator price is a **volume-weighted average across exchanges**, computed on an interval. An exchange price is the current top of that exchange's order book. These are different numbers by construction.
+
+```text
+Coinbase BTC/USD      64,218.40   one venue, live order book
+Kraken  BTC/USD       64,203.15   another venue, slightly different
+Aggregator average    64,211.02   weighted across venues, ~60s old
+```
+
+Neither is wrong. But if you display an aggregator figure next to the word "live", someone will compare it to their exchange, find a £15 difference, and report a bug you cannot fix.
+
+<Callout type="warning" title="Label it indicative, and show the timestamp">
+Every one of these APIs returns the time the price was computed. Display it. It converts "your price is wrong" into "your price is from 40 seconds ago", which is a true and defensible statement.
+</Callout>
+
+## Coinlore — the general-purpose choice
+
+Broad coverage, no key, and a ranked list endpoint that gets you a whole table in one request.
+
+```bash
+curl -s "https://api.coinlore.net/api/tickers/?start=0&limit=10"
+```
+
+```json
+{
+  "data": [{
+    "id": "90", "symbol": "BTC", "name": "Bitcoin",
+    "price_usd": "64211.02",
+    "percent_change_24h": "1.42",
+    "market_cap_usd": "1266481234567.00"
+  }],
+  "info": { "coins_num": 13421, "time": 1789890326 }
+}
+```
+
+The `info.time` field is the timestamp to display.
+
+```js
+const { data, info } = await fetch(
+  'https://api.coinlore.net/api/tickers/?limit=20',
+).then((r) => r.json());
+
+const rows = data.map((c) => ({
+  symbol: c.symbol,
+  price: Number(c.price_usd),
+  change: Number(c.percent_change_24h),
+}));
+
+const asOf = new Date(info.time * 1000);
+```
+
+Note that every numeric field arrives as a **string**. That is deliberate — it avoids the precision loss of JSON floats — and it means `Number()` before arithmetic and never `==` between a string price and a number.
+
+## CoinCap — clean REST, good history
+
+CoinCap's interface is the tidiest of the group, and its history endpoint is the most usable free one for charting.
+
+```bash
+curl -s "https://api.coincap.io/v2/assets?limit=10"
+curl -s "https://api.coincap.io/v2/assets/bitcoin/history?interval=d1"
+```
+
+```js
+const { data } = await fetch(
+  'https://api.coincap.io/v2/assets/bitcoin/history?interval=h1',
+).then((r) => r.json());
+
+const series = data.map((p) => ({ t: p.time, v: Number(p.priceUsd) }));
+```
+
+Intervals run from `m1` to `d1`. A day of hourly points is 24 records, which is a sensible chart payload; a year of minute data is not.
+
+## Coinpaprika — the most metadata
+
+Where the others give you prices, Coinpaprika gives you the surrounding context: supply figures, developer activity, exchange listings and historical ranges.
+
+```bash
+curl -s "https://api.coinpaprika.com/v1/tickers/btc-bitcoin"
+curl -s "https://api.coinpaprika.com/v1/coins/btc-bitcoin"
+```
+
+Useful when you are building something informational rather than numeric.
+
+## CoinDesk — one number, from the browser
+
+Narrow by design: the Bitcoin Price Index in three currencies. It sends CORS headers, which makes it the easiest to drop into a static page.
+
+```js
+const { bpi, time } = await fetch(
+  'https://api.coindesk.com/v1/bpi/currentprice.json',
+).then((r) => r.json());
+
+document.querySelector('#btc').textContent = bpi.GBP.rate;
+document.querySelector('#asof').textContent = time.updated;
+```
+
+## Bitcoin Halving — arithmetic, not prices
+
+An unusual one that is genuinely useful: block reward, halving era and schedule arithmetic for any height. It is pure computation, so there is nothing to go stale.
+
+```bash
+curl -s "https://bitcoinhalving.dev/api/v1/height/840000"
+```
+
+## Getting the numbers right
+
+Two failures account for most crypto display bugs.
+
+**Precision.** Crypto quantities routinely have eight or more decimal places, and JavaScript numbers cannot hold them exactly.
+
+```js
+0.1 + 0.2;                 // 0.30000000000000004
+2 ** 53 + 1 === 2 ** 53;   // true — integers stop being exact here
+```
+
+Keep the string the API gave you for display, and use `BigInt` or a decimal library for arithmetic on holdings. This is why these APIs send strings in the first place.
+
+**Formatting.** Eight decimals of Bitcoin and two of a fiat price need different treatment:
+
+```js
+const fmt = (v, currency) =>
+  new Intl.NumberFormat('en-GB', {
+    style: 'currency', currency,
+    maximumFractionDigits: currency === 'BTC' ? 8 : 2,
+  }).format(v);
+```
+
+## Staying inside the rate limits
+
+The biggest win is batching. One request for a hundred coins costs one call; a hundred requests for one coin each costs a hundred and will get you a 429.
+
+```js
+// Wrong: N requests
+for (const id of ids) await fetch(`.../ticker/${id}`);
+
+// Right: one request, filter locally
+const all = await fetch('https://api.coinlore.net/api/tickers/?limit=100')
+  .then((r) => r.json());
+const wanted = all.data.filter((c) => ids.includes(c.symbol));
+```
+
+Then poll on a timer rather than on render, so ten users on your page do not become ten times the traffic:
+
+```js
+let cache = { at: 0, data: null };
+const TTL = 60_000;
+
+async function prices() {
+  if (Date.now() - cache.at < TTL && cache.data) return cache.data;
+  cache = { at: Date.now(), data: await fetchTickers() };
+  return cache.data;
+}
+```
+
+See [HTTP 429 and backoff](/blog/fix-429-too-many-requests) for what to do when you do hit the wall.
+
+## Identifying a coin is harder than pricing it
+
+The problem nobody anticipates until their portfolio tracker shows a wildly wrong total: ticker symbols are not unique, and every API identifies coins differently.
+
+There is no registry and no authority. Anyone can launch a token called BTC, and several have. Symbols get reused after a project dies, forks share a symbol with their parent, and wrapped or bridged versions of the same asset carry near-identical tickers on different chains. Matching on the symbol alone will eventually price someone's holdings against an unrelated token, and because the number looks plausible nobody notices immediately.
+
+Each API also has its own internal identifier, and they do not agree. One calls Bitcoin `bitcoin`, another uses a numeric id, a third uses a slug that differs for half the long tail. So an application that reads prices from one source and metadata from another needs a mapping table between them, maintained as coins are added.
+
+The safest approach is to pick one provider as your canonical identity source, store *its* identifier against every holding, and treat the symbol purely as a display label. Where a user is choosing a coin, show the full name and the market capitalisation alongside the ticker so the real BTC is obviously distinguishable from a token that borrowed the name. Never resolve a user's input to a coin silently — an autocomplete that picks the first symbol match is the exact mechanism by which the wrong asset gets tracked.
+
+Market capitalisation is the most practical disambiguator, because the legitimate asset is almost always orders of magnitude larger than an impostor. Ranking search results by it, rather than alphabetically or by exact string match, makes the right answer appear first without any manual curation.
+
+## Reading the market data honestly
+
+Two figures in every crypto response are less meaningful than they look, and presenting them uncritically makes an application misleading rather than merely imprecise.
+
+**Volume** is self-reported by exchanges and is widely inflated. The practice has been documented repeatedly, with a large share of reported activity on smaller venues having no corresponding real trades. Aggregators vary in how much filtering they apply, which is one reason two APIs can disagree substantially about the same coin's daily volume. Treating volume as a liquidity measure is reasonable only for the largest assets on the largest venues.
+
+**Market capitalisation** is circulating supply multiplied by price, and both inputs are softer than the arithmetic suggests. Circulating supply is an estimate that excludes tokens the project says are locked, and those definitions vary and change. More importantly, the figure implies a total value that could never actually be realised, because selling the entire supply would move the price long before you finished. It is a useful ranking device and a poor valuation.
+
+The related figure to be careful with is the 24-hour change. Different APIs compute it from different reference points — a rolling window, or midnight UTC — so the same coin can show different percentages on two sites at the same moment without either being wrong. If you display it, say which you mean, and be consistent about it across your interface.
+
+None of this means the data is unusable. It means the honest presentation is a number with its source and timestamp attached, rather than a figure implying more precision than exists. That is the same principle as labelling prices as indicative, and it is what separates a credible product from one that gets a reputation for being wrong.
+
+## Portfolio arithmetic that survives contact with reality
+
+If you are building anything that totals holdings, three details cause most of the bugs.
+
+The first is precision, covered above: keep the API's string representation and do arithmetic with a decimal type, because eight decimal places of Bitcoin exceed what a double can represent exactly. Accumulating rounding error across a hundred positions produces a total that is visibly wrong.
+
+The second is currency conversion. Most crypto APIs quote in USD. Displaying a total in pounds means a second conversion, and doing it per holding rather than once on the total compounds the rounding. Convert the sum, not the parts.
+
+The third is missing coins. A portfolio will eventually contain something the price API does not cover, and the natural implementation treats a missing price as zero, silently understating the total. Surfacing it as unknown rather than zero is the correct behaviour, and it is the kind of thing that only shows up once a real user holds something obscure.
+
+## Choosing
+
+**A price table or a portfolio view.** Coinlore.
+
+**Charts and history.** CoinCap.
+
+**Coin detail pages with metadata.** Coinpaprika.
+
+**One Bitcoin price, client-side, no backend.** CoinDesk.
+
+**On-chain DEX routing data.** BlazePhoenix.
+
+**Anything that executes a trade.** None of these. Connect to an exchange directly.
+
+[Browse the cryptocurrency category](/categories/cryptocurrency) for all 108 entries we track, including current status.

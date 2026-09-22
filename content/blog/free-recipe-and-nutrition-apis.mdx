@@ -1,0 +1,248 @@
+---
+title: "Free recipe and nutrition APIs"
+description: "Food, recipe and nutrition APIs that need no key, why Open Food Facts beats the commercial options for barcode lookup, and the data-quality problem in crowd-sourced nutrition."
+cluster: roundups
+imageQuery: "fresh vegetables market stall"
+author: sandy
+publishedAt: "2026-10-20"
+updatedAt: "2026-10-20"
+relatedApis:
+  - open-food-facts
+  - fruityvice
+  - punkapi-2
+  - tacofancy
+  - coffee
+  - foodish
+relatedPosts:
+  - free-qr-code-and-barcode-apis
+  - caching-api-responses-free-tier
+  - how-to-read-api-documentation
+sources:
+  - label: "Open Food Facts API documentation"
+    url: "https://openfoodfacts.github.io/openfoodfacts-server/api/"
+  - label: "GS1 — barcode standards"
+    url: "https://www.gs1.org/standards/barcodes"
+  - label: "EU Regulation 1169/2011 on food information"
+    url: "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX%3A32011R1169"
+faq:
+  - q: "What is the best free nutrition API?"
+    a: "Open Food Facts. It is open data, needs no key, covers over three million products worldwide and supports barcode lookup, which is the feature most nutrition apps actually need."
+  - q: "Can I look up a food product by its barcode for free?"
+    a: "Yes. Open Food Facts takes an EAN or UPC directly in the URL and returns ingredients, nutrition per 100g, allergens and Nutri-Score, with no key."
+  - q: "Is crowd-sourced nutrition data accurate enough to rely on?"
+    a: "For general interest, yes. For anything medical or for allergen safety, no. Open Food Facts data is contributed by the public, and individual records can be incomplete or wrong. Never present it as authoritative allergen information."
+  - q: "Is there a free recipe API with no key?"
+    a: "TheMealDB has a keyless test tier, and TacoFancy is fully open. Larger recipe databases such as Spoonacular and Edamam all require registration, because recipe text is copyrighted and licensed."
+  - q: "Why do recipe APIs require a key when weather APIs do not?"
+    a: "Because recipes are copyrighted creative works that have to be licensed from publishers, whereas weather observations are facts. The key is a licensing control as much as a technical one."
+---
+
+Food splits into two very different data problems. **Packaged product data** — what is in this tin, what are the allergens — is superbly served by open data and needs no key. **Recipes** are copyrighted creative works, which is why nearly every recipe API wants registration.
+
+<Answer>
+For anything involving packaged food, nutrition or barcodes, use **[Open Food Facts](/apis/open-food-facts)**. It is open data, keyless, CORS-enabled, and covers millions of products. For recipes, expect to register — TheMealDB's keyless test tier is the only practical free option, and it is small.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["open-food-facts", "fruityvice", "punkapi-2", "tacofancy", "coffee", "foodish"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. Open Food Facts also sends CORS headers.
+</Tested>
+
+## Open Food Facts — the one that matters
+
+A collaborative database of food products, run as a non-profit, with over three million entries. It is the Wikipedia of food packaging, and for barcode lookup it outperforms most commercial alternatives.
+
+```bash
+curl -s "https://world.openfoodfacts.org/api/v2/product/737628064502.json"
+```
+
+```json
+{
+  "status": 1,
+  "product": {
+    "product_name": "Pad Thai Noodles",
+    "brands": "Thai Kitchen",
+    "nutriscore_grade": "d",
+    "nova_group": 4,
+    "allergens_tags": ["en:gluten"],
+    "nutriments": {
+      "energy-kcal_100g": 357,
+      "sugars_100g": 5.2,
+      "salt_100g": 1.1
+    }
+  }
+}
+```
+
+Barcode lookup is just the code in the path, which makes a scanner app almost trivial:
+
+```js
+async function lookupBarcode(ean) {
+  const res = await fetch(
+    `https://world.openfoodfacts.org/api/v2/product/${ean}.json` +
+      '?fields=product_name,brands,nutriscore_grade,allergens_tags,nutriments',
+  );
+
+  const body = await res.json();
+  if (body.status !== 1) return null;  // 200 even when not found
+
+  return body.product;
+}
+```
+
+Two things to note. Requesting `fields` matters — the full record is very large, and trimming it is the difference between a fast app and a slow one. And a missing product returns **HTTP 200 with `status: 0`**, not a 404, so checking `response.ok` is not enough.
+
+<Callout type="danger" title="Never present this as authoritative allergen data">
+Records are contributed by the public. Some are incomplete, some are out of date, some are wrong. That is fine for "roughly how much sugar is in this", and it is not fine for someone with a severe allergy. If your product touches allergens, say plainly that the data is crowd-sourced and the packaging is authoritative.
+</Callout>
+
+### Nutri-Score and NOVA
+
+Two classifications worth understanding because they appear in every record.
+
+**Nutri-Score** is an A–E letter grade based on nutrients per 100g. It is a regulated scheme in several European countries, so the value is comparable across products.
+
+**NOVA** is a 1–4 rating of how processed a food is, where 4 means ultra-processed. It says nothing about nutrition — olive oil scores 2, diet cola scores 4.
+
+```js
+const grade = { a: 'Excellent', b: 'Good', c: 'Fair', d: 'Poor', e: 'Very poor' };
+const label = grade[product.nutriscore_grade] ?? 'Not rated';
+```
+
+Plenty of products have neither, so always handle the missing case.
+
+### Search and contribution
+
+The search endpoint filters by category, brand, country and nutrition:
+
+```bash
+curl -s "https://world.openfoodfacts.org/api/v2/search\
+?categories_tags=en:breakfast-cereals\
+&nutrition_grades_tags=a\
+&fields=product_name,brands\
+&page_size=10"
+```
+
+Because it is a collaborative project, the polite thing to do if your app finds gaps is to contribute the corrections back. They have a write API for exactly that.
+
+## Fruityvice — small, clean, keyless
+
+Nutrition for raw fruit, which sounds trivial until you need it and find that most nutrition APIs only cover packaged goods.
+
+```bash
+curl -s "https://www.fruityvice.com/api/fruit/banana"
+curl -s "https://www.fruityvice.com/api/fruit/all"
+```
+
+```json
+{
+  "name": "Banana",
+  "family": "Musaceae",
+  "nutritions": { "calories": 96, "sugar": 17.2, "carbohydrates": 22, "protein": 1 }
+}
+```
+
+Small enough to fetch entirely and cache forever — the nutritional content of a banana is not going to be revised.
+
+## PunkAPI and the specialist sets
+
+**PunkAPI** exposes BrewDog's DIY Dog catalogue: 300+ beer recipes with full grain bills, hop schedules and brewing instructions. It is unusually complete data for something free, and genuinely useful for brewing software.
+
+```bash
+curl -s "https://api.punkapi.com/v2/beers?abv_gt=6&page=1&per_page=5"
+```
+
+**TacoFancy** is a community taco database with a combinatorial structure — base layers, seasonings, condiments, shells — which makes it a nice small dataset for building a randomiser.
+
+**Coffee** and **Foodish** return images, useful as placeholder content for a food UI.
+
+## Why recipes need a key
+
+To be direct about the gap. A weather observation is a fact and cannot be copyrighted. A recipe's *method text* is a creative work and can be. Ingredient lists alone are generally not protected, but the instructions are, and recipe APIs license that text from publishers.
+
+So the free options are limited:
+
+**TheMealDB** offers a keyless test tier using the key `1` in the path. It works, it is small, and it is explicitly for development:
+
+```bash
+curl -s "https://www.themealdb.com/api/json/v1/1/search.php?s=arrabiata"
+curl -s "https://www.themealdb.com/api/json/v1/1/filter.php?i=chicken_breast"
+```
+
+**Spoonacular** and **Edamam** are the serious options, both requiring registration, both with free tiers measured in a few hundred calls per day.
+
+## Cache almost everything
+
+Food data barely changes. A barcode maps to the same product indefinitely, and the composition of a banana is stable. This is one of the easiest categories to cache aggressively:
+
+```js
+const cache = new Map();
+
+async function product(ean) {
+  if (cache.has(ean)) return cache.get(ean);
+  const p = await lookupBarcode(ean);
+  cache.set(ean, p);          // safe to persist to disk or IndexedDB
+  return p;
+}
+```
+
+For a scanner app, persisting to IndexedDB means the second scan of the same item is instant and works offline.
+
+## Nutrition data is messier than it looks
+
+The numbers in a food database feel like facts. Most of them are estimates, and several conventions make naive comparison wrong.
+
+**Per 100g versus per serving.** Open Food Facts normalises to 100g, which is what makes products comparable. Packaging usually leads with per-serving figures, and the serving size is chosen by the manufacturer. Comparing a per-serving figure from one source with a per-100g figure from another produces nonsense, and both are labelled "calories".
+
+**Serving sizes are not standardised.** A manufacturer choosing a smaller serving makes every number on the front of the pack look better. This is legal and widespread, and it is why per-100g comparison exists.
+
+**Energy comes in two units.** Kilojoules and kilocalories both appear, sometimes in the same record under similar field names. A factor of roughly 4.2 between them turns a sensible figure into an alarming one, and code that picks whichever field is present will silently mix them.
+
+**Rounding is permitted by regulation.** Declared values may be rounded to thresholds, and small quantities can legally be declared as zero. "Zero sugar" frequently means below a threshold rather than none, which matters to anyone summing many small amounts.
+
+**Recipes are not ingredients.** Nutrition for a cooked dish is not the sum of its raw components. Water is lost, fat is absorbed or drained, and volumes change. Computing a cooked meal's nutrition by adding up raw ingredients overstates weight and misstates density.
+
+None of this makes the data unusable. It means the honest presentation is a figure with its basis stated — per 100g, as declared by the manufacturer, last updated on a date — rather than a number implying precision the underlying data does not have.
+
+## Allergens deserve their own standard of care
+
+Worth separating from the general accuracy discussion, because the consequences are different in kind.
+
+Allergen information in a crowd-sourced database is contributed by members of the public reading packaging. It is frequently right, sometimes incomplete, and occasionally out of date because a manufacturer reformulated. For someone with a mild intolerance that is an inconvenience. For someone with a severe allergy it is a safety question.
+
+The responsible design is to treat allergen data as **advisory and incomplete by default**. Say plainly where it came from, show when the record was last updated, and direct the user to the packaging as the authority. Never present an absence of allergen data as an absence of allergens — a record with no allergen tags overwhelmingly means nobody has entered them, not that the product is free of them.
+
+Be careful with the difference between "contains" and "may contain". Precautionary labelling about shared production lines is a separate field from declared ingredients, and conflating them either alarms people unnecessarily or hides a risk they need.
+
+If you are building something where this matters, the extra step worth taking is a visible disclaimer at the point of use rather than buried in terms. Not as legal protection, but because someone making a decision about what they can eat deserves to know how much confidence the number in front of them carries.
+
+## Barcodes, and what they do and do not identify
+
+A short note that saves confusion when the lookups start failing.
+
+A barcode identifies a **product as packaged in a market**, not a food. The same chocolate bar has different codes in different countries, different codes for different sizes, and a new code after a significant reformulation. A lookup that misses is usually a regional variant rather than an unknown product.
+
+Codes also come in lengths — 8, 12, 13 and 14 digits — and the same product can be represented in more than one. A twelve-digit UPC is a thirteen-digit EAN with a leading zero, and a database keyed on one will miss a scan of the other unless you normalise. Padding to thirteen digits before lookup resolves most apparent misses.
+
+Own-brand and loose products are the other gap. Supermarket own-label goods are inconsistently covered, and fresh produce often has no barcode at all or carries an in-store code meaningful only to that retailer. An application built around scanning needs a manual-entry path, because a meaningful share of a real shopping basket will not resolve.
+
+When a lookup misses, the constructive response is to let the user contribute it. Open Food Facts is a collaborative project, and an application that adds records back is improving the dataset it depends on rather than only drawing from it.
+
+## Choosing
+
+**Barcode scanning, packaged food, nutrition labels.** Open Food Facts.
+
+**Raw fruit and vegetables.** Fruityvice.
+
+**Brewing.** PunkAPI.
+
+**Recipes, seriously.** Spoonacular or Edamam, with a key.
+
+**Recipes, for a demo this afternoon.** TheMealDB's test tier.
+
+**Placeholder food photography.** Foodish.
+
+For the scanning half of a barcode app, see [free QR code and barcode APIs](/blog/free-qr-code-and-barcode-apis). [Browse the food and drink category](/categories/food-and-drink) for all 38 entries we track.

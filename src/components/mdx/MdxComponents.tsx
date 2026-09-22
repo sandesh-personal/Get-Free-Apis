@@ -21,22 +21,20 @@ export function Callout({
   children: React.ReactNode;
 }) {
   const styles = {
-    note: { border: 'border-key', bg: 'bg-key-bg', text: 'text-key', icon: 'ℹ️', label: 'Note' },
-    tip: { border: 'border-ok', bg: 'bg-ok-bg', text: 'text-ok', icon: '✅', label: 'Tip' },
+    note: { border: 'border-key', bg: 'bg-key-bg', text: 'text-key', label: 'Note' },
+    tip: { border: 'border-ok', bg: 'bg-ok-bg', text: 'text-ok', label: 'Tip' },
     warning: {
       border: 'border-unknown',
       bg: 'bg-unknown-bg',
       text: 'text-unknown',
-      icon: '⚠️',
       label: 'Watch out',
     },
-    danger: { border: 'border-no', bg: 'bg-no-bg', text: 'text-no', icon: '🛑', label: 'Careful' },
+    danger: { border: 'border-no', bg: 'bg-no-bg', text: 'text-no', label: 'Careful' },
   }[type];
 
   return (
     <aside className={`my-6 rounded-xl border-l-4 ${styles.border} ${styles.bg} p-4`}>
       <p className={`mb-1 flex items-center gap-2 text-sm font-semibold ${styles.text}`}>
-        <span aria-hidden>{styles.icon}</span>
         {title ?? styles.label}
       </p>
       <div className="text-sm leading-relaxed [&>p]:mb-2 [&>p:last-child]:mb-0">{children}</div>
@@ -59,7 +57,6 @@ export function Tested({
   return (
     <aside className="my-6 rounded-xl border border-border-strong bg-surface p-4">
       <p className="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-accent">
-        <span aria-hidden>🔬</span>
         We tested this
         <time dateTime={date} className="font-normal normal-case tracking-normal text-muted">
           on {date}
@@ -190,6 +187,19 @@ export const mdxComponents: MDXComponents = {
   ApiTable,
   Answer,
   Figure,
+  /*
+   * A markdown table cannot shrink below its own min-content width, so a four-column
+   * one pushed the whole page wider than the viewport on a phone — the reader got a
+   * horizontally scrolling *page* rather than a scrolling table. Wrapping it gives the
+   * scroll to the table alone, the same treatment `ApiTable` already uses.
+   */
+  table: ({ children, ...props }) => (
+    <div className="my-6 overflow-x-auto rounded-xl border border-border-subtle">
+      <table {...props} className="w-full text-sm">
+        {children}
+      </table>
+    </div>
+  ),
   a: ({ href, children, ...props }) => {
     const url = String(href ?? '');
     if (url.startsWith('/')) {

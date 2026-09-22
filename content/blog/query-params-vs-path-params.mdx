@@ -1,0 +1,249 @@
+---
+title: "Query params vs path params vs request body"
+description: "Three places to put data in a request. Which one an API expects is not arbitrary, and getting it wrong produces confusing 404s and silently ignored filters."
+cluster: fundamentals
+imageQuery: "directional road signs"
+author: sandy
+publishedAt: "2026-10-04"
+updatedAt: "2026-10-04"
+relatedApis:
+  - zippopotam-us
+  - dummyjson
+  - open-meteo-ensemble
+relatedPosts:
+  - what-is-an-api-endpoint
+  - api-pagination-patterns
+sources:
+  - label: "RFC 3986 — URI syntax"
+    url: "https://www.rfc-editor.org/rfc/rfc3986#section-3.4"
+  - label: "MDN — URLSearchParams"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams"
+  - label: "RFC 9110 — Content-Type"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-content-type"
+faq:
+  - q: "What is the difference between a path parameter and a query parameter?"
+    a: "A path parameter identifies which resource you want and is part of the URL structure, such as /users/42. A query parameter modifies how the result is returned, such as ?limit=20&sort=name. Path selects, query shapes."
+  - q: "Can a GET request have a body?"
+    a: "The specification permits it but says the body has no defined meaning, and many servers, proxies and caches drop it. In practice a GET body is unreliable. If your parameters are too large for a URL, use POST."
+  - q: "Why is my query parameter being ignored?"
+    a: "Usually a name mismatch, since most APIs ignore unknown parameters silently rather than erroring. Check spelling and case, check whether the API expects snake_case or camelCase, and check whether repeated values need bracket notation."
+  - q: "How long can a URL be?"
+    a: "There is no limit in the specification, but around 2,000 characters is the practical ceiling across browsers, proxies and server defaults. Beyond that, move the data into a request body."
+  - q: "Should I put an API key in a query parameter?"
+    a: "Avoid it. Query strings appear in server logs, browser history and Referer headers sent to third parties. Use a header when the API supports one, even if the documentation shows the query form."
+---
+
+Three places to put data in an HTTP request, and APIs are particular about which one they read.
+
+<Answer>
+**Path parameters** identify which resource: `/users/42`. **Query parameters** shape the response: `?limit=20&sort=name`. **The body** carries data you are sending: the JSON for a create or update. A useful test is whether removing it changes *which* thing you get (path) or *how* you get it (query).
+</Answer>
+
+## Path parameters
+
+Part of the URL structure. They select a specific resource.
+
+```http
+GET /users/42
+GET /articles/hello-world
+GET /repos/facebook/react/issues/1234
+```
+
+Each segment is required. Omit it and you are requesting a different endpoint entirely: `/users` is the collection, `/users/42` is one user, and there is no such thing as `/users/` meaning user "nothing".
+
+**Encoding matters.** A path parameter containing a slash, a space or a hash will break the URL:
+
+```js
+const name = 'design/ui';
+
+// Broken: reads as two path segments.
+fetch(`/api/projects/${name}`);        // /api/projects/design/ui
+
+// Correct.
+fetch(`/api/projects/${encodeURIComponent(name)}`);  // /api/projects/design%2Fui
+```
+
+Note that `encodeURIComponent` is the right function here. `encodeURI` deliberately leaves `/` alone, because it is meant for whole URLs rather than individual segments.
+
+## Query parameters
+
+Everything after the `?`. They modify how the result is returned, without changing which resource it is.
+
+```http
+GET /articles?limit=20&offset=40&sort=published_at&order=desc&status=live
+```
+
+**Almost always optional.** An API should return something sensible with none of them. If a query parameter is genuinely required, it is often a sign it should have been a path parameter.
+
+**Unknown parameters are usually ignored silently.** This is the source of the most frustrating bug in this whole area:
+
+```http
+GET /articles?page_size=20     # API expects per_page
+```
+
+No error. You get the default page size and spend twenty minutes wondering why your limit does nothing. When a parameter appears to have no effect, suspect the name before suspecting the API.
+
+**Repeated values have no single convention.** All of these exist:
+
+```http
+?tag=news&tag=sport        # repeated key, most common
+?tags=news,sport           # comma separated
+?tags[]=news&tags[]=sport  # bracket notation, PHP and Rails
+```
+
+The documentation will say which. Guessing produces a filter that matches nothing.
+
+```js
+const url = new URL('https://api.example.com/articles');
+url.searchParams.append('tag', 'news');   // append, not set
+url.searchParams.append('tag', 'sport');
+// ?tag=news&tag=sport
+```
+
+`set` replaces any existing value; `append` adds another. Using `set` twice gives you one parameter, which is a quiet bug.
+
+<Callout type="warning" title="Query strings are not private">
+They appear in server access logs, browser history, and the `Referer` header sent to any third-party resource the page loads. Never put an API key, a token or personal data in one, even though some APIs document exactly that.
+</Callout>
+
+## The request body
+
+For data you are sending rather than data describing what you want.
+
+```js
+await fetch('https://api.example.com/articles', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ title: 'Hello', content: '...' }),
+});
+```
+
+Two things are mandatory and both are commonly forgotten.
+
+**`JSON.stringify`.** Passing an object directly sends the string `[object Object]`:
+
+```js
+body: { title: 'Hello' }              // sends "[object Object]"
+body: JSON.stringify({ title: 'Hello' })  // correct
+```
+
+**`Content-Type`.** Without it the server does not know how to parse the body, and typically returns 400 or 415. Note that setting `application/json` makes a cross-origin request non-simple, so the browser will send a preflight `OPTIONS` first.
+
+### Other body formats
+
+```js
+// Form encoded. Simple requests, no preflight.
+body: new URLSearchParams({ name: 'value' })
+
+// File upload. Do not set Content-Type; the browser adds the boundary.
+const form = new FormData();
+form.append('file', fileInput.files[0]);
+await fetch(url, { method: 'POST', body: form });
+```
+
+Setting `Content-Type` manually for `FormData` is a classic mistake: it overwrites the multipart boundary the browser generates, and the server cannot parse the result.
+
+## Choosing correctly
+
+| Data | Goes in | Why |
+| --- | --- | --- |
+| Which record | Path | Identifies the resource |
+| Filter, sort, pagination | Query | Shapes the response |
+| Field values for create or update | Body | It is the payload |
+| API key | Header | Keeps it out of logs |
+| A very long list of IDs | Body, with POST | URL length limits |
+| Output format | Query, or `Accept` header | Shapes the response |
+
+The clearest test: if changing it changes **which** thing you get, it belongs in the path. If it changes **how** you get it, it belongs in the query.
+
+## GET with a body
+
+The specification allows it but assigns no meaning, and infrastructure treats it accordingly. Proxies, caches and some server frameworks drop it. Browser `fetch` refuses outright:
+
+```js
+fetch(url, { method: 'GET', body: '{}' });
+// TypeError: Request with GET/HEAD method cannot have body
+```
+
+When a search query genuinely exceeds URL limits, the common workaround is `POST /resource/search` with the criteria in the body. It is not REST-pure, and it is what everyone does.
+
+## Reading a URL you were given
+
+Work backwards through the structure:
+
+```text
+https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.13&hourly=temperature_2m
+```
+
+- `/v1` version prefix
+- `/forecast` the resource
+- no path parameter, so this is a general query rather than a specific record
+- `latitude`, `longitude` locate it
+- `hourly` selects which fields come back
+
+You can now vary it confidently: change the coordinates, add another field to `hourly`, and you have a different request that will still work.
+
+<Tested date="2026-10-04" endpoint="GET https://api.open-meteo.com/v1/forecast" result="Open-Meteo answered in 282 ms on our last check, needs no key, and sends CORS headers.">
+It is a good API for learning parameter handling because everything is a query parameter and the response echoes the units it used, so you can see immediately whether a parameter was understood or silently ignored.
+</Tested>
+
+## Why the distinction has consequences
+
+The rule of thumb — path identifies, query modifies — is easy to state. It is worth knowing what actually goes wrong when it is ignored, because the costs are not aesthetic.
+
+**Caching works on the whole URL.** A path and its query string together form the cache key, so `?sort=asc` and `?sort=desc` are two entries. That is correct when they are genuinely different results, and wasteful when the parameter does not affect the response at all. Tracking parameters are the usual culprit: appending a campaign tag to an API call fragments your cache into one entry per campaign for identical data.
+
+**Logs and metrics group by path.** Every monitoring tool aggregates by the route pattern, discarding the query string. Put an identifier in the query string and you get one giant bucket for the endpoint; put it in the path and the tool groups by pattern and reports usefully. Conversely, an identifier baked into the path *pattern* rather than as a parameter produces a separate entry per value, which floods the dashboard.
+
+**URLs get shared and stored.** A path-based identifier survives copy-paste, appears sensibly in a browser history, and reads clearly in a bug report. Query strings are frequently stripped or reordered in transit, and their order is not semantically meaningful even though the string differs.
+
+**Sensitive values do not belong in either, but especially not the query.** Query strings appear in server access logs, in `Referer` headers sent to third parties, and in browser history. A token in a query parameter has been written to several places you do not control before your handler runs. That is why credentials belong in a header, and why an API offering key-in-query as a convenience is offering you a small liability.
+
+## Arrays, and the four conventions nobody agrees on
+
+The place where "just send the parameter" stops being simple, because there is no standard.
+
+The same list of two ids can legitimately be sent as repeated keys, as a bracketed form, as a comma-separated value, or as an indexed form. Different frameworks parse different subsets by default, and a server expecting one will see an empty list when sent another — usually with no error, because an absent filter is a valid state.
+
+That silence is what makes this worth checking rather than assuming. A filter that quietly does nothing returns results, just the wrong ones, and it can survive a long way into production before anyone notices the count is too high.
+
+The practical approach is to find one working example in the provider's documentation and copy its form exactly, rather than reaching for whatever your HTTP client does by default. Several clients pick a convention for you, and the convention they pick is not always the one the server reads.
+
+The same applies to booleans and nulls. Whether a server reads `?active=false` as false or as the truthy string `"false"` depends on its parsing, and whether an empty `?q=` means "no filter" or "match the empty string" is a genuine per-API difference. Where the distinction matters, omitting the parameter entirely is unambiguous in a way that sending an empty one is not.
+
+## Encoding, once, at the right layer
+
+The last recurring bug, and it has one correct answer.
+
+Values in a URL must be percent-encoded, and the encoding must happen per segment or per parameter — never across the whole URL, because the separators need to stay separators. Encoding a complete URL turns the slashes and ampersands into literal characters and produces a single nonsensical path.
+
+Double encoding is the other half of the problem, and it is harder to spot because it produces a request that succeeds and returns nothing. It happens when a value is encoded once by your code and again by a helper that assumed raw input. The signature is `%2520` appearing where you expected `%20` — a percent sign that was itself encoded.
+
+Using `URL` and `URLSearchParams` rather than building strings avoids both, because they encode exactly once and only where required. They also handle the cases hand-rolled code forgets: spaces, plus signs, ampersands inside a value, and non-ASCII characters. The helper below exists for precisely this reason, and the argument for always going through something like it is that the failure mode of getting it wrong is silent.
+
+## A safe helper
+
+```ts title="lib/build-url.ts"
+export function buildUrl(
+  base: string,
+  path: string,
+  params: Record<string, string | number | boolean | undefined> = {},
+): URL {
+  // Encode each segment so slashes inside a value do not create new segments.
+  const safePath = path
+    .split('/')
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join('/');
+
+  const url = new URL(safePath, base.endsWith('/') ? base : `${base}/`);
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) url.searchParams.set(key, String(value));
+  }
+
+  return url;
+}
+```
+
+Skipping `undefined` matters. Without that check, an unset optional filter is sent as the literal string `undefined`, which most APIs will either reject or, worse, treat as a real value.

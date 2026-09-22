@@ -1,0 +1,253 @@
+---
+title: "Free geocoding and maps APIs"
+description: "Turning addresses into coordinates without a key, why postcode lookups beat full-address geocoding for accuracy, and the licensing trap in most free geocoders."
+cluster: roundups
+imageQuery: "paper map compass navigation"
+author: sandy
+publishedAt: "2026-10-10"
+updatedAt: "2026-10-10"
+relatedApis:
+  - zippopotam-us
+  - postcodes-io
+  - geonames
+  - pontofato
+  - ziptastic
+  - postalcodes
+relatedPosts:
+  - free-ip-geolocation-apis
+  - what-is-an-api-endpoint
+  - caching-api-responses-free-tier
+sources:
+  - label: "Nominatim usage policy"
+    url: "https://operations.osmfoundation.org/policies/nominatim/"
+  - label: "OpenStreetMap copyright and licence"
+    url: "https://www.openstreetmap.org/copyright"
+  - label: "GeoNames data licence"
+    url: "https://www.geonames.org/about.html"
+faq:
+  - q: "What is the best free geocoding API with no key?"
+    a: "For postcodes, Zippopotam.us covers 60+ countries with no key and no rate limit worth worrying about. For UK addresses specifically, Postcodes.io is more detailed. For place names worldwide, GeoNames is the broadest free option."
+  - q: "What is the difference between geocoding and reverse geocoding?"
+    a: "Geocoding turns a description into coordinates: an address or postcode becomes a latitude and longitude. Reverse geocoding goes the other way, taking coordinates and returning the nearest address or place."
+  - q: "Can I store the coordinates a free geocoder returns?"
+    a: "It depends entirely on the licence. OpenStreetMap-derived results are share-alike, which can oblige you to open your derived database. Google's terms forbid storing results at all. Always read the terms before caching results into your own database."
+  - q: "Why is postcode geocoding more accurate than address geocoding?"
+    a: "A postcode is a discrete code with an authoritative lookup table behind it. A free-text address has to be parsed, spell-corrected and matched, and every one of those steps can fail. If a postcode will do, use it."
+  - q: "Is Nominatim free to use in production?"
+    a: "The public Nominatim instance is free but rate-limited to one request per second and forbids heavy use. It is fine for occasional lookups and not fine for bulk geocoding. For volume you are expected to self-host it."
+---
+
+Geocoding looks like a solved problem until you try it for free. The well-known providers all want a credit card, and the free alternatives come with licence terms that can quietly oblige you to open-source the database you built from them.
+
+There is a shortcut most projects miss: if you can ask for a postcode instead of an address, the problem gets both easier and more accurate.
+
+<Answer>
+If a postcode will do, use **[Zippopotam.us](/apis/zippopotam-us)** — no key, 60+ countries, and the simplest interface of anything here. For UK addresses specifically, **[Postcodes.io](/apis/postcodes-io)** returns far more detail. For place names anywhere in the world, **[GeoNames](/apis/geonames)** is the broadest keyless option.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["zippopotam-us", "postcodes-io", "geonames", "pontofato", "ziptastic", "postalcodes"]} />
+
+<Tested date="2026-09-18" result="All six returned location data with no key attached.">
+Checked without credentials during our scheduled run. Latencies are medians from that run.
+</Tested>
+
+## Ask for a postcode, not an address
+
+Full-address geocoding is a parsing problem. "Flat 2, 14a High St." has to be tokenised, corrected, disambiguated and matched, and each step introduces failure. A postcode is a key in a lookup table.
+
+```text
+"14a High Street, Camden"   -> parse, correct, match, guess   ~85% right
+"NW1 8QP"                   -> direct lookup                  ~100% right
+```
+
+If your form can ask for a postcode and auto-fill the rest, do that. It is more accurate, faster, cheaper, and easier for the user than typing an address.
+
+## Zippopotam.us — postcodes in 60+ countries
+
+The whole API is one URL pattern, and there is no key.
+
+```bash
+curl -s "https://api.zippopotam.us/gb/NW1"
+curl -s "https://api.zippopotam.us/us/90210"
+curl -s "https://api.zippopotam.us/de/10115"
+```
+
+```json
+{
+  "post code": "90210",
+  "country": "United States",
+  "places": [{
+    "place name": "Beverly Hills",
+    "state": "California",
+    "latitude": "34.0901",
+    "longitude": "-118.4065"
+  }]
+}
+```
+
+It also reverses, which is less well known:
+
+```bash
+curl -s "https://api.zippopotam.us/us/ca/beverly%20hills"
+```
+
+Note the space-containing key names, which need bracket notation:
+
+```js
+const data = await fetch('https://api.zippopotam.us/gb/NW1').then((r) => r.json());
+const { latitude, longitude } = data.places[0];
+console.log(data['post code'], latitude, longitude);
+```
+
+## Postcodes.io — the UK, in depth
+
+For UK work this is substantially better than a generic geocoder. It is free, keyless, open source, and built on Ordnance Survey and ONS open data.
+
+```bash
+curl -s "https://api.postcodes.io/postcodes/SW1A1AA"
+```
+
+Beyond coordinates it returns the administrative hierarchy — ward, district, constituency, region, NHS area — which is exactly what you need for anything that routes by locality.
+
+Two endpoints worth knowing. Bulk lookup, which avoids 100 separate requests:
+
+```bash
+curl -s -X POST "https://api.postcodes.io/postcodes" \
+  -H "Content-Type: application/json" \
+  -d '{"postcodes":["SW1A1AA","NW18QP","EC1A1BB"]}'
+```
+
+And autocomplete, for type-ahead in a form:
+
+```bash
+curl -s "https://api.postcodes.io/postcodes/SW1A/autocomplete"
+```
+
+```js
+// Debounced postcode autocomplete
+let timer;
+input.addEventListener('input', () => {
+  clearTimeout(timer);
+  timer = setTimeout(async () => {
+    const { result } = await fetch(
+      `https://api.postcodes.io/postcodes/${encodeURIComponent(input.value)}/autocomplete`,
+    ).then((r) => r.json());
+    render(result ?? []);
+  }, 250);
+});
+```
+
+Debouncing matters here. Without it you send a request per keystroke, which is both rude and slow.
+
+## GeoNames — place names worldwide
+
+Eleven million place names, free, and the fallback when you have a city rather than a postcode. It wants a username rather than a key, and the demo account is throttled hard enough that you should register your own — it is free and takes a minute.
+
+```bash
+curl -s "http://api.geonames.org/searchJSON?q=Manchester&maxRows=5&username=demo"
+```
+
+The reverse lookup finds the nearest named place to a coordinate:
+
+```bash
+curl -s "http://api.geonames.org/findNearbyPlaceNameJSON\
+?lat=51.5&lng=-0.13&username=demo"
+```
+
+## The licensing trap
+
+This is the part that catches commercial projects, and it is worth more attention than the technical differences.
+
+**OpenStreetMap-derived data**, which includes Nominatim and many "free geocoder" wrappers, is licensed under the ODbL. It is share-alike. If you build a derived database from it, you may be obliged to publish that database under the same terms. For a hobby project this is irrelevant; for a startup's customer address table it is a genuine legal question.
+
+**Google's Geocoding API** forbids storing results at all, except for a limited cache tied to a Google map being displayed.
+
+**GeoNames** is Creative Commons Attribution, which is the easiest of the three: credit them and you are done.
+
+**Postcodes.io** is built on open government data under the Open Government Licence, also attribution-only.
+
+<Callout type="danger" title="Check the licence before you cache into your own database">
+Caching a geocoding response for performance is normal and usually permitted. Building a permanent address table from a free geocoder is a different act, and several licences treat it differently. This is the single most expensive mistake in this category.
+</Callout>
+
+## Nominatim, and why it is not on the list
+
+Nominatim is the OpenStreetMap geocoder, and it is genuinely capable. It is absent here because the public instance limits you to **one request per second**, requires an identifying `User-Agent`, and explicitly forbids bulk use. Those terms are enforced, and violating them gets your address blocked.
+
+```bash
+curl -s -H "User-Agent: myapp/1.0 (me@example.com)" \
+  "https://nominatim.openstreetmap.org/search?q=Camden+London&format=json&limit=1"
+```
+
+Fine for an occasional lookup. Not a service to build on. If you need volume, self-host it — the software is open source and the planet extract is a download away.
+
+## Cache, and respect the rate limits
+
+Geocoding results do not change. A postcode maps to the same coordinates today and next year, which makes this one of the easiest things to cache permanently.
+
+```js
+const cache = new Map();
+
+async function geocodePostcode(code) {
+  const key = code.replace(/\s+/g, '').toUpperCase();
+  if (cache.has(key)) return cache.get(key);
+
+  const res = await fetch(`https://api.zippopotam.us/gb/${key.slice(0, -3)}`);
+  if (!res.ok) return null;
+
+  const { places } = await res.json();
+  const point = { lat: +places[0].latitude, lon: +places[0].longitude };
+  cache.set(key, point);
+  return point;
+}
+```
+
+## Coordinates, precision and the false confidence of decimals
+
+A geocoder returns numbers with six or seven decimal places, which implies a precision the result does not have. Knowing what each digit is worth stops that implied precision leaking into your design.
+
+The fifth decimal place is about a metre. The fourth is about eleven metres. The third is about a hundred. The second is roughly a kilometre. So a coordinate quoted to seven decimals is claiming centimetre resolution, and no free geocoder knows anything to that standard — the underlying record is a building centroid, a street midpoint or a postcode area centre.
+
+Two practical consequences. First, **round before storing and comparing**. Four decimals is more than enough for anything short of surveying, and rounding collapses near-identical results into equal ones, which makes caching and deduplication work. Second, **never compare coordinates for equality**. Two geocodes of the same address from different sources will differ in the low decimals, and an equality check will call them different places.
+
+There is also a worthwhile habit in storing what the geocoder told you about itself. Most return a match type or a precision indicator — rooftop, street, locality, country — and that field is the difference between a pin you can trust and one you cannot. An application that shows every result at the same zoom level, regardless of whether it resolved to a building or to a region, is presenting a guess as a fact.
+
+And always store the original input alongside the result. Geocoders improve, licences change, and providers get swapped. Keeping the address you were given means you can re-geocode later; keeping only the coordinates means you cannot.
+
+## Distance, and the arithmetic that goes wrong
+
+Once you have coordinates, the next thing anyone wants is distance, and the naive approach fails in a specific way.
+
+Treating latitude and longitude as flat coordinates and using Pythagoras works near the equator and degrades as you move away, because a degree of longitude shrinks towards the poles while a degree of latitude does not. At UK latitudes a degree of longitude is roughly two-thirds the length of a degree of latitude, so flat-plane distances are wrong by a large margin on east-west separations.
+
+The haversine formula handles the curvature and is the standard answer for straight-line distance. It is a few lines and accurate to well within the precision of the coordinates you are feeding it.
+
+The more important caveat is that straight-line distance is rarely the question. "How far away is this" usually means travel distance or travel time, and those are routing problems, not geometry — separated by rivers, one-way systems and the absence of a bridge. Free routing at any volume is genuinely hard to come by, and presenting a straight-line figure as though it were a journey is misleading in a way users notice immediately.
+
+Where you need "nearest N", the useful trick is to filter with a cheap bounding box before computing exact distances. Computing haversine against every row in a table is slow; restricting to a rectangle around the point first, then sorting the survivors precisely, is much faster and gives identical results.
+
+## Choosing a provider you can leave
+
+The licensing section above is the reason to think about exit before entry, and there is a structural way to do it.
+
+Put geocoding behind one function in your own code that takes an address and returns a coordinate plus a precision indicator. Nothing else in the application should know which provider answered. That boundary costs almost nothing to build and means swapping providers — because a licence changed, a free tier closed, or accuracy proved inadequate — is a single file rather than a search across the codebase.
+
+The same boundary makes a fallback chain possible. Try the postcode service first because it is most accurate and cheapest, fall back to a place-name geocoder, and give up cleanly rather than returning something wrong. Users are far better served by "we could not find that address" than by a pin in the wrong county.
+
+It also lets you cache centrally. Geocoding results are unusually cacheable — an address maps to the same coordinates indefinitely — and a cache at the boundary benefits every call site at once. Just check the licence first: the right to cache for performance and the right to build a permanent database are different permissions, and this is the category where that distinction has teeth.
+
+## Choosing
+
+**You can ask for a postcode.** Zippopotam.us, or Postcodes.io in the UK.
+
+**UK, and you need wards, constituencies or NHS areas.** Postcodes.io.
+
+**A city or place name, anywhere.** GeoNames with your own username.
+
+**Brazil.** Pontofato, which covers CEP codes with IBGE coordinates.
+
+**Full free-text address geocoding at volume.** Self-hosted Nominatim. Nothing free and hosted will do this reliably.
+
+For placing a *visitor* rather than an address, see [free IP geolocation APIs](/blog/free-ip-geolocation-apis) — a different problem with much lower accuracy. [Browse the geocoding category](/categories/geocoding) for all 174 entries we track.

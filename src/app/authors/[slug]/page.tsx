@@ -38,7 +38,9 @@ export default async function AuthorPage({ params }: Props) {
     description: author.bio,
     url: `${site.url}/authors/${author.slug}`,
     jobTitle: author.role,
-    ...(author.github && { sameAs: [author.github, author.linkedin, author.website].filter(Boolean) }),
+    ...((author.github || author.website || author.linkedin) && {
+      sameAs: [author.github, author.website, author.linkedin].filter(Boolean),
+    }),
   };
 
   return (
@@ -61,11 +63,7 @@ export default async function AuthorPage({ params }: Props) {
 
           <div className="mt-5 border-t border-border-subtle pt-4">
             <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Background</h2>
-            <p
-              className={`mt-2 text-sm leading-relaxed ${
-                author.placeholder ? 'rounded bg-unknown-bg p-3 text-unknown' : 'text-muted-strong'
-              }`}
-            >
+            <p className="mt-2 text-sm leading-relaxed text-muted-strong">
               {author.credentials}
             </p>
           </div>

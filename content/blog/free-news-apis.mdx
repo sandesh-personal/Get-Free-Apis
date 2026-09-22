@@ -1,0 +1,251 @@
+---
+title: "Free news and headline APIs"
+description: "News APIs that return headlines without a key, why most free news tiers forbid showing the results publicly, and the licensing question that decides which one you can actually use."
+cluster: roundups
+imageQuery: "stack of newspapers"
+author: sandy
+publishedAt: "2026-10-14"
+updatedAt: "2026-10-14"
+relatedApis:
+  - noozra
+  - oksurf
+  - spaceflight-news
+  - datacube-ai
+  - inshorts-news
+  - associated-press
+relatedPosts:
+  - caching-api-responses-free-tier
+  - how-to-read-api-documentation
+  - free-ai-and-llm-apis
+sources:
+  - label: "RSS 2.0 specification"
+    url: "https://www.rssboard.org/rss-specification"
+  - label: "NewsAPI terms of service"
+    url: "https://newsapi.org/terms"
+  - label: "Berne Convention — news of the day"
+    url: "https://www.wipo.int/treaties/en/ip/berne/"
+faq:
+  - q: "Is there a free news API with no key?"
+    a: "Yes. Noozra aggregates 200+ curated RSS sources, OkSurf wraps Google News, and Spaceflight News covers space specifically. All three answered without a key in our checks."
+  - q: "Can I display headlines from a free news API on my public site?"
+    a: "Check the terms. NewsAPI's free tier is development-only and forbids production use, which is the most common licensing mistake here. RSS-derived aggregators are usually far more permissive."
+  - q: "Is it legal to republish news headlines?"
+    a: "Short factual headlines generally attract thin copyright protection, and the Berne Convention excludes news of the day as such. Full article text is different and is protected. Link out rather than reproducing the body."
+  - q: "Why do free news APIs have a 24-hour delay?"
+    a: "Because fresh news is the product. Providers reserve real-time access for paid tiers and release older items free, which is fine for a topic page and useless for a breaking-news feed."
+  - q: "Should I use a news API or just parse RSS?"
+    a: "If you know which publications you want, RSS is free, has no rate limit and no licensing intermediary. Use an API when you need cross-source search, deduplication or enrichment that you would otherwise have to build."
+---
+
+News is the category where the technical question is easy and the licensing question is hard. Getting headlines is trivial. Being allowed to show them is where most projects quietly break their terms of service.
+
+<Answer>
+For a general keyless feed, **[Noozra](/apis/noozra)** aggregates 200+ curated RSS sources and needs no credential. For anything Google News covers, **[OkSurf](/apis/oksurf)** wraps it with Open Graph images attached. Before you ship, read the terms: several well-known free news tiers permit development use only, which is not the same as free.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["noozra", "oksurf", "spaceflight-news", "datacube-ai", "inshorts-news", "associated-press"]} />
+
+<Tested date="2026-09-18" result="Five returned headlines with no key. Associated Press requires one.">
+Checked from a clean client during our scheduled run.
+</Tested>
+
+## The licensing question, first
+
+This decides everything else, so it goes before the code.
+
+**NewsAPI**, the most recommended free news API on the internet, restricts its free tier to development. Shipping it on a public site breaches the terms. It is absent from this list for that reason, not because it is bad.
+
+**RSS-derived aggregators** are generally the most permissive, because RSS is published expressly for syndication. Noozra and OkSurf fall here.
+
+**Wire services** such as Associated Press license by contract. Free keys are for evaluation.
+
+What you may do with the output is roughly:
+
+```text
+Headline + link + source name     nearly always fine
+Short excerpt (1-2 sentences)     usually fine, quote and attribute
+Full article text                 essentially never fine
+Publisher's images                separate licence, usually not granted
+```
+
+<Callout type="danger" title="Development-only is not free">
+"Free tier" and "free for development" are different things, and the second appears in terms far more often than people notice. If a site is public and has ads on it, it is production, even if it earns nothing.
+</Callout>
+
+## Noozra — 200+ sources, no key
+
+Aggregates curated RSS feeds into a single JSON interface, which removes the work of maintaining feed URLs yourself.
+
+```bash
+curl -s "https://noozra.com/api/v1/headlines?limit=10"
+curl -s "https://noozra.com/api/v1/headlines?category=technology"
+```
+
+```js
+const items = await fetch('https://noozra.com/api/v1/headlines?limit=20')
+  .then((r) => r.json());
+
+const list = items.map((i) => ({
+  title: i.title,
+  url: i.link,
+  source: i.source,
+  at: new Date(i.published),
+}));
+```
+
+Attribute the source and link out. That combination is both correct practice and the safest licensing position.
+
+## OkSurf — Google News with images
+
+Wraps Google News and attaches Open Graph images, which is the part that usually requires a second request.
+
+```bash
+curl -s "https://ok.surf/api/v1/news-feed"
+curl -s "https://ok.surf/api/v1/news-feed?category=technology"
+```
+
+The images are hotlinked from the publisher. That is convenient and it is also a dependency you do not control — expect some to 404 and handle it:
+
+```js
+<img
+  src={item.og_image}
+  alt=""
+  onError={(e) => { e.currentTarget.style.display = 'none'; }}
+/>
+```
+
+## Spaceflight News — narrow and excellent
+
+A reminder that a focused API often beats a general one. Spaceflight News covers launches, agencies and missions, with clean pagination and no key.
+
+```bash
+curl -s "https://api.spaceflightnewsapi.net/v4/articles/?limit=5"
+curl -s "https://api.spaceflightnewsapi.net/v4/articles/?search=artemis"
+```
+
+```json
+{
+  "count": 24318,
+  "next": "https://api.spaceflightnewsapi.net/v4/articles/?limit=5&offset=5",
+  "results": [{
+    "id": 23891,
+    "title": "...",
+    "url": "https://...",
+    "news_site": "NASASpaceflight",
+    "published_at": "2026-09-18T09:14:00Z"
+  }]
+}
+```
+
+The `next` field is a full URL, which makes paging trivial:
+
+```js
+async function* articles(url) {
+  while (url) {
+    const page = await fetch(url).then((r) => r.json());
+    yield* page.results;
+    url = page.next;
+  }
+}
+```
+
+That is cursor pagination done well — see [API pagination patterns](/blog/api-pagination-patterns) for why this beats offsets on a feed that changes.
+
+## DataCube AI — AI industry news in eight languages
+
+Narrow again, and useful if you are building anything in the AI space: curated daily items covering funding, launches and trends.
+
+```bash
+curl -s "https://datacube.ai/api/news?lang=en&limit=10"
+```
+
+## When RSS is the better answer
+
+If you know which ten publications you care about, skip the API entirely. RSS has no key, no rate limit, no intermediary and no licensing middleman.
+
+```js
+import Parser from 'rss-parser';
+const parser = new Parser();
+
+const feeds = [
+  'https://feeds.bbci.co.uk/news/rss.xml',
+  'https://www.theguardian.com/uk/rss',
+];
+
+const all = (await Promise.all(feeds.map((f) => parser.parseURL(f))))
+  .flatMap((feed) => feed.items.map((i) => ({ ...i, source: feed.title })))
+  .sort((a, b) => new Date(b.isoDate) - new Date(a.isoDate));
+```
+
+Use an API instead when you need **search across sources**, **deduplication** of the same story from twenty outlets, or **enrichment** such as sentiment. Those are real engineering problems worth paying an API to solve. Fetching ten known feeds is not.
+
+## Cache, and be a good citizen
+
+News updates on the order of minutes, not milliseconds. Polling every thirty seconds gains you nothing and looks like abuse.
+
+```js
+const TTL = 5 * 60_000;
+let cache = { at: 0, items: [] };
+
+export async function headlines() {
+  if (Date.now() - cache.at < TTL) return cache.items;
+  try {
+    cache = { at: Date.now(), items: await fetchHeadlines() };
+  } catch {
+    return cache.items;   // serve stale rather than nothing
+  }
+  return cache.items;
+}
+```
+
+Serving stale data on failure is the right default for news. A five-minute-old headline is much better than an empty page.
+
+## Deduplication is the hard part
+
+Aggregate any two news sources and you immediately meet the problem that makes news harder than it looks: the same story arrives many times, worded differently.
+
+A single wire report from Reuters or the Associated Press gets republished, rewritten and re-headlined by dozens of outlets within an hour. Your feed shows the same event fifteen times, which is worse than showing it once and worse than showing nothing, because it crowds out everything else.
+
+Exact-match deduplication on the title catches almost none of it, because the whole point of republishing is that each outlet rewrites the headline. Matching on URL catches even less. What works is fuzzy comparison on a normalised form of the title: lowercase, punctuation stripped, common filler words removed, then compared by token overlap. Two headlines sharing most of their meaningful words within a short time window are almost always the same story.
+
+The time window matters as much as the similarity threshold. Two articles about "Bank of England holds rates" published forty minutes apart are one story; the same headline six weeks later is a different event entirely. Without a window, you eventually suppress a genuine recurrence because it resembles something from last month.
+
+Choosing which copy to keep is a separate decision and worth making deliberately. Keeping the earliest favours the wire service that broke it. Keeping the most reputable source favours quality but requires you to rank outlets, which is an editorial position you are then responsible for. Keeping the one with an image favours whatever looks best, which is the honest choice for most consumer products. Whatever you pick, keep a count of how many outlets carried it — "reported by 14 outlets" is genuinely useful signal and costs nothing to compute once you have grouped them.
+
+Some APIs do this for you. Newsflash advertises deduplicated events with corroboration counts, which is exactly this work done upstream, and if your product depends on it that is worth more than a slightly larger free tier elsewhere.
+
+## Freshness, ordering and the timestamp problem
+
+News is the one category where sort order is the product, and it is easy to get wrong in ways that are not obvious until someone complains.
+
+Different sources report different timestamps under the same field name. Some give the original publication time, some the time the article was last edited, some the moment their own crawler found it. Sorting a mixed feed by "published" therefore sorts by three different things at once, and a lightly-edited old article jumps above genuinely breaking news.
+
+Timezones compound this. RSS commonly uses RFC 822 dates with named zones, JSON APIs usually use ISO 8601 with offsets, and a minority of feeds omit the zone entirely — which most parsers then interpret as the machine's local time. On a server in UTC and a laptop in London during summer, the same feed sorts differently. Parse to a real date object at the boundary, store UTC, and never compare timestamp strings.
+
+The other trap is future dates. Feeds contain them more often than you would expect, through clock skew, embargo mistakes or outright carelessness, and one article dated tomorrow pins itself to the top of a reverse-chronological list indefinitely. Clamping anything ahead of now to the current time is a one-line fix that prevents a permanently stuck headline.
+
+## Keeping a news feature legally safe
+
+Worth a short summary, because this is where the category's real risk sits and it is not technical.
+
+Show the headline, the source name and a link. That combination is defensible nearly everywhere: headlines are short and largely factual, and linking is the behaviour publishers want. Where you want more than a headline, a sentence or two as a clearly attributed excerpt is normal practice, and reproducing the full article body is not.
+
+Images are a separate question from text and people conflate them constantly. A publisher's photograph is licensed from a wire service or a photographer, and a news API returning an image URL is not granting you rights to it. Hotlinking someone's image also imposes bandwidth on them without permission. The safe default is to show images only where the API explicitly grants it, and otherwise to run without them.
+
+Finally, keep the source visible and the link direct. An aggregator that obscures where a story came from, or that wraps outbound links in a way that keeps the reader on your site, converts a relationship publishers tolerate into one they act against.
+
+## Choosing
+
+**A general headline feed on a public site.** Noozra, attributed and linked.
+
+**You want images without a second request.** OkSurf.
+
+**A specific domain.** A specialist API — Spaceflight News, DataCube AI — beats a general one on relevance every time.
+
+**Ten known publications.** RSS. No API needed.
+
+**A commercial product with real editorial requirements.** A paid wire service contract. Nothing free covers you here.
+
+[Browse the news category](/categories/news) for all 39 entries we track.

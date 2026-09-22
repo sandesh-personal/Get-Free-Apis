@@ -1,0 +1,210 @@
+---
+title: "Best free weather APIs with no key required"
+description: "Six weather APIs that return forecasts without a sign-up, an API key or a credit card, ranked by the response times and reliability we measured ourselves."
+cluster: roundups
+imageQuery: "storm clouds over landscape"
+author: sandy
+publishedAt: "2026-10-06"
+updatedAt: "2026-10-06"
+relatedApis:
+  - open-meteo-ensemble
+  - us-weather
+  - dwd-api
+  - 7timer
+  - wttr-in
+  - meteorologisk-institutt
+relatedPosts:
+  - fix-cors-error-public-api
+  - your-first-api-call-curl-fetch-python
+  - how-to-read-api-documentation
+sources:
+  - label: "Open-Meteo API documentation"
+    url: "https://open-meteo.com/en/docs"
+  - label: "US National Weather Service API"
+    url: "https://www.weather.gov/documentation/services-web-api"
+  - label: "MET Norway Weather API terms of service"
+    url: "https://api.met.no/doc/TermsOfService"
+faq:
+  - q: "Which free weather API needs no API key at all?"
+    a: "Open-Meteo, the US National Weather Service, Germany's DWD, 7Timer!, wttr.in and MET Norway all return forecasts with no key and no account. Of those, Open-Meteo and the NWS were the fastest in our checks, at 282 ms and 360 ms."
+  - q: "Can I call a weather API directly from browser JavaScript?"
+    a: "Only if it sends CORS headers. Open-Meteo, the US NWS, DWD, wttr.in and MET Norway do. 7Timer! and RainViewer do not, so those need a small server-side proxy."
+  - q: "Is Open-Meteo really free for commercial use?"
+    a: "Open-Meteo is free for non-commercial use without a key. Commercial use requires a paid plan. The no-key endpoints are intended for personal projects, prototypes and evaluation, so read their terms before shipping a product on them."
+  - q: "What is the catch with no-key weather APIs?"
+    a: "Usually coverage or rate limits rather than quality. National services such as the NWS and DWD are authoritative but only cover their own country, and most no-key APIs apply a soft per-IP rate limit that is fine for a dashboard and not fine for a scraper."
+  - q: "Do I need latitude and longitude, or can I use a city name?"
+    a: "Most of these take coordinates only. wttr.in is the exception and accepts place names directly. For the others, pair them with a free geocoding API to turn a city into coordinates first."
+---
+
+Most "free weather API" lists open with providers that require an account, a key, and a credit card that will be charged the moment you pass 1,000 calls. This list does not. Every API below returned a forecast during our scheduled check with no key, no header and no sign-up.
+
+<Answer>
+For most projects, use **[Open-Meteo](/apis/open-meteo-ensemble)**. It needs no key, sends CORS headers so it works straight from browser JavaScript, covers the whole world, and answered in <Measured label="median" value="282 ms" /> in our checks. If you only need US coverage and want an authoritative government source, use the **[National Weather Service API](/apis/us-weather)** instead.
+</Answer>
+
+## The shortlist, with our own measurements
+
+Latency and reliability below come from our own scheduled probes, not from provider marketing. Status updates automatically as we re-check.
+
+<ApiTable ids={["open-meteo-ensemble", "us-weather", "dwd-api", "7timer", "wttr-in", "meteorologisk-institutt"]} />
+
+<Tested date="2026-09-18" result="All six returned 200 with a JSON or text body and no credential attached.">
+Each endpoint was called from a clean client with no cookies, no key and no <code>Authorization</code> header, to confirm the "no key" claim rather than repeat it from documentation.
+</Tested>
+
+## Open-Meteo — the default choice
+
+Global coverage, hourly and daily forecasts, historical reanalysis back to 1940, and a query interface that is unusually pleasant: you name the variables you want and it returns only those.
+
+```bash
+curl -s "https://api.open-meteo.com/v1/forecast\
+?latitude=51.5072&longitude=-0.1276\
+&current=temperature_2m,precipitation,wind_speed_10m\
+&timezone=Europe/London"
+```
+
+```json
+{
+  "latitude": 51.5, "longitude": -0.12,
+  "timezone": "Europe/London",
+  "current": {
+    "time": "2026-09-18T14:00",
+    "temperature_2m": 17.4,
+    "precipitation": 0.0,
+    "wind_speed_10m": 11.2
+  }
+}
+```
+
+Because it sends `Access-Control-Allow-Origin: *`, this works from a static page with no backend:
+
+```js
+const url = new URL('https://api.open-meteo.com/v1/forecast');
+url.search = new URLSearchParams({
+  latitude: '51.5072',
+  longitude: '-0.1276',
+  current: 'temperature_2m',
+  timezone: 'auto',
+});
+
+const { current } = await fetch(url).then((r) => r.json());
+console.log(`${current.temperature_2m}°C`);
+```
+
+<Callout type="warning" title="Free means non-commercial here">
+Open-Meteo's keyless endpoints are free for non-commercial use. If you are building something you intend to charge for, they sell a commercial plan. This is the single most common licensing mistake people make with this API.
+</Callout>
+
+The `timezone=auto` parameter is worth knowing. Leave it off and timestamps come back in GMT, which quietly shifts every reading by an hour for half the year.
+
+## US National Weather Service — authoritative, US only
+
+Run by NOAA, free, keyless, and the actual source many commercial weather products resell. The trade-off is a two-step lookup: coordinates give you a grid reference, and the grid reference gives you the forecast.
+
+```bash
+# Step 1: coordinates -> grid
+curl -s -H "User-Agent: myapp (me@example.com)" \
+  "https://api.weather.gov/points/38.8894,-77.0352"
+
+# Step 2: the forecast URL that returned
+curl -s -H "User-Agent: myapp (me@example.com)" \
+  "https://api.weather.gov/gridpoints/LWX/96,70/forecast"
+```
+
+<Callout type="note" title="The User-Agent header is mandatory">
+The NWS rejects requests without a descriptive <code>User-Agent</code> that identifies you, ideally with contact details. Omit it and you get a 403 that looks like an auth failure but is not.
+</Callout>
+
+Responses are GeoJSON and include the forecaster's written discussion, which no commercial API gives you.
+
+## DWD — Germany, with genuinely deep data
+
+The German national weather service publishes station-level observations, warnings and forecasts through `dwd.api.bund.dev`. CORS is enabled, so browser calls work. Coverage is Germany-focused, and the data goes far beyond a temperature reading: pollen counts, road-surface warnings and station metadata are all there.
+
+```bash
+curl -s "https://dwd.api.bund.dev/warnings.json" | head -20
+```
+
+## 7Timer! — tiny, global, and awkward from a browser
+
+7Timer! is a thin wrapper over numerical weather models and has been running for years. It is genuinely global and needs nothing at all, but it sends no CORS headers, so a browser call will fail.
+
+```bash
+curl -s "https://www.7timer.info/bin/api.pl\
+?lon=-0.13&lat=51.5&product=civil&output=json"
+```
+
+If you need this from frontend code, you will need a small proxy. Our guide on [building a CORS proxy the legitimate way](/blog/build-a-cors-proxy) covers doing that without becoming an open relay.
+
+## wttr.in — the one that takes place names
+
+Most of this list demands coordinates. wttr.in takes a city, an airport code, or a domain, which removes the geocoding step entirely. It is also the only one designed to be read by a human in a terminal.
+
+```bash
+curl -s "https://wttr.in/London?format=j1" | head -30
+curl -s "https://wttr.in/London?format=3"
+# London: ⛅️ +17°C
+```
+
+At <Measured label="median" value="716 ms" /> it is the slowest of the CORS-enabled options, which is the price of the convenience.
+
+## MET Norway — excellent data, strict etiquette
+
+MET Norway's Locationforecast is high quality and global, and like the NWS it requires an identifying `User-Agent`. It also expects you to honour the `Expires` header rather than polling.
+
+```bash
+curl -s -H "User-Agent: myapp/1.0 me@example.com" \
+  "https://api.met.no/weatherapi/locationforecast/2.0/compact\
+?lat=59.91&lon=10.75"
+```
+
+Their terms are explicit that repeated identical requests should be served from your cache until `Expires` passes. Ignoring that is the fastest way to get blocked.
+
+## Choosing between them
+
+**Building anything global, especially in the browser.** Open-Meteo. Fastest in our checks, CORS enabled, and the query interface is the least fiddly.
+
+**US-only, and accuracy matters more than convenience.** The NWS. It is the primary source, and the forecast discussion is genuinely useful.
+
+**Germany, or you need warnings and pollen rather than just temperature.** DWD.
+
+**You have a city name and no geocoder.** wttr.in.
+
+**Scandinavia, or you want a second global opinion to compare against.** MET Norway.
+
+<Callout type="tip" title="Cache aggressively whatever you pick">
+Forecasts update hourly at best. Calling a weather API on every page load wastes your rate limit and makes your own site slower for no benefit. A one-hour cache is almost always correct, and it is what these providers expect. See <a href="/blog/caching-api-responses-free-tier">caching API responses to stay inside a free tier</a>.
+</Callout>
+
+## What a forecast actually is
+
+Worth understanding, because it explains why two APIs disagree and why chasing the "most accurate" one is mostly wasted effort.
+
+A forecast comes from a numerical weather model: a simulation of the atmosphere run on a grid, stepped forward in time from an observed starting state. The major models are run by national agencies — the American GFS, the European ECMWF, the German ICON, the UK Met Office's own — and most consumer APIs are reselling or blending output from those same few sources.
+
+That is why the differences between providers are smaller than their marketing suggests. They are largely presenting the same underlying simulations. Where they genuinely differ is in which model they favour, how they blend several, how they downscale a coarse grid to a specific point, and how recently they ingested new observations.
+
+Two properties follow from this and matter when you build.
+
+**Resolution is a grid, not a point.** A model cell might be nine kilometres across, so a forecast for your postcode is really a forecast for the cell containing it, adjusted. Asking for coordinates to six decimal places gives you the same cell as four. This is why rounding coordinates before caching costs nothing in accuracy.
+
+**Models run on a schedule.** A forecast updates when the model next runs, typically every one to six hours, not continuously. Polling every five minutes retrieves the same numbers repeatedly. The response usually tells you when it was generated, and that timestamp is the correct basis for a cache duration.
+
+Ensemble output — several runs with slightly varied starting conditions — is the honest expression of uncertainty, and Open-Meteo's ensemble endpoint exposes it. A spread of possible outcomes is more truthful than a single number, and for anything where the decision depends on confidence rather than a central estimate, it is what you want.
+
+## Presenting a forecast honestly
+
+The recurring mistake in weather interfaces is displaying a prediction with the same confidence as a measurement.
+
+Precipitation probability is the clearest case. "30% chance of rain" means, roughly, that in thirty of a hundred similar situations it rained somewhere in the area during the period — not that it will rain for thirty percent of the time, nor over thirty percent of the region. Users read it several different ways, and the gap between reading and meaning is where "the forecast was wrong" complaints come from.
+
+Accuracy also decays with time in a way interfaces rarely convey. A forecast for tomorrow is substantially more reliable than one for day seven, yet most dashboards render all seven identically. Fading the later days, widening a range, or simply showing fewer days is more honest than presenting a fortnight of equally confident numbers.
+
+Three smaller details are worth getting right because they are noticed immediately. Round temperatures to whole degrees — a decimal place implies precision the model does not have. State the units explicitly. And show the observation or model time, since a reading with no timestamp gives no way to judge whether it is current.
+
+## What we excluded, and why
+
+Several widely recommended weather APIs are missing from this list because they fail the no-key test: OpenWeatherMap, WeatherAPI.com, Tomorrow.io and AccuWeather all require registration before the first call. They may still be the right choice for you, but they belong on a different list.
+
+We also excluded anything that failed our health check. [Browse the full weather category](/categories/weather) to see every entry we track, including the ones currently down.

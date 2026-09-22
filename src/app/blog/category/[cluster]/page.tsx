@@ -49,7 +49,6 @@ export default async function ClusterPage({ params }: Props) {
 
       <header className="mb-10">
         <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight sm:text-4xl">
-          <span aria-hidden>{cluster.emoji}</span>
           {cluster.name}
         </h1>
         <p className="mt-3 max-w-2xl leading-relaxed text-muted">{cluster.description}</p>
@@ -86,7 +85,6 @@ export default async function ClusterPage({ params }: Props) {
               className="group rounded-xl border border-border-subtle p-4 transition hover:border-accent"
             >
               <span aria-hidden className="text-xl">
-                {other.emoji}
               </span>
               <h3 className="mt-2 text-sm font-semibold group-hover:text-accent">{other.name}</h3>
             </Link>

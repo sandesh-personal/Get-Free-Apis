@@ -1,0 +1,238 @@
+---
+title: "Free currency exchange rate APIs"
+description: "Exchange rate APIs that work without a key, including three central banks publishing official reference rates, and what the difference between reference and market rates means for your code."
+cluster: roundups
+imageQuery: "foreign currency banknotes"
+author: sandy
+publishedAt: "2026-10-08"
+updatedAt: "2026-10-08"
+relatedApis:
+  - exchangerate-dev
+  - currency-api
+  - czech-national-bank
+  - national-bank-of-poland
+  - economia-awesome
+  - bank-of-russia
+relatedPosts:
+  - caching-api-responses-free-tier
+  - how-to-read-api-documentation
+  - free-stock-market-and-finance-apis
+sources:
+  - label: "European Central Bank — euro reference rates"
+    url: "https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html"
+  - label: "ISO 4217 currency codes"
+    url: "https://www.iso.org/iso-4217-currency-codes.html"
+  - label: "IEEE 754 floating point arithmetic"
+    url: "https://standards.ieee.org/ieee/754/6210/"
+faq:
+  - q: "Which currency API is free with no key?"
+    a: "Exchangerate.dev and Currency-api both return rates with no key. Several central banks also publish official rates keylessly, including the Czech National Bank, the National Bank of Poland and Bank of Russia."
+  - q: "How often do free exchange rate APIs update?"
+    a: "Central bank reference rates are published once per working day, usually mid-afternoon, and do not change until the next publication. Aggregator APIs on free tiers typically refresh hourly or daily. None of them are real-time trading rates."
+  - q: "Can I use a free exchange rate API to price things in a shop?"
+    a: "For display, yes. For taking payment, no. Reference rates are not the rate you will actually be charged, which includes a spread. Use your payment provider's rate for anything that settles money."
+  - q: "Why do two currency APIs give slightly different rates?"
+    a: "Because they source differently. A central bank publishes one official daily fix, while aggregators average across market data providers at a different moment. Differences in the third decimal place are normal and not a bug."
+  - q: "Should I store currency amounts as floating point numbers?"
+    a: "No. Use integer minor units, so £12.34 is stored as 1234. Floating point cannot represent 0.1 exactly, so repeated arithmetic on money accumulates error that will eventually show up as a penny that does not balance."
+---
+
+Currency conversion looks like the simplest possible API call, right up until you notice two providers disagree about the GBP/EUR rate, and neither matches what your bank charged.
+
+That is not a bug in either API. It is the difference between a **reference rate** and a **market rate**, and choosing the wrong one is the real mistake most integrations make.
+
+<Answer>
+For general use, **[Exchangerate.dev](/apis/exchangerate-dev)** is the pick: no key, CORS enabled so it works from the browser, and <Measured label="median" value="376 ms" /> in our checks. If you need an *official* rate you can defend in an audit, take it from a central bank instead — the **[Czech National Bank](/apis/czech-national-bank)** and **[National Bank of Poland](/apis/national-bank-of-poland)** both publish keylessly.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["exchangerate-dev", "currency-api", "czech-national-bank", "national-bank-of-poland", "economia-awesome", "bank-of-russia"]} />
+
+<Tested date="2026-09-18" result="All six returned rate data with no key attached.">
+Every entry was called without a credential during our scheduled check. Latency figures are medians from that run.
+</Tested>
+
+## Reference rates versus market rates
+
+This distinction decides which API you should use, so it is worth thirty seconds.
+
+A **reference rate** is an official daily figure published by a central bank. The ECB fixes euro rates at around 16:00 CET each working day. It does not move again until the next publication. It is authoritative, free, and stale by design.
+
+A **market rate** is what currency is actually trading at, changing continuously. It is what a trading platform quotes and what sits behind the rate your card issuer uses — after they add a spread.
+
+```text
+Reference rate (ECB, daily fix)    GBP/EUR  1.1642
+Market mid-rate (continuous)       GBP/EUR  1.1638
+Rate your bank actually gave you   GBP/EUR  1.1350   <- includes the spread
+```
+
+<Callout type="danger" title="Never settle money against a free reference rate">
+Displaying an approximate converted price is fine. Charging a customer against a free reference rate is not, because the rate you can actually transact at is worse, and you absorb the difference on every transaction. Use your payment provider's quoted rate for anything that moves money.
+</Callout>
+
+## Exchangerate.dev — the general-purpose choice
+
+No key, CORS enabled, and a conventional base-plus-symbols interface.
+
+```bash
+curl -s "https://api.exchangerate.dev/latest?base=GBP&symbols=EUR,USD,JPY"
+```
+
+```json
+{
+  "base": "GBP",
+  "date": "2026-09-18",
+  "rates": { "EUR": 1.1642, "USD": 1.2715, "JPY": 189.44 }
+}
+```
+
+Because CORS is enabled, this runs from a static page:
+
+```js
+const { rates } = await fetch(
+  'https://api.exchangerate.dev/latest?base=GBP&symbols=EUR',
+).then((r) => r.json());
+
+const eur = (amountGbp * rates.EUR).toFixed(2);
+```
+
+## Currency-api — 150+ currencies, no rate limit stated
+
+Broader coverage, including many currencies the aggregators skip, and no documented rate cap. It does not send CORS headers, so browser calls need a proxy or a server-side fetch.
+
+```bash
+curl -s "https://api.currencyapi.com/v3/latest?base_currency=GBP"
+```
+
+## Central banks, when you need an official number
+
+Three national banks in our catalogue publish rates with no key. These are the right source when the number has to be defensible — invoicing, tax reporting, or anything an auditor might question.
+
+**Czech National Bank** publishes a daily text fix:
+
+```bash
+curl -s "https://www.cnb.cz/en/financial-markets/foreign-exchange-market\
+/central-bank-exchange-rate-fixing/central-bank-exchange-rate-fixing/daily.txt"
+```
+
+```text
+18 Sep 2026 #182
+Country|Currency|Amount|Code|Rate
+EMU|euro|1|EUR|24.315
+United Kingdom|pound|1|GBP|28.302
+```
+
+Note it is pipe-delimited, not JSON. Central bank feeds frequently predate the JSON era and hand you CSV or XML.
+
+**National Bank of Poland** does return JSON, and is the friendliest of the three:
+
+```bash
+curl -s "https://api.nbp.pl/api/exchangerates/tables/A?format=json"
+```
+
+**Bank of Russia** publishes daily XML at `cbr.ru/scripts/XML_daily.asp`.
+
+<Callout type="warning" title="Central banks publish on working days only">
+There is no Saturday rate, no Sunday rate and no rate on a national holiday. Code that assumes a fresh figure every calendar day will read a stale one at the weekend without noticing. Always use the <code>date</code> the response reports rather than today's date.
+</Callout>
+
+## Getting the arithmetic right
+
+Two failures account for almost every currency bug, and neither is about the API.
+
+**Never hold money in a float.**
+
+```js
+0.1 + 0.2 === 0.3;  // false
+(1.005).toFixed(2); // "1.00", not "1.01"
+```
+
+Store integer minor units and divide only when displaying:
+
+```js
+const pence = 1234;               // £12.34
+const eurCents = Math.round(pence * rate);
+```
+
+**Convert through the base, not between arbitrary pairs.** If the API gives you rates against GBP and you need EUR to USD, divide rather than inventing a cross-rate:
+
+```js
+const eurToUsd = rates.USD / rates.EUR;
+```
+
+Formatting is the one part you should not hand-roll — `Intl.NumberFormat` knows the decimal places, symbol position and grouping for every currency:
+
+```js
+new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'JPY' })
+  .format(1234);  // ¥1,234  — no decimals, correctly
+```
+
+## Cache, because the data barely moves
+
+A daily fix changes once a day. Calling the API on every page view is pure waste:
+
+```js
+const DAY = 86_400_000;
+let cache = { at: 0, rates: null };
+
+async function getRates() {
+  if (Date.now() - cache.at < DAY && cache.rates) return cache.rates;
+  const { rates } = await fetch('https://api.exchangerate.dev/latest?base=GBP')
+    .then((r) => r.json());
+  cache = { at: Date.now(), rates };
+  return rates;
+}
+```
+
+Our guide to [caching API responses to stay inside a free tier](/blog/caching-api-responses-free-tier) covers doing this properly, including what to serve when the refresh fails.
+
+## Where the rate you display comes from
+
+Understanding the chain behind a published rate explains most of the discrepancies people report as bugs.
+
+At the bottom are individual trades between banks, happening continuously across venues with no single central exchange. Currency does not trade on one market the way a listed share does, so there is no single authoritative price at any instant — there are many prices, all slightly different.
+
+Above that sit data vendors who aggregate those trades into a mid-market rate: roughly the midpoint between what buyers are bidding and sellers are asking. This is the number most "exchange rate" APIs are ultimately reporting, usually with a delay and always as an average over some window.
+
+Above that again sit central banks, which sample the market at a fixed moment and publish an official reference figure for the day. That number is deliberately not the live rate. It is a stable, citable figure for accounting, tax and contracts, and its value comes from being fixed rather than from being current.
+
+And separately from all of this is the rate you personally get, which is the mid-market rate plus a margin the provider keeps. That margin is how retail currency exchange makes money, and it is why the number on your bank statement will never match any free API.
+
+So when two APIs disagree in the third decimal place, neither is broken. They sampled different venues at different moments, or one is a daily fix and the other is a rolling average. The useful response is to pick one source, state which it is, and show its timestamp — not to hunt for the "correct" one.
+
+## Designing a converter that ages well
+
+A few decisions made early prevent most of the trouble.
+
+**Store the rate you used, not just the result.** If you convert an amount and save only the converted figure, you can never explain it later, and you cannot recompute it if the rate turns out to have been wrong. Saving the original amount, the currency pair, the rate and the timestamp costs four columns and answers every question anyone will ask about that transaction in future.
+
+**Decide your rounding rule once and write it down.** Rounding at each step and rounding at the end give different answers, and both are defensible — but an application that does one in some places and the other elsewhere produces totals that do not reconcile. Half-up is the common convention for money; banker's rounding is the common convention in accounting. Either is fine. Mixing them is not.
+
+**Do not invent cross-rates casually.** Converting from one currency to another via a base you have rates for is arithmetically fine, but each conversion carries the base's rounding, and chains of three or more accumulate visible error. Where the API can quote the pair directly, ask for it.
+
+**Handle the currencies that break assumptions.** Not every currency has two decimal places. The yen has none, and several Middle Eastern currencies have three. Code that hard-codes two will display a yen amount a hundred times too small or reject a valid dinar figure. `Intl.NumberFormat` knows all of this and is the reason not to format manually.
+
+**Decide what happens when the rate is unavailable.** A converter that shows a blank where a number should be is broken; one that silently falls back to a rate from last week without saying so is worse. Show the figure with its age attached, and make the age visible enough that someone acting on a large amount will notice.
+
+## Historical rates, and the questions they answer badly
+
+Most of these APIs offer a historical endpoint, and it is more limited than it appears.
+
+Historical reference rates exist only for days the publishing body operated. There is no Saturday rate, no Sunday rate and no rate for a national holiday, and different countries close on different days. Code that iterates over a date range and expects a value for each will find gaps, and the correct handling is to carry the last published figure forward rather than to interpolate or to treat the gap as zero.
+
+The other limitation is that a historical rate answers "what was the official figure that day", not "what would this transaction have cost". Those differ by the spread, and for anything reconstructing a past cost the difference is the entire margin.
+
+Where historical rates genuinely shine is comparison over time and restating past figures in a consistent currency for a chart. For that they are exactly right, free, and available from the central banks in bulk — which is usually a better route than an API call per date.
+
+## Choosing
+
+**A converter, a price display, a side project.** Exchangerate.dev.
+
+**Unusual currency pairs.** Currency-api, from a server.
+
+**An invoice, a tax filing, anything auditable.** The relevant central bank, and store the published date alongside the rate.
+
+**Taking payment.** None of these. Use your payment provider's rate.
+
+[Browse the full currency exchange category](/categories/currency-exchange) for every entry we track, including current status.

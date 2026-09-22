@@ -2,7 +2,8 @@
 title: "HTTP status codes that actually matter when consuming APIs"
 description: "You do not need all sixty. You need to know which codes mean retry, which mean fix your request, and which mean stop. Here is the working subset."
 cluster: fundamentals
-author: editorial
+imageQuery: "traffic signal lights"
+author: sandy
 publishedAt: "2026-09-29"
 updatedAt: "2026-09-29"
 relatedApis:
@@ -211,6 +212,48 @@ try {
   }
 }
 ```
+
+## Codes that get misused, and how to cope
+
+Status codes are a shared vocabulary that not everyone speaks correctly. A handful of misuses are common enough that your client should expect them.
+
+**200 with an error inside.** The response says success and the body says `{"error": true}`. This is widespread in older APIs and in anything that grew out of a form-handling backend. It means `response.ok` is not sufficient on its own, and the only defence is knowing the specific API's convention — which is a good reason to read one real error response before writing the handler.
+
+**404 for "empty".** A search with no matches should return 200 with an empty array, because the endpoint exists and the answer is "none". Plenty of APIs return 404 instead, which forces your client to treat "no results" and "wrong URL" identically. Where you meet it, translate at the boundary so the rest of your code sees an empty list.
+
+**403 where 401 belongs, and the reverse.** The distinction is real and frequently muddled, which matters because the correct response differs: 401 means re-authenticate, 403 means stop. When an API is inconsistent here, the body usually disambiguates even when the code does not. [The distinction in full](/blog/401-vs-403-api-authentication).
+
+**200 for a rate limit.** Rare and genuinely unpleasant — the request is rejected and the response looks successful, with the refusal in the body. Only found by reading responses under load.
+
+**500 for a client mistake.** An unhandled exception in the provider's validation produces a 500 for what should have been a 400. The signal is a 500 that reproduces reliably with the same input: real server errors are usually intermittent, so a deterministic one points at your payload rather than at their infrastructure.
+
+The general lesson is to trust the status code as the primary signal and verify against the body where the stakes justify it. Writing a client that handles only the correct usages will work with well-built APIs and fail confusingly with the rest.
+
+## Which codes justify a retry
+
+The most consequential decision your error handling makes, and it follows directly from the classes.
+
+**Retry** on 429, 502, 503 and 504. Each of these is explicitly or effectively temporary: too fast, a bad gateway, an unavailable service, a timeout upstream. All will plausibly succeed on a second attempt, and 429 and 503 often carry `Retry-After` telling you when.
+
+**Do not retry** on the 400s other than 429. A malformed request will be malformed again. Retrying a 400 or a 422 achieves nothing and wastes quota; retrying a 401 repeatedly can trigger account lockout.
+
+**500 is the judgement call.** It can be a transient fault or a deterministic bug triggered by your input. One or two retries with backoff is reasonable; a long retry chain against a consistent 500 is just load. If the same request produces a 500 every time, stop and report it.
+
+**404 deserves a thought.** Normally permanent, so no retry. The exception is a resource you have just created — some systems are eventually consistent, and a read immediately after a write can genuinely 404 for a moment. That is the one case where a short retry is correct.
+
+Whatever the policy, retries need backoff with jitter and a cap. That reasoning is covered in [HTTP 429 and backoff](/blog/fix-429-too-many-requests) and [handling timeouts and retries](/blog/api-timeouts-and-retries), and the summary is that retries without those two properties make outages worse rather than better.
+
+## Mapping codes to something a user can act on
+
+The last step, and the one that determines whether your error handling is useful or merely present.
+
+A status code is for your code. A person needs to know what happened and what to do, and the two rarely correspond directly. Showing "Error 403" helps nobody; neither does "Something went wrong", which is technically true and entirely useless.
+
+The translation worth making is from code to **the user's next action**. A 401 means their session expired and they should sign in again. A 403 means they do not have access and should ask whoever administers it. A 404 means the thing is gone and they should go back. A 429 means wait a moment. A 5xx means it is not their fault and they should try shortly.
+
+Two things make these messages genuinely useful rather than decorative. Include a way forward — a sign-in link, a retry button, a contact route — because a message with no action is a dead end. And where you can, include a correlation identifier that support can look up, which turns "it broke" into something traceable.
+
+Keep the raw code in your logs, always. The user does not need it and you will, and the pairing of a human message on screen with a precise code in the log is what makes an error report answerable.
 
 ## What we see in practice
 

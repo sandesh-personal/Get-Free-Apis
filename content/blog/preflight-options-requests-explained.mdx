@@ -2,7 +2,8 @@
 title: "Preflight OPTIONS requests explained, with real traces"
 description: "Why the browser sends an OPTIONS request you never wrote, what turns a simple request into a preflighted one, and how to stop doubling your request count."
 cluster: errors
-author: editorial
+imageQuery: "airport security checkpoint"
+author: sandy
 publishedAt: "2026-09-23"
 updatedAt: "2026-09-23"
 relatedApis:
@@ -190,6 +191,30 @@ Every API in our [browser-ready collection](/collections/browser-ready) needs no
 | Preflight passes, real request blocked | The actual response is missing `Access-Control-Allow-Origin` |
 | Preflight on every request | No `Access-Control-Max-Age` |
 | Works without auth, fails with it | `Authorization` forces a preflight the server does not handle |
+
+## What triggers a preflight, and what does not
+
+The rule is narrower than most people assume, and knowing it exactly is what lets you avoid preflights rather than merely tolerate them.
+
+A request skips the preflight — it is "simple" — only if all three of these hold. The method is GET, HEAD or POST. The headers are limited to a short allowed set, essentially `Accept`, `Accept-Language`, `Content-Language` and `Content-Type`. And if `Content-Type` is present, it is one of exactly three values: `application/x-www-form-urlencoded`, `multipart/form-data` or `text/plain`.
+
+Everything else preflights. That includes the two things almost every JSON API does: sending `Content-Type: application/json`, and sending an `Authorization` header. Which is why, in practice, nearly every authenticated API call from a browser costs two round trips rather than one.
+
+The definition is historical rather than logical. Those three content types are the ones an HTML form could already produce without JavaScript, so allowing them introduced no new capability. Anything beyond that was new, and the preflight exists to let a server refuse it.
+
+Two consequences worth acting on. A custom header — `X-Request-Id`, `X-Client-Version` — turns an otherwise simple GET into a preflighted one, so adding telemetry headers to a hot path doubles its request count. And a PUT or DELETE always preflights regardless of headers, which is one small argument for POST-based designs in browser-heavy applications.
+
+## Making preflights cheap
+
+You usually cannot eliminate them, and you can stop paying for them repeatedly.
+
+`Access-Control-Max-Age` tells the browser how long to cache the preflight result for that method and URL combination. With it set, the first call pays two round trips and subsequent calls pay one, for the duration. Without it, every single request preflights, which on a chatty interface doubles the request count for no benefit.
+
+The caveat is that browsers cap the value regardless of what you send — Chromium at two hours, Firefox at twenty-four. Sending a week is harmless and does not achieve a week. The cache is also keyed per origin, per URL and per method, so a client hitting many distinct paths still preflights each one the first time.
+
+Two smaller wins. Preflights are only sent cross-origin, so serving your API from the same origin as your page — through a path prefix rather than a separate subdomain — removes them entirely. And keeping the allowed header list tight is worth it for reasons beyond performance, since `Access-Control-Allow-Headers: *` is broader than almost any API needs.
+
+When debugging, remember the preflight is a separate entry in the Network tab with method OPTIONS, and browsers sometimes hide it. If a request appears to fail with no response, look for the OPTIONS first — the failure is usually there rather than in the request you were watching.
 
 ## Worth remembering
 

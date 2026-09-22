@@ -2,10 +2,9 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { PostCard } from '@/components/PostCard';
 import { getAllClusters, getAllPosts, getPostsByCluster } from '@/lib/blog';
-import { site } from '@/lib/site';
 
 export const metadata: Metadata = {
-  title: 'Articles on working with free APIs',
+  title: 'API Guides and Tutorials for Developers',
   description:
     'Fixing CORS and rate-limit errors, understanding authentication, and choosing the right free API for the job. Written against APIs we actually call and measure.',
   alternates: { canonical: '/blog' },
@@ -19,7 +18,7 @@ export default function BlogIndexPage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-10">
       <header className="mb-10">
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Articles</h1>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">API guides and tutorials</h1>
         <p className="mt-3 max-w-2xl leading-relaxed text-muted">
           Practical writing about consuming APIs. Every article is grounded in requests we actually
           made, with the dates we made them, rather than in a rewrite of someone else&rsquo;s post.
@@ -37,7 +36,6 @@ export default function BlogIndexPage() {
               className="group rounded-xl border border-border-subtle bg-surface-raised p-5 transition hover:border-accent hover:shadow-md"
             >
               <span aria-hidden className="text-2xl">
-                {cluster.emoji}
               </span>
               <h2 className="mt-3 font-semibold group-hover:text-accent">{cluster.name}</h2>
               <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-muted">
@@ -91,8 +89,10 @@ export default function BlogIndexPage() {
           New articles are published as we work through the catalogue. Subscribe with any feed
           reader.
         </p>
+        {/* Relative, not an absolute production URL: that would send every
+            non-production visitor to a domain that may not be serving this build. */}
         <a
-          href={`${site.url}/blog/feed.xml`}
+          href="/blog/feed.xml"
           className="mt-4 inline-block rounded-lg border border-border-strong px-4 py-2 text-sm font-medium transition hover:border-accent hover:text-accent"
         >
           RSS feed

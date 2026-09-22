@@ -1,0 +1,256 @@
+---
+title: "Testing APIs with Postman, curl and HTTPie"
+description: "Which tool to reach for when, the curl flags that actually matter for debugging, and how to turn a manual check into an automated one."
+cluster: howto
+imageQuery: "workshop tools bench"
+author: sandy
+publishedAt: "2026-11-02"
+updatedAt: "2026-11-02"
+relatedApis:
+  - dummyjson
+  - randomuser
+  - flaky
+  - open-meteo-ensemble
+relatedPosts:
+  - your-first-api-call-curl-fetch-python
+  - how-to-read-api-documentation
+  - mocking-apis-during-development
+sources:
+  - label: "curl manual"
+    url: "https://curl.se/docs/manpage.html"
+  - label: "HTTPie documentation"
+    url: "https://httpie.io/docs/cli"
+  - label: "MDN — HTTP request methods"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods"
+faq:
+  - q: "Should I use Postman or curl?"
+    a: "curl for a quick check, for anything you want to paste into a bug report, and for CI. Postman when you are exploring an unfamiliar API, need OAuth handled for you, or are sharing a collection with a team."
+  - q: "What curl flags are most useful for debugging?"
+    a: "-i to see response headers, -v to see the request and TLS handshake, -w for timing breakdowns, and --compressed so gzipped responses are readable. Those four cover almost everything."
+  - q: "How do I copy a browser request into curl?"
+    a: "In DevTools, right-click the request in the Network tab and choose Copy as cURL. It reproduces the headers, cookies and body exactly, which is the fastest way to reproduce a failure outside the browser."
+  - q: "Is HTTPie better than curl?"
+    a: "It is friendlier for hand-typing JSON and colour-prints responses, which makes it pleasant for exploration. curl is everywhere by default and is the right choice for scripts and CI."
+  - q: "How do I test an API in CI without hitting the real thing?"
+    a: "Record the responses once and replay them locally with a mock server. Calling a third party from CI makes builds fail for reasons unrelated to your code."
+---
+
+Three tools, three jobs. Most friction here comes from using the wrong one — exploring an unfamiliar API in curl, or trying to script Postman.
+
+<Answer>
+Use **curl** for a quick check, for anything you will paste into a bug report, and for CI. Use **HTTPie** when you are hand-typing JSON and want readable output. Use **Postman** when you are exploring an unfamiliar API, need OAuth handled for you, or are sharing with a team.
+</Answer>
+
+## The four curl flags worth memorising
+
+Most people know `curl url`. These four turn it into a debugging tool.
+
+**`-i` — show response headers.** Rate limits, deprecation notices and content types all live here.
+
+```bash
+curl -i "https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.13&current=temperature_2m"
+```
+
+**`-v` — show the whole conversation**, including the TLS handshake and the request you actually sent:
+
+```bash
+curl -v "https://api.example.com/v1/data" 2>&1 | grep -E "^[<>]"
+```
+
+**`-w` — timing breakdown.** This is how you tell a slow API from a slow DNS lookup:
+
+```bash
+curl -s -o /dev/null -w "dns=%{time_namelookup}s tls=%{time_appconnect}s ttfb=%{time_starttransfer}s total=%{time_total}s\n" \
+  "https://api.example.com/v1/data"
+```
+
+```text
+dns=0.004s tls=0.089s ttfb=0.312s total=0.318s
+```
+
+If `ttfb` is large and `total` is barely larger, the server is thinking. If `tls` dominates, it is connection setup and a keep-alive or a closer region will help.
+
+**`--compressed` — ask for gzip and decode it.** Without it, some APIs return binary that looks like corruption.
+
+<Callout type="tip" title="Copy as cURL is the fastest debugging move there is">
+In DevTools, right-click a request in the Network tab and choose <strong>Copy as cURL</strong>. You get the exact headers, cookies and body the browser sent. Run it in a terminal: if it works there and fails in the browser, the problem is CORS or mixed content, not the API.
+</Callout>
+
+## Making JSON readable
+
+Pipe through `jq`. It pretty-prints, and it lets you pull out one field instead of reading a wall of text:
+
+```bash
+curl -s "https://randomuser.me/api/?results=3" | jq '.results[].email'
+
+# List every field path in a response — a fast map of an unfamiliar shape
+curl -s "https://randomuser.me/api/" | jq -r 'paths(scalars) | join(".")'
+```
+
+That second command is genuinely the quickest way to understand an unfamiliar response, and it is covered further in [how to read API documentation](/blog/how-to-read-api-documentation).
+
+## POST without fighting the quoting
+
+The most error-prone thing to type by hand. In curl:
+
+```bash
+curl -s -X POST "https://dummyjson.com/products/add" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Test product","price":9.99}'
+```
+
+Two failures account for nearly all POST problems: **forgetting `Content-Type`**, which makes many APIs ignore the body entirely, and **shell quoting**, once the JSON contains anything interesting. For longer bodies, use a file:
+
+```bash
+curl -s -X POST "https://dummyjson.com/products/add" \
+  -H "Content-Type: application/json" \
+  -d @body.json
+```
+
+HTTPie removes the problem, which is its main argument:
+
+```bash
+http POST dummyjson.com/products/add title="Test product" price:=9.99
+```
+
+`=` makes a string, `:=` makes a raw JSON value. `Content-Type` is set for you, and the response is colour-printed and indented without piping anywhere.
+
+## When Postman earns its place
+
+Three situations where it is clearly the right tool.
+
+**OAuth 2.0.** Hand-rolling an authorisation code flow with curl is tedious and easy to get wrong. Postman does the redirect, captures the token and refreshes it.
+
+**Exploring an unfamiliar API.** Import the OpenAPI spec or the official collection and every endpoint is there with its parameters documented, ready to run.
+
+**Sharing with a team.** A collection with environment variables is executable documentation, and it stays current more reliably than a wiki page.
+
+Use environments rather than pasting values:
+
+```text
+{{baseUrl}}/v1/products/{{productId}}
+
+Environment "local":      baseUrl = http://localhost:3000
+Environment "production": baseUrl = https://api.example.com
+```
+
+<Callout type="danger" title="Do not sync secrets into a shared workspace">
+Postman's cloud sync will happily upload API keys stored in an environment. Use environment variables marked <em>secret</em>, keep production keys in a local-only environment, and never commit an exported environment file containing real values.
+</Callout>
+
+## Turning a manual check into an automated one
+
+The point of a manual test is to become an automatic one. A shell script is often enough:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+check() {
+  local name=$1 url=$2 expected=${3:-200}
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "$url")
+
+  if [[ "$code" == "$expected" ]]; then
+    echo "ok    $name ($code)"
+  else
+    echo "FAIL  $name — expected $expected, got $code"
+    return 1
+  fi
+}
+
+check "forecast" "https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.13&current=temperature_2m"
+check "postcode" "https://api.zippopotam.us/gb/NW1"
+check "not found" "https://api.zippopotam.us/gb/ZZZZZ" 404
+```
+
+Note the last line. Asserting that a bad request returns 404 catches a class of bug that only checking happy paths misses entirely — an API that has started returning 200 with an error body.
+
+Deeper assertions belong in a test runner:
+
+```js
+import { test, expect } from 'vitest';
+
+test('forecast returns a plausible temperature', async () => {
+  const res = await fetch(
+    'https://api.open-meteo.com/v1/forecast?latitude=51.5&longitude=-0.13&current=temperature_2m',
+  );
+
+  expect(res.status).toBe(200);
+  expect(res.headers.get('content-type')).toContain('json');
+
+  const body = await res.json();
+  expect(typeof body.current.temperature_2m).toBe('number');
+  expect(body.current.temperature_2m).toBeGreaterThan(-90);
+  expect(body.current.temperature_2m).toBeLessThan(60);
+});
+```
+
+Range assertions matter. A test asserting only that the field is a number passes happily when the API starts returning `0` for everything.
+
+<Callout type="warning" title="Do not call third-party APIs from CI">
+An outage on their side becomes a red build on yours, unrelated to your code. Record the responses once and replay them locally — see <a href="/blog/mocking-apis-during-development">mocking APIs during development</a>. Keep live checks in a scheduled monitor instead, as in <a href="/blog/check-if-an-api-is-alive">how to check whether an API is still alive</a>.
+</Callout>
+
+## Testing the failure paths
+
+Success paths are easy. Force the failures with [flaky](/apis/flaky):
+
+```bash
+curl -i -s "https://flaky.eu/status/500"   # server error
+curl -i -s "https://flaky.eu/status/429"   # rate limited
+curl -i -s "https://flaky.eu/delay/5"      # slow, for timeout tests
+```
+
+Without something like this, your retry and timeout code is never actually executed before production.
+
+## Reproducing a failure someone else is seeing
+
+The most valuable thing these tools do is turn "it does not work for me" into something another person can run. A bug report that cannot be reproduced is a conversation; a curl command is a fact.
+
+Start from the exact request the failing client sent, not from your reconstruction of it. **Copy as cURL** in DevTools is the shortest path, because it captures the headers, cookies and body precisely as they went. Reconstructing by hand is where the difference you are hunting for gets lost.
+
+Then narrow by removing one thing at a time. Drop the cookies — does it still fail? Drop the custom headers? Change the body to the minimum that should be valid? Each removal either keeps the failure, which means the removed thing was irrelevant, or fixes it, which means you have found the cause. A handful of iterations usually isolates it.
+
+Two differences account for most "works here, fails there" reports, and both are invisible without checking. **Environment**: a different base URL, a different key, a stale token, a proxy on a corporate network. **Client behaviour**: browsers send an `Origin` header and enforce CORS; curl does neither. A request that works in curl and fails in the browser is very often not an API problem at all.
+
+When you do file or answer a report, include the request, the full response including headers, and the time it happened. The timestamp matters more than people expect — it is what lets someone correlate against a deploy or an incident on their side.
+
+## Structuring a collection people will actually use
+
+A shared Postman collection is documentation that runs, and the difference between one that gets used and one that rots is mostly organisation.
+
+Use **variables for everything that changes**. The base URL, the key, ids that get reused. A collection with the production hostname typed into forty requests cannot be pointed at staging, so it gets copied and the copy drifts. One `{{baseUrl}}` variable and two environments solve that permanently.
+
+Order requests in the sequence someone would actually perform them. Create, then read, then update, then delete, on the same resource. That turns the collection into a walkthrough rather than an alphabetical index, and someone new can work down it and understand the API by the end.
+
+Capture ids automatically rather than asking people to paste them. A short script on the create request that stores the returned id into a variable means the following requests just work, and it removes the most tedious part of exploring an unfamiliar API.
+
+Add a couple of assertions per request. Not a full test suite — a status check and one field check is enough to make the collection double as a smoke test, and enough that running it after a deploy tells you something.
+
+And keep the secrets out. Environment values marked as secret are not synced, and an exported environment file should never contain a real key. This is the most common way API keys end up somewhere they should not be.
+
+## Knowing which layer is slow
+
+When an API feels slow, the useful question is which part of the exchange is taking the time, and the timing breakdown answers it directly.
+
+A large **DNS** figure on the first request and near zero afterwards is normal — the lookup is cached. A consistently large one suggests a resolver problem on your side rather than anything to do with the API.
+
+A large **connect and TLS** figure relative to the total means the handshake dominates, which happens on short requests to distant servers. Reusing connections rather than opening one per request is the fix, and it is why a client that creates a new HTTP agent for every call can be several times slower than one that does not.
+
+A large gap between connecting and the **first byte** is the server thinking. That is the API's own processing time, and nothing on your side will improve it. This is the number to quote when asking a provider about performance.
+
+A large gap between the first byte and the **last** means the response is big or the connection is slow. Asking for fewer fields, where the API supports it, often collapses this.
+
+Running the same request several times and comparing is more informative than a single measurement, because the first is always unrepresentative. And comparing from two different networks separates "the API is slow" from "my connection to it is slow", which are different problems with different owners.
+
+## The checklist
+
+- `-i` by default, so you see the headers
+- `-w` when something is slow, to find out which part
+- **Copy as cURL** to reproduce a browser request
+- `jq` to read responses, `paths(scalars)` to map an unfamiliar one
+- HTTPie for hand-typed JSON, Postman for OAuth and exploration
+- Secrets in local-only environments, never synced
+- Manual checks promoted to a script, then to tests
+- Error paths tested deliberately, not hoped for

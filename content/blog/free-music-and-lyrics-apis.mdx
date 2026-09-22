@@ -1,0 +1,215 @@
+---
+title: "Free music and lyrics APIs"
+description: "Music metadata and radio APIs that need no key, why lyrics are the hardest thing to get legally, and how MusicBrainz's rate limit differs from everyone else's."
+cluster: roundups
+imageQuery: "vinyl records turntable"
+author: sandy
+publishedAt: "2026-10-17"
+updatedAt: "2026-10-17"
+relatedApis:
+  - musicbrainz
+  - radio-browser
+  - jiosaavn
+  - openwhyd
+  - genrenator
+  - searchly
+relatedPosts:
+  - how-to-read-api-documentation
+  - client-side-rate-limiting
+  - free-movie-and-tv-apis
+sources:
+  - label: "MusicBrainz API rate limiting"
+    url: "https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting"
+  - label: "Radio Browser API documentation"
+    url: "https://api.radio-browser.info/"
+  - label: "ISRC — International Standard Recording Code"
+    url: "https://isrc.ifpi.org/"
+faq:
+  - q: "Is there a free music API with no key?"
+    a: "For metadata, yes: MusicBrainz is free, open and needs no key. Radio Browser covers internet radio stations keylessly. For lyrics and full-track audio, free and legal options are very limited."
+  - q: "Why are there so few free lyrics APIs?"
+    a: "Lyrics are separately copyrighted from recordings and are aggressively licensed by publishers. Most free lyrics APIs are unlicensed scrapers, which is why they disappear without warning."
+  - q: "What is the MusicBrainz rate limit?"
+    a: "One request per second for anonymous users, and they require a descriptive User-Agent identifying your application with contact details. Omitting the User-Agent gets you blocked rather than throttled."
+  - q: "Can I stream actual songs from a free API?"
+    a: "No. Streaming rights are licensed per territory and per track. Free APIs give you metadata, previews or internet radio streams that are already publicly broadcast."
+  - q: "What is an MBID?"
+    a: "A MusicBrainz Identifier, a UUID that permanently identifies an artist, release or recording. Because it never changes, it is the right thing to store in your own database rather than an artist name."
+---
+
+Music splits into three problems with very different answers. **Metadata** — who recorded what, when — is well served and free. **Internet radio** is free and surprisingly good. **Lyrics and audio** are a licensing minefield where most free options are simply unlicensed.
+
+<Answer>
+For metadata, use **[MusicBrainz](/apis/musicbrainz)**: open, free, no key, and the identifiers it issues are the ones the rest of the industry references. For radio, **[Radio Browser](/apis/radio-browser)** catalogues tens of thousands of stations keylessly. For lyrics, be sceptical of anything free — most are unlicensed and will vanish.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["musicbrainz", "radio-browser", "jiosaavn", "openwhyd", "genrenator", "searchly"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run.
+</Tested>
+
+## MusicBrainz — the reference database
+
+An open music encyclopaedia maintained by volunteers, and the identifier authority much of the industry quietly depends on.
+
+```bash
+curl -s -H "User-Agent: myapp/1.0 (me@example.com)" \
+  "https://musicbrainz.org/ws/2/artist/?query=artist:radiohead&fmt=json&limit=3"
+```
+
+```json
+{
+  "artists": [{
+    "id": "a74b1b7f-71a5-4011-9441-d0b5e4122711",
+    "name": "Radiohead",
+    "country": "GB",
+    "life-span": { "begin": "1991" }
+  }]
+}
+```
+
+That `id` is an **MBID**, a permanent UUID. Store it rather than the artist name: names collide, get re-spelled and change, while MBIDs do not.
+
+### Two rules that are enforced
+
+**One request per second.** Not a guideline. Exceed it and you are throttled, then blocked.
+
+**A descriptive `User-Agent` is mandatory.** It must identify your application and give contact details. Without one you get a 403 that looks like an auth error.
+
+```js
+const UA = 'MyMusicApp/1.0 (contact@example.com)';
+let last = 0;
+
+async function mb(path) {
+  const wait = Math.max(0, 1000 - (Date.now() - last));
+  if (wait) await new Promise((r) => setTimeout(r, wait));
+  last = Date.now();
+
+  const res = await fetch(`https://musicbrainz.org/ws/2/${path}&fmt=json`, {
+    headers: { 'User-Agent': UA },
+  });
+  if (!res.ok) throw new Error(`MusicBrainz ${res.status}`);
+  return res.json();
+}
+```
+
+Related entities come through `inc`, which saves a second round trip:
+
+```bash
+curl -s -H "User-Agent: myapp/1.0 (me@example.com)" \
+  "https://musicbrainz.org/ws/2/artist/a74b1b7f-71a5-4011-9441-d0b5e4122711\
+?inc=release-groups&fmt=json"
+```
+
+<Callout type="tip" title="Cover art comes from a different service">
+MusicBrainz holds metadata, not images. Cover art lives at <code>coverartarchive.org</code>, keyed by the same MBID: <code>https://coverartarchive.org/release/&lt;mbid&gt;/front</code>. Not every release has one, so handle the 404.
+</Callout>
+
+## Radio Browser — internet radio, done well
+
+A community catalogue of live radio streams with genuinely useful filtering, and no key.
+
+```bash
+curl -s "https://de1.api.radio-browser.info/json/stations/bytag/jazz?limit=5&hidebroken=true"
+curl -s "https://de1.api.radio-browser.info/json/stations/bycountrycodeexact/GB?limit=10"
+```
+
+```js
+const stations = await fetch(
+  'https://de1.api.radio-browser.info/json/stations/bytag/classical' +
+    '?limit=20&hidebroken=true&order=clickcount&reverse=true',
+).then((r) => r.json());
+
+const playable = stations.filter((s) => s.url_resolved.startsWith('https://'));
+audio.src = playable[0].url_resolved;
+```
+
+Three practical notes. Use `hidebroken=true` or a meaningful share of results will not play. Use `url_resolved` rather than `url`, because it has already followed redirects. And filter for HTTPS if your page is served over HTTPS — a plain HTTP stream is blocked as [mixed content](/blog/mixed-content-http-api-https-page).
+
+The service runs on rotating community mirrors, so hard-coding `de1` is fragile. The documented approach is to resolve an available server first via `all.api.radio-browser.info`.
+
+## The lyrics problem
+
+Worth being direct, because it is the most common request in this category.
+
+Lyrics are a **separate copyright** from the recording, administered by music publishers rather than labels, and licensed aggressively. Legitimate lyrics APIs (Musixmatch, Genius) require registration, and their free tiers return only a partial excerpt with a mandatory link back.
+
+Anything free that hands you complete lyrics is almost certainly unlicensed. It will also disappear without notice when it receives a takedown, taking your feature with it.
+
+**SearchLy** is the interesting legitimate case here: it does similarity search *over* lyrics without returning them, which sidesteps the licensing problem entirely.
+
+```bash
+curl -s "https://searchly.asuar.io/api/similarity/Radiohead/Creep"
+```
+
+<Callout type="danger" title="Treat free full-lyrics APIs as temporary">
+If a feature depends on one, assume it will stop working. Either license properly, or design the feature so the absence of lyrics degrades gracefully rather than breaking the page.
+</Callout>
+
+## Regional catalogues
+
+**JioSaavn** and **Gaana** expose large South Asian music catalogues with metadata and preview URLs. Both are unofficial wrappers around consumer services, which means they work well and carry the usual caveat: no stability guarantee, and the terms are not written with you in mind.
+
+```bash
+curl -s "https://saavn.dev/api/search/songs?query=arijit%20singh&limit=5"
+```
+
+## Genrenator — the joke that is actually useful
+
+Generates plausible fictional music genres. Frivolous, and genuinely handy as placeholder content when you are building a music UI and do not want to look at "Category 1" all afternoon.
+
+```bash
+curl -s "https://binaryjazz.us/wp-json/genrenator/v1/genre/"
+# "progressive doom folktronica"
+```
+
+## Why music metadata is harder than it looks
+
+Every other category in this series has a reasonably stable notion of "a thing". Music does not, and the confusion this causes is the main reason music integrations get rebuilt.
+
+MusicBrainz separates four concepts that most people treat as one. An **artist** is the person or group. A **release group** is the album as an abstract work — *OK Computer*, the thing you would name in conversation. A **release** is one specific published version of it: the 1997 UK CD, the 2017 remaster, the Japanese pressing with the bonus track. A **recording** is a particular performance captured once, which can appear on many releases.
+
+That separation looks like bureaucracy until you hit the problems it solves. The same song appears on the album, the greatest-hits compilation, the live record and three soundtracks. Is that one thing or five? A flat model has to choose, and whichever it chooses is wrong for some question you will eventually ask. Counting how many albums an artist released, deduplicating a library, or matching a track to its original album are all queries that need this structure.
+
+The practical consequence is that you have to decide which level your application cares about before you write any code, because retrofitting the distinction later means re-fetching everything. Most applications want release groups for browsing and recordings for matching. Asking for releases when you meant release groups is how you end up showing a user seventeen copies of the same album.
+
+Compilations and various-artist releases are where this gets sharpest. A track on a compilation is credited to the performing artist, but the release itself is credited to "Various Artists", so a naive "show me this artist's albums" query either misses the compilation or fills the list with them. MusicBrainz marks these explicitly, and filtering on that flag is usually what you want.
+
+## Matching messy data to a canonical record
+
+The other recurring problem: you have a filename, an ID3 tag or a user's typing, and you need the authoritative record. Exact string matching fails immediately, because real-world music metadata is uniquely unreliable.
+
+Titles arrive with featured artists appended in four different notations, with remix and remaster suffixes, in the wrong case, transliterated, or with the artist and title swapped. Live and studio versions share a title. Cover versions share a title *and* differ in artist. Punctuation is inconsistent in ways that matter to a computer and not to a person.
+
+Normalising before you compare removes most of the noise: lowercase everything, strip bracketed suffixes, collapse whitespace, remove diacritics, and drop leading articles. That turns a dozen spellings into one. What it cannot fix is genuine ambiguity, and the honest answer there is to keep the top few candidates and their confidence rather than silently picking the first.
+
+MusicBrainz's search returns a relevance score for exactly this reason. Anything below roughly 90 deserves confirmation rather than assumption, and if your application is building a library the user cares about, showing them the alternatives is better than being confidently wrong.
+
+There is a better route when you have the audio itself. **AcoustID** computes a fingerprint from the waveform and looks it up, which sidesteps metadata entirely and identifies a track regardless of how it was tagged. It is free, it needs a key, and it is what music library software actually uses. If you are building anything that organises files rather than displaying a catalogue, fingerprinting is worth the extra step.
+
+## What the licence lets you keep
+
+A point that matters if you are building a product rather than a page. MusicBrainz's core data is released into the public domain, and the supplementary data is Creative Commons non-commercial. You may download the whole database, and many projects do.
+
+That is genuinely unusual. Most catalogues in this series either forbid bulk storage or say nothing and leave you guessing. Here, if your volume is high enough that one request per second hurts, the sanctioned answer is to stop making requests: import the dump and query locally. It removes the rate limit, the network dependency and the etiquette obligations in one step, at the cost of running a database and keeping it current.
+
+For anything smaller, the hosted API with a cache is the right call. Just do not build something that depends on making thousands of requests per hour to a volunteer-funded service, when the same project publishes the entire dataset for download.
+
+## Choosing
+
+**Artists, releases, recordings, identifiers.** MusicBrainz, at one request per second with a real User-Agent.
+
+**Live radio.** Radio Browser, with `hidebroken` and HTTPS filtering.
+
+**Cover art.** Cover Art Archive, keyed by MBID.
+
+**South Asian catalogues.** JioSaavn.
+
+**Lyrics.** License them, or design around not having them.
+
+**Full-track playback.** Not available free. That is a licensing product, not an API problem.
+
+[Browse the music category](/categories/music) for all 46 entries we track.

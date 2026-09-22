@@ -1,0 +1,226 @@
+---
+title: "Free movie and TV APIs"
+description: "Film and television APIs that need no key, why the big metadata providers all require registration, and which fictional-universe APIs are best for building something quickly."
+cluster: roundups
+imageQuery: "cinema seats projector"
+author: sandy
+publishedAt: "2026-10-15"
+updatedAt: "2026-10-15"
+relatedApis:
+  - studio-ghibli
+  - swapi
+  - potter-db
+  - dune
+  - movie-quote
+  - mcu-countdown
+relatedPosts:
+  - best-free-apis-for-beginners
+  - free-anime-and-manga-apis
+  - what-is-an-api-endpoint
+sources:
+  - label: "TMDB API terms of use"
+    url: "https://www.themoviedb.org/api-terms-of-use"
+  - label: "MDN — Fetch API"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+  - label: "JSON:API specification"
+    url: "https://jsonapi.org/"
+faq:
+  - q: "Is there a free movie API with no key?"
+    a: "For real-world film catalogues, essentially no — TMDB and OMDb both require registration. For fictional universes, several are fully keyless: Studio Ghibli, SWAPI, Potter DB and Dune all returned data with no credential in our checks."
+  - q: "What is the best free alternative to IMDb's API?"
+    a: "TMDB. IMDb has no free public API at all; its data is licensed commercially. TMDB is free for non-commercial use with a key and is what most hobby projects actually use."
+  - q: "Can I use movie poster images from a free API?"
+    a: "Usually not without conditions. Posters are studio artwork licensed to the metadata provider, not owned by them. TMDB permits display when you attribute TMDB, but you cannot treat posters as public domain."
+  - q: "Which movie API is best for learning to code?"
+    a: "SWAPI or Studio Ghibli. Both are small, keyless and return clean JSON, and SWAPI's cross-referenced URLs make it good practice for fetching related resources in parallel."
+  - q: "Why do fictional-universe APIs exist at all?"
+    a: "Because the data is small, stable and legally uncomplicated, which makes them ideal teaching APIs. They are also a lot more fun to build a demo against than a list of products."
+---
+
+This category splits cleanly in two, and knowing which half you are in saves a lot of time.
+
+If you want **real film and television metadata** — every title, cast, ratings, posters — you will need a key. TMDB, OMDb and TVMaze all require registration, and IMDb has no free API at all. If you want something **keyless to build against right now**, the fictional-universe APIs are excellent and genuinely underrated.
+
+<Answer>
+For a keyless start, use **[Studio Ghibli](/apis/studio-ghibli)** — small, clean, CORS-enabled and complete enough to build a real gallery from. For practising relational fetching, **[SWAPI](/apis/swapi)** is better, because its records cross-reference each other by URL. For real-world catalogues, register for TMDB; nothing free and keyless covers that ground.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["studio-ghibli", "swapi", "potter-db", "dune", "movie-quote", "mcu-countdown"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. Studio Ghibli, SWAPI and Owen Wilson Wow also send CORS headers, so they work from browser JavaScript.
+</Tested>
+
+## Studio Ghibli — the best small catalogue
+
+Twenty-two films with directors, release years, running times and synopses. Small enough to fetch entirely, rich enough to build a real interface from.
+
+```bash
+curl -s "https://ghibliapi.vercel.app/films?limit=5"
+```
+
+```json
+[{
+  "id": "2baf70d1-42bb-4437-b551-e5fed5a87abe",
+  "title": "Castle in the Sky",
+  "original_title": "天空の城ラピュタ",
+  "director": "Hayao Miyazaki",
+  "release_date": "1986",
+  "running_time": "124",
+  "rt_score": "95"
+}]
+```
+
+CORS headers are present, so this works from a static page with no backend:
+
+```js
+const films = await fetch('https://ghibliapi.vercel.app/films').then((r) => r.json());
+
+films
+  .sort((a, b) => b.rt_score - a.rt_score)
+  .forEach((f) => console.log(`${f.rt_score}  ${f.title} (${f.release_date})`));
+```
+
+Note that `rt_score` and `running_time` arrive as strings. Sorting them without conversion gives you lexicographic order, where "95" sorts below "100" — a small, very common bug.
+
+## SWAPI — relational data worth practising on
+
+Star Wars data where fields hold URLs to other records rather than embedded objects. That is how a lot of real APIs work, and working through it teaches parallel fetching properly.
+
+```bash
+curl -s "https://swapi.dev/api/people/1/"
+```
+
+```json
+{
+  "name": "Luke Skywalker",
+  "homeworld": "https://swapi.dev/api/planets/1/",
+  "films": [
+    "https://swapi.dev/api/films/1/",
+    "https://swapi.dev/api/films/2/"
+  ]
+}
+```
+
+The naive approach fetches films one at a time in a loop. The right approach does not:
+
+```js
+const person = await fetch('https://swapi.dev/api/people/1/').then((r) => r.json());
+
+const [homeworld, ...films] = await Promise.all([
+  fetch(person.homeworld).then((r) => r.json()),
+  ...person.films.map((url) => fetch(url).then((r) => r.json())),
+]);
+
+console.log(`${person.name} of ${homeworld.name}`);
+console.log(films.map((f) => f.title).join(', '));
+```
+
+Six sequential requests at ~600 ms each is 3.6 seconds. The same six in parallel is about 600 ms.
+
+<Callout type="tip" title="This is the pattern worth taking away">
+Any time you have a list of URLs and no dependency between them, <code>Promise.all</code> over <code>map</code> is the answer. It is the single largest performance difference in most API client code.
+</Callout>
+
+## Potter DB and Dune — bigger, and JSON:API shaped
+
+Potter DB is the largest of the fictional set: characters, books, films, spells and potions, with proper pagination.
+
+```bash
+curl -s "https://api.potterdb.com/v1/characters?page[size]=5"
+curl -s "https://api.potterdb.com/v1/spells?filter[name_cont]=lumos"
+```
+
+It follows the JSON:API convention, so records are wrapped in `data` with `attributes`:
+
+```js
+const { data } = await fetch(
+  'https://api.potterdb.com/v1/characters?page[size]=10',
+).then((r) => r.json());
+
+const names = data.map((record) => record.attributes.name);
+```
+
+That extra `attributes` layer trips people up on first contact. It is a specification, not an eccentricity — [JSON:API](https://jsonapi.org/) standardises it so clients can be written generically.
+
+## The small ones
+
+**Movie Quote** returns a random quote with its film, which is a one-line way to put something on a page:
+
+```bash
+curl -s "https://api.quotable.io/random?tags=famous-quotes"
+```
+
+**MCU Countdown** answers exactly one question — when is the next Marvel film — and is a nice example of an API with a single purpose:
+
+```bash
+curl -s "https://mcuapi.herokuapp.com/api/v1/movies?limit=1&order=DESC"
+```
+
+## What you need a key for
+
+To be direct about the gap, since most readers arrive wanting real film data:
+
+**TMDB** is the practical choice. Free for non-commercial use, comprehensive, actively maintained, and what most hobby projects use. Requires a key and attribution.
+
+**OMDb** wraps IMDb data. Free tier is 1,000 requests per day with a key.
+
+**TVMaze** is the friendliest for television specifically and has a keyless tier for light use, though it is rate-limited.
+
+**IMDb** itself has no free API. Its data is licensed commercially at enterprise prices, which is why every "IMDb API" you find is either TMDB, OMDb, or a scraper that will break.
+
+<Callout type="warning" title="Poster images are a separate licence from the metadata">
+A metadata API giving you a poster URL is not the same as granting you the right to display it. Posters are studio artwork. TMDB permits display with attribution; scrapers grant you nothing at all. If a project is commercial, treat artwork as the risky part.
+</Callout>
+
+## Why film metadata is a licensing problem, not a data problem
+
+Worth understanding, because it explains the whole shape of this category and why the keyless options are all fictional universes.
+
+Film and television metadata is commercially valuable and actively owned. Studios license artwork. Rights holders license synopses. Availability data — which service is streaming what, in which country, this week — is a product that companies sell for real money, and it changes constantly. None of that is a fact in the public domain the way a weather observation is.
+
+That is why IMDb, which holds the most complete dataset, has no free API at all. Its data is licensed to enterprises at enterprise prices, and every "IMDb API" you will find is either a wrapper around a different source, a scraper that breaks when the markup changes, or a service operating on borrowed time.
+
+It is also why TMDB — free, comprehensive, genuinely good — still requires registration. The key is not a technical control. It is how they attribute usage, enforce their terms, and demonstrate to rights holders that the artwork is being used under conditions.
+
+The fictional-universe APIs escape all of this because their data is small, community-compiled, and of no commercial interest to anyone. Nobody licenses the list of Studio Ghibli release dates. That is precisely what makes them available without a key, and also what makes them unsuitable for a real product.
+
+So the honest framing for this category is: if you are learning or building a demo, the keyless options are excellent and this is not a compromise. If you are building something real involving actual films, budget for registration and read the artwork terms carefully, because the images are the part that carries risk.
+
+## Matching a title to a record
+
+The recurring engineering problem here, and one that catches people who assume a search endpoint will simply work.
+
+Film titles are not unique. Remakes share a title with the original, frequently in the same franchise. Translated and original titles differ, and different providers pick different ones as canonical. A film released as one thing in cinemas gets renamed for streaming. Punctuation, articles and subtitles vary between sources. And a search for a common word returns dozens of plausible results with nothing to distinguish them.
+
+The year is the disambiguator that does most of the work. Nearly every API accepts it, nearly every source has it, and title-plus-year is close to unique in practice. Where you have it, always send it; where you have a filename to parse, extracting a four-digit year is usually the highest-value thing you can pull out of it.
+
+Beyond that, the useful discipline is to resolve once and store the provider's identifier rather than resolving repeatedly from the title. A title is user data; an id is a key. Storing the id means the record survives a title change, a re-release and a user's typo, and it removes the search call from every subsequent lookup.
+
+When the match is genuinely ambiguous, showing the candidates beats guessing. A list with years and poster thumbnails resolves the question in one click, and it is far better than an application that silently attached the 1998 remake to someone's 1962 favourite.
+
+## Availability data, and why it expires
+
+One specific warning, because it is where projects in this category most often go wrong.
+
+"Where can I watch this" data is the most requested feature and the most perishable. Streaming rights are regional, time-limited and renegotiated constantly. A title available on one service in one country this month may be on a different service, or nowhere, next month, and the change comes with no notice.
+
+That has two consequences. First, caching this aggressively — the reflex everywhere else in this series — is actively harmful here, and a stale availability answer is worse than no answer, because the user acts on it and finds nothing. Second, no free tier offers it reliably, because it is the single most commercially valuable field in the category.
+
+If availability matters to your product, that is a paid data feed and a recurring cost, not an integration. If it does not, leave it out rather than showing something you cannot keep current. A film page with accurate cast, year and synopsis and no availability section is more trustworthy than one confidently pointing at a service that dropped the title in March.
+
+## Choosing
+
+**Learning, or a demo you need working this afternoon.** Studio Ghibli.
+
+**Practising related-resource fetching.** SWAPI.
+
+**A larger dataset with real pagination and filtering.** Potter DB.
+
+**Real films, real cast, real posters.** TMDB, with a key and attribution.
+
+**Television specifically.** TVMaze.
+
+For animation and manga, which is a distinct and better-served category, see [free anime and manga APIs](/blog/free-anime-and-manga-apis). [Browse the video category](/categories/video) for everything we track.

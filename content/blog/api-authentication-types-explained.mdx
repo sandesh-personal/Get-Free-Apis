@@ -2,7 +2,8 @@
 title: "API authentication explained: API key, OAuth 2.0, JWT and Basic"
 description: "Four schemes, what each actually proves, where each goes wrong, and how to tell from documentation which one you are dealing with."
 cluster: fundamentals
-author: editorial
+imageQuery: "keys on a keyring"
+author: sandy
 publishedAt: "2026-09-30"
 updatedAt: "2026-09-30"
 relatedApis:
@@ -11,7 +12,7 @@ relatedApis:
   - postcodes-io
 relatedPosts:
   - 401-vs-403-api-authentication
-  - hide-api-key-frontend
+  - hide-api-keys-frontend
 sources:
   - label: "RFC 6749 — The OAuth 2.0 Authorization Framework"
     url: "https://www.rfc-editor.org/rfc/rfc6749"
@@ -166,6 +167,32 @@ Do not reach for OAuth by default. It is the right answer to a specific question
 - **Server-to-server, you control both ends?** API keys. Simple, adequate, easy to rotate.
 - **Your own frontend talking to your own backend?** Session cookies, `httpOnly` and `SameSite`. Not JWTs in `localStorage`.
 - **Third parties acting for your users?** OAuth 2.0. This is what it is for.
+
+## Where the credential goes, and why it matters
+
+Getting the scheme right is half the job; putting it in the right place is the other half, and the wrong place is usually a security problem rather than merely a broken request.
+
+**A header is the right default.** `Authorization: Bearer <token>` or a custom header keeps the credential out of the URL, which matters because URLs are written down in more places than people realise: server access logs, browser history, proxy logs, and the `Referer` header sent to any third party you link to. A token in a query string has been recorded several times before your handler sees it.
+
+**A query parameter is a convenience with a cost.** Some APIs accept `?api_key=` because it makes a curl example shorter. It also means the key appears in every log line. Where an API supports both, always prefer the header.
+
+**Cookies are for browsers, not for APIs you call server-side.** They bring automatic inclusion, which is convenient and is exactly what makes CSRF possible. An API designed for programmatic access will use a header.
+
+The related detail is the scheme prefix, which is case-sensitive and not interchangeable. `Bearer`, `Token`, `Basic` and `ApiKey` are different, and sending the wrong one produces a 401 identical to the one you get from a wrong key. When a credential you are confident about is rejected, the prefix is worth checking before anything else — it is covered further in [why your API key suddenly stopped working](/blog/api-key-stopped-working).
+
+## Choosing, when you have a choice
+
+Most of the time the API decides for you. Where it offers several, the decision follows from what you are building.
+
+If the caller is **your own backend**, an API key is almost always right. It is simple, it has no expiry to manage, and the security concern — keeping it out of client code — is solved by the fact that it never leaves your server.
+
+If the caller is **acting on behalf of a user**, OAuth is the only correct answer. The point of it is that the user grants limited access without handing over their password, and they can revoke it later. Anything that asks a user for their credentials to another service is doing something you should not build.
+
+If you are **passing identity between your own services**, JWTs earn their complexity. The receiving service can verify the token without a database lookup, which is what makes them useful in distributed systems and largely pointless in a single application.
+
+If it is **internal, over TLS, on a trusted network**, Basic is genuinely fine. Its bad reputation comes from being used over plain HTTP, where the credentials are base64-encoded rather than encrypted — which is encoding, not protection.
+
+The one general rule worth holding: prefer credentials that expire and can be scoped. A token limited to the operations you need, on the endpoints you call, that stops working after an hour, is a far smaller incident when it leaks than an unrestricted permanent key.
 
 ## The option people forget
 

@@ -1,0 +1,344 @@
+---
+title: "Free sports and live-score APIs"
+description: "Live scores, fixtures and statistics without a key, why 'live' on a free tier usually means delayed, and how to poll a match feed without burning your rate limit."
+cluster: roundups
+imageQuery: "stadium floodlights night"
+author: sandy
+publishedAt: "2026-10-21"
+updatedAt: "2026-10-21"
+relatedApis:
+  - sportscore
+  - balldontlie
+  - mlb-records-and-stats
+  - racinghub
+  - football-soccer-videos
+  - tourneyradar
+relatedPosts:
+  - fix-429-too-many-requests
+  - client-side-rate-limiting
+  - caching-api-responses-free-tier
+sources:
+  - label: "MDN — Server-sent events"
+    url: "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events"
+  - label: "MDN — Polling and the Retry-After header"
+    url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Retry-After"
+  - label: "RFC 9110 — Conditional requests"
+    url: "https://www.rfc-editor.org/rfc/rfc9110#name-conditional-requests"
+faq:
+  - q: "Is there a free live-score API with no key?"
+    a: "SportScore covers football, basketball and several other sports keylessly, and balldontlie covers the NBA. Both work, but 'live' on a free tier typically means a delay of 30 seconds to several minutes."
+  - q: "Why is my free sports API behind the television?"
+    a: "Deliberately. Real-time data is the product these providers sell, so free tiers are delayed. Broadcast itself also runs several seconds behind play, so some lag is unavoidable regardless."
+  - q: "How often should I poll a live-score API?"
+    a: "No faster than every 30 seconds during a match, and stop entirely when no match is in progress. Most rate-limit exhaustion comes from polling on a fixed timer that never sleeps overnight."
+  - q: "Can I build a betting app on a free sports API?"
+    a: "No. Free tiers are delayed and offer no accuracy guarantee, and betting is a regulated activity in most jurisdictions. That needs a licensed commercial data feed and legal advice."
+  - q: "What is the best free football API?"
+    a: "SportScore for multi-sport coverage with no key, or Football-Data.org, which has a registered free tier covering major European leagues with generous limits."
+---
+
+Sports data has a structural problem that other categories do not: the thing you want most — live scores — is precisely the thing providers monetise hardest. Historical statistics are cheap and abundant. The current score is not.
+
+<Answer>
+For multi-sport coverage without a key, **[SportScore](/apis/sportscore)** is the broadest option. For the NBA specifically, **[balldontlie](/apis/balldontlie)** is excellent and free. Whatever you pick, assume free "live" data is delayed by at least 30 seconds, and poll on a schedule tied to whether a match is actually in progress.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["sportscore", "balldontlie", "mlb-records-and-stats", "racinghub", "football-soccer-videos", "tourneyradar"]} />
+
+<Tested date="2026-09-18" result="All six returned data with no key attached.">
+Checked from a clean client during our scheduled run. SportScore, MLB Records, RacingHub and TourneyRadar also send CORS headers.
+</Tested>
+
+## What "live" means on a free tier
+
+Worth setting expectations before you build a scoreboard, because this catches people out.
+
+```text
+Official stadium feed      0s      what the league itself sees
+Paid commercial API      2-10s     what a betting platform buys
+Television broadcast     5-15s     already behind play
+Free tier API           30s-5min   what you are getting
+```
+
+A user watching the match on television will see a goal before your page updates. That is not a bug you can fix by polling harder — it is the product boundary. Say "delayed" somewhere visible and the complaints stop.
+
+## SportScore — the broadest keyless option
+
+Football, basketball, tennis and more, with fixtures, standings and live scores.
+
+```bash
+curl -s "https://sportscore.io/api/v1/sports"
+curl -s "https://sportscore.io/api/v1/events/live"
+curl -s "https://sportscore.io/api/v1/events?date=2026-09-18"
+```
+
+```js
+const live = await fetch('https://sportscore.io/api/v1/events/live')
+  .then((r) => r.json());
+
+const matches = live.data.map((e) => ({
+  home: e.home_team.name,
+  away: e.away_team.name,
+  score: `${e.home_score.current}-${e.away_score.current}`,
+  minute: e.status_more,
+}));
+```
+
+## balldontlie — the NBA one worth knowing
+
+Free, well-documented and genuinely complete for basketball: players, teams, games and box scores back many seasons.
+
+```bash
+curl -s "https://api.balldontlie.io/v1/games?seasons[]=2025&per_page=5"
+curl -s "https://api.balldontlie.io/v1/players?search=curry"
+```
+
+It uses cursor pagination, which is the right choice for a dataset that grows:
+
+```js
+async function* games(season) {
+  let cursor;
+  do {
+    const url = new URL('https://api.balldontlie.io/v1/games');
+    url.searchParams.set('seasons[]', season);
+    url.searchParams.set('per_page', '100');
+    if (cursor) url.searchParams.set('cursor', cursor);
+
+    const page = await fetch(url).then((r) => r.json());
+    yield* page.data;
+    cursor = page.meta?.next_cursor;
+  } while (cursor);
+}
+```
+
+## Polling without burning your quota
+
+This is the part that separates a working scoreboard from one that stops at half time with a 429.
+
+The naive version polls every ten seconds, forever, including at four in the morning when nothing is playing. At 6 requests a minute that is 8,640 requests a day, almost all of them returning the same thing.
+
+Poll according to state instead:
+
+```js
+const INTERVAL = {
+  live: 30_000,        // a match is in progress
+  soon: 300_000,       // kick-off within the hour
+  idle: 3_600_000,     // nothing on
+};
+
+let timer;
+
+async function tick() {
+  const events = await fetchLive();
+  render(events);
+
+  const state = events.some((e) => e.status === 'inprogress')
+    ? 'live'
+    : events.some((e) => e.starts_in_minutes < 60)
+      ? 'soon'
+      : 'idle';
+
+  timer = setTimeout(tick, INTERVAL[state]);
+}
+
+// Stop entirely when the tab is hidden
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clearTimeout(timer);
+  else tick();
+});
+```
+
+That last part matters more than the intervals. A user with your scoreboard open in a background tab for eight hours is otherwise generating traffic the whole time for nobody's benefit.
+
+<Callout type="tip" title="Use conditional requests where supported">
+If the API sends an <code>ETag</code>, send it back as <code>If-None-Match</code>. A 304 response costs you almost no bandwidth and, on many APIs, does not count against your rate limit at all.
+</Callout>
+
+```js
+let etag;
+
+async function poll(url) {
+  const res = await fetch(url, {
+    headers: etag ? { 'If-None-Match': etag } : {},
+  });
+
+  if (res.status === 304) return null;   // nothing changed
+  etag = res.headers.get('etag') ?? etag;
+  return res.json();
+}
+```
+
+## The specialist ones
+
+**MLB Records and Stats** covers current and historical baseball, and is CORS-enabled.
+
+**RacingHub** is Formula 1 historical data — seasons, races, drivers, constructors. Since it is history, it can be cached permanently.
+
+**Football (Soccer) Videos** returns embed codes for goals and highlights from major European leagues, which fills the gap between a score and something worth watching.
+
+**TourneyRadar** tracks upcoming chess tournaments across 140+ national federations — a good example of a narrow API doing something no general sports API bothers with.
+
+<Callout type="warning" title="Fixture times are a timezone trap">
+Kick-off times come back in UTC or the venue's local time depending on the API, and getting this wrong shifts every fixture by hours. Always parse into a real date object and format in the user's zone, never string-slice the timestamp.
+</Callout>
+
+```js
+const kickoff = new Date(event.start_at);   // ISO 8601 from the API
+
+new Intl.DateTimeFormat('en-GB', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+  timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+}).format(kickoff);
+```
+
+## Football-Data.org, the registered free tier worth the sign-up
+
+Absent from the keyless table because it needs a free token, but it is the best free football data available and the registration takes a minute.
+
+```bash
+curl -s -H "X-Auth-Token: $FOOTBALL_DATA_TOKEN" \
+  "https://api.football-data.org/v4/competitions/PL/matches?status=SCHEDULED"
+```
+
+```json
+{
+  "matches": [{
+    "utcDate": "2026-09-20T14:00:00Z",
+    "status": "TIMED",
+    "matchday": 6,
+    "homeTeam": { "shortName": "Arsenal" },
+    "awayTeam": { "shortName": "Spurs" },
+    "score": { "fullTime": { "home": null, "away": null } }
+  }]
+}
+```
+
+The free tier covers twelve major competitions at ten requests per minute, which is plenty once you are caching. Standings, scorers and head-to-head are all included.
+
+The status vocabulary is the part to get right, because it drives your whole UI:
+
+```js
+const LABEL = {
+  SCHEDULED: 'Not yet timed',
+  TIMED: 'Kick-off confirmed',
+  IN_PLAY: 'Live',
+  PAUSED: 'Half time',
+  FINISHED: 'Full time',
+  POSTPONED: 'Postponed',
+  SUSPENDED: 'Suspended',
+  CANCELLED: 'Cancelled',
+};
+```
+
+`PAUSED` catches people out — a match at half time is neither live nor finished, and treating it as finished shows a full-time score forty-five minutes early.
+
+## Modelling a match so the UI does not lie
+
+Most scoreboard bugs come from storing a score and a status as separate unrelated values. Deriving the display from one state field avoids the whole class of problem:
+
+```js
+function display(match) {
+  const { status, score, minute } = match;
+
+  if (status === 'FINISHED') return { line: `${score.home}-${score.away}`, note: 'FT' };
+  if (status === 'PAUSED') return { line: `${score.home}-${score.away}`, note: 'HT' };
+  if (status === 'IN_PLAY') return { line: `${score.home}-${score.away}`, note: `${minute}'` };
+  if (status === 'POSTPONED') return { line: 'v', note: 'Postponed' };
+
+  return { line: 'v', note: formatKickoff(match.utcDate) };
+}
+```
+
+Notice that a scheduled match shows "v" rather than "0-0". Displaying nil-nil before kick-off is the single most common giveaway that a scoreboard is rendering raw fields rather than thinking about state.
+
+<Callout type="warning" title="A goal can be disallowed">
+Scores go down as well as up. VAR overturns goals minutes after they are awarded, so a UI that animates increments must handle a decrement without breaking. Treat the API's score as the truth on every poll rather than accumulating events.
+</Callout>
+
+## Making a live scoreboard feel live
+
+Polling every thirty seconds produces a scoreboard that jumps. Two cheap techniques make it feel continuous without more requests.
+
+**Interpolate the clock locally.** The minute only needs fetching once; you can count it forward yourself between polls:
+
+```js
+let serverMinute = 0;
+let syncedAt = Date.now();
+
+setInterval(() => {
+  if (status !== 'IN_PLAY') return;
+  const elapsed = (Date.now() - syncedAt) / 60_000;
+  clockEl.textContent = `${Math.floor(serverMinute + elapsed)}'`;
+}, 1000);
+```
+
+**Diff before re-rendering**, so only the row that changed moves:
+
+```js
+function apply(next) {
+  for (const match of next) {
+    const prev = state.get(match.id);
+    if (prev?.score.home !== match.score.home || prev?.score.away !== match.score.away) {
+      flash(match.id);          // a goal just happened
+    }
+    state.set(match.id, match);
+  }
+}
+```
+
+That flash is also where you would fire a notification, and it is the reason to diff rather than re-render wholesale: a full re-render cannot tell you *what* changed.
+
+## Identifying teams across sources
+
+The problem that appears the moment you combine two sports APIs, and it has no clean solution.
+
+Team names are not standardised. One source says "Manchester United", another "Man Utd", a third "Manchester Utd FC". Some include the sponsor in the name, some do not. Some use the local-language form. Reserve and youth sides share most of a name with the senior team, and matching loosely will merge them.
+
+Competitions have the same problem in a worse form, because they are renamed by sponsorship on a rolling basis. A league that was one thing last season is another this season, and historical data uses whichever name applied at the time.
+
+The workable approach is to pick one source as canonical, store its identifier for every team you track, and maintain an explicit mapping from each other source's identifier to yours. That mapping is manual, tedious and reliable. Fuzzy string matching looks attractive and fails at exactly the cases that matter — derbies between clubs from the same city, and reserve fixtures.
+
+Where you must match by name, normalise first and match against a list of known aliases rather than against a single canonical string. And always disambiguate by competition and date, because two teams with similar names very rarely play in the same league on the same day.
+
+## Designing around the shape of a season
+
+Sports data has a rhythm that catches applications built and tested mid-season.
+
+There are long stretches with nothing happening. A football league has a summer break; a tournament has a group stage then a gap. An application that assumes fixtures always exist will show an empty page with no explanation for weeks, and the correct behaviour is to say what is happening and when it resumes rather than rendering nothing.
+
+Fixtures move. Postponements for weather, for cup replays, for television scheduling are routine, and a fixture cached a week ago may no longer be accurate. Anything showing a future date needs a shorter cache than its distance in time suggests.
+
+Seasons overlap and are labelled inconsistently. A season spanning two calendar years is written as `2025-26` by some sources and `2025` or `2026` by others, and getting the convention wrong returns last year's table with no error. This is worth verifying against a known result rather than assuming.
+
+Competitions have structure that a flat fixture list loses. Group stages, knockout rounds, two-legged ties and aggregate scores are all things a naive model cannot represent, and retrofitting them is harder than allowing for them at the start. Even if you only display fixtures now, storing the round and the stage costs nothing.
+
+## The regulatory line worth not crossing
+
+Worth stating plainly because this category sits closer to it than any other in this series.
+
+Displaying scores and fixtures is ordinary. Displaying odds, accepting stakes, or building anything that facilitates a wager is a regulated activity in most jurisdictions, and the regulation attaches to the activity rather than to the size of the operation. A hobby project that takes bets is an unlicensed gambling operation, regardless of intent.
+
+The boundary is blurrier than it first appears. Aggregating odds and linking to bookmakers is affiliate marketing, which is itself regulated in several countries and generally requires disclosure. Tipping services that charge for predictions attract financial-promotion rules in some places. A prediction game with no stake is usually fine; one with an entry fee and a prize is frequently not.
+
+Age verification is the other requirement people miss. Where gambling-adjacent content is regulated, so is who may see it, and "we did not think anyone under eighteen would visit" is not a defence.
+
+None of this is a reason to avoid sports data. It is a reason to be deliberate about which side of the line a feature sits on, and to take advice before building anything with money attached rather than after.
+
+## Choosing
+
+**Several sports, no key, a hobby scoreboard.** SportScore.
+
+**NBA, properly.** balldontlie.
+
+**Baseball history and records.** MLB Records and Stats.
+
+**Formula 1.** RacingHub, cached permanently.
+
+**Major European football with a registered free tier.** Football-Data.org.
+
+**Anything regulated, or where accuracy has money attached.** A commercial licensed feed. Free tiers explicitly do not cover this.
+
+[Browse the sports and fitness category](/categories/sports-and-fitness) for all 65 entries we track.

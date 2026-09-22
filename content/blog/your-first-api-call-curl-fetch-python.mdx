@@ -2,7 +2,8 @@
 title: "Your first API call, compared: curl, fetch and Python requests"
 description: "The same request in three tools, with the parts that differ explained. Once you can read one, you can read all of them."
 cluster: fundamentals
-author: editorial
+imageQuery: "terminal code screen"
+author: sandy
 publishedAt: "2026-09-28"
 updatedAt: "2026-09-28"
 relatedApis:
@@ -258,6 +259,48 @@ def get_weather(latitude: float, longitude: float) -> dict:
 | Show headers | `-D -` | `response.headers` | `response.headers` |
 | Timeout | `--max-time 8` | `AbortSignal.timeout(8000)` | `timeout=8` |
 | Fail on 4xx | `--fail` | check `response.ok` | `raise_for_status()` |
+
+## The mental model worth forming early
+
+Everything above is mechanics. The idea underneath them is simpler than the tooling suggests, and holding it clearly makes every later API easier.
+
+An HTTP request is a short text message sent to a computer somewhere else, and the response is a short text message back. That is genuinely all it is. The first line of the request says what you want and where. After it come headers, which are metadata about the request. Then, optionally, a body containing data you are sending. The response has the same shape: a status line, headers, and usually a body.
+
+Every tool in this article — curl, fetch, requests, Postman — is a different way of composing those same few lines. They differ in syntax and in what they do for you automatically, and not at all in what actually travels over the network. That is why a request that works in one can always be made to work in another, and why "it works in curl but not in my code" is always a difference in what you sent, never a difference in capability.
+
+Four parts do all the work, and naming them makes debugging much faster.
+
+The **method** states your intent: GET to read, POST to create, PUT and PATCH to change, DELETE to remove. The server decides whether to honour it, and a method the endpoint does not support gives you a 405 rather than a 404 — a useful distinction, because 405 confirms the path exists.
+
+The **URL** says where, and carries parameters that shape the result. The **headers** carry everything that is about the request rather than in it: what format you can accept, who you are, what type the body is. And the **body** carries the data itself, on the methods that take one.
+
+Once those four are separate in your mind, an unfamiliar API stops being a wall of documentation and becomes four questions with short answers.
+
+## What actually happens when you press enter
+
+A brief detour, because understanding the sequence turns several confusing errors into obvious ones.
+
+First the hostname is resolved to an IP address through DNS. If this fails you get an error that mentions the host rather than the request — which is why a typo in the domain produces a very different message from a typo in the path.
+
+Then a TCP connection opens, and for HTTPS a TLS handshake follows, in which the server presents a certificate and the two sides agree on encryption. Certificate problems surface here, before your request is ever sent, which is why they look nothing like API errors.
+
+Only then is the request transmitted. The server processes it and responds. The time between sending and the first byte arriving is the server thinking; the time after that is the body downloading. Those are separate numbers, and `curl -w` shows both — which is how you tell a slow API from a large response.
+
+This sequence also explains why the first request to a host is slower than the next ten. DNS and TLS happen once and are reused. A benchmark that measures a single cold request is measuring mostly connection setup.
+
+## Reading a status code properly
+
+The number the server returns is the first thing to look at, and its first digit tells you who has the problem.
+
+Anything in the 200s succeeded. 201 specifically means something was created, which is what a successful POST usually returns rather than 200.
+
+The 300s are redirects. curl follows them only with `-L`, fetch follows them silently, and Python's requests follows them by default. That difference explains a surprising number of "works in one tool, not the other" reports.
+
+The 400s mean the problem is in your request, and the specific code tells you which part. 400 means the request itself was malformed. 401 means you are not authenticated. 403 means you are authenticated and still not allowed. 404 means the path does not exist. 422 usually means the shape was right and a value was invalid. 429 means you are sending too fast.
+
+The 500s mean the server failed. There is usually nothing to fix on your side beyond retrying sensibly, and a 500 that appears only for your specific input is worth reporting to the provider.
+
+The one thing that catches everyone out is that **`fetch` does not treat a 404 or a 500 as an error**. The promise resolves, your code carries on, and `.json()` then fails while parsing an HTML error page. Checking `response.ok` before touching the body is the single habit that prevents the most confusion, and it is covered in [why fetch does not throw](/blog/failed-to-fetch-javascript).
 
 ## Practising without obstacles
 
