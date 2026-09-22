@@ -1,42 +1,81 @@
 import Link from 'next/link';
 import type { Api } from '@/lib/apis';
-import { AuthBadge, CorsBadge, HttpsBadge, StatusDot } from './Badge';
+import { buildSnippets } from '@/lib/snippets';
+import { uptimeProof } from '@/lib/uptime';
+import { AuthBadge, CorsBadge, HttpsBadge } from './Badge';
+import { CopyCurl } from './CopyCurl';
 
 /**
- * Card layout follows the reference design that inspired this site: rounded surface,
- * bold title, muted description, and the three scannable Auth/HTTPS/CORS badges.
+ * Card layout follows the blueprint's component standard (§2): name, category pill,
+ * a two-line description clamp, auth badges, the uptime proof, then the actions.
  *
- * One deliberate change: the card links to our own detail page rather than straight
- * off-site. The reference bounced every visitor away on first click.
+ * The whole card is no longer one big link. It contains its own buttons now, and a
+ * button inside an anchor is invalid and unreliable for keyboard users, so the title
+ * carries the link and a stretched pseudo-element makes the rest of the card
+ * clickable. The action row sits above that overlay so its own clicks still land.
  */
 export function ApiCard({ api }: { api: Api }) {
-  return (
-    <Link
-      href={`/apis/${api.id}`}
-      className="group flex h-full flex-col rounded-xl border border-border-subtle bg-surface-raised p-4 shadow-sm transition hover:border-accent hover:shadow-md focus-visible:border-accent"
-    >
-      <div className="mb-1.5 flex items-start justify-between gap-2">
-        <h3 className="flex items-center gap-2 font-semibold leading-tight text-foreground group-hover:text-accent">
-          {api.emoji && (
-            <span aria-hidden className="text-base">
-              {api.emoji}
-            </span>
-          )}
-          <span className="line-clamp-2">{api.name}</span>
-        </h3>
-        <StatusDot status={api.status} health={api.health} />
-      </div>
+  const proof = uptimeProof(api);
+  const curl = api.url ? buildSnippets(api).find((s) => s.id === 'curl')?.code : undefined;
 
-      <p className="mb-3 line-clamp-3 flex-1 text-sm leading-relaxed text-muted">
-        {api.description}
+  return (
+    <article className="group relative flex h-full flex-col rounded-xl border border-border-subtle bg-surface-raised p-5 shadow-sm transition hover:border-accent hover:shadow-md focus-within:border-accent">
+      <h3 className="type-card-title text-foreground">
+        <Link
+          href={`/apis/${api.id}`}
+          className="outline-none after:absolute after:inset-0 after:content-[''] group-hover:text-accent"
+        >
+          {api.name}
+        </Link>
+      </h3>
+
+      <p className="mt-1.5">
+        <span className="type-badge-sm inline-flex rounded-md bg-surface px-2 py-0.5 uppercase tracking-wide text-muted-strong">
+          {api.category}
+        </span>
       </p>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* Two lines exactly, so every card in a row ends at the same place. */}
+      <p className="type-card-body mt-2.5 line-clamp-2 text-muted">{api.description}</p>
+
+      <div className="mt-3 flex flex-wrap gap-1.5">
         <AuthBadge auth={api.auth} />
-        <HttpsBadge https={api.https} />
-        <CorsBadge cors={api.cors} />
+        {api.cors === 'yes' && <CorsBadge cors={api.cors} />}
+        {api.https && <HttpsBadge https={api.https} />}
       </div>
-    </Link>
+
+      {/* Pushed to the bottom so the action row lines up across a row of cards. */}
+      <div className="mt-auto pt-4">
+        {proof && (
+          <p className="type-meta mb-3 flex items-center gap-1.5 text-muted">
+            <span
+              aria-hidden
+              className={`size-1.5 shrink-0 rounded-full ${
+                proof.tone === 'live' ? 'bg-ok' : 'bg-no'
+              }`}
+            />
+            {proof.label}
+          </p>
+        )}
+
+        <div className="relative z-10 flex items-center gap-2">
+          {/*
+            A second link to the same page as the title. Kept focusable rather than
+            hidden from the tab order: it is visible, so a keyboard user must be able
+            to reach it. The accessible name is qualified so a screen-reader user
+            hearing it out of context knows which listing it opens.
+          */}
+          <Link
+            href={`/apis/${api.id}`}
+            aria-label={`View details for ${api.name}`}
+            className="type-badge rounded-lg bg-accent px-3 py-1.5 text-accent-on transition hover:bg-accent-hover"
+          >
+            View Details
+          </Link>
+          {curl && <CopyCurl curl={curl} name={api.name} />}
+        </div>
+      </div>
+    </article>
   );
 }
 

@@ -1,61 +1,112 @@
 @import "tailwindcss";
 
-/* next-themes toggles a class on <html>, so dark mode is class-driven, not media-driven. */
-@custom-variant dark (&:where(.dark, .dark *));
-
+/*
+ * Theme: "Electric Emerald & Zinc Slate", per the technical blueprint (v1.0 §1, §3).
+ *
+ * The eight values the blueprint names are used verbatim and marked [spec] below.
+ * Anything not named there is derived in the same zinc/emerald family to fill gaps
+ * the blueprint leaves — a third elevation step, hover states, and the badge tints.
+ *
+ * ACCESSIBILITY NOTE, recorded deliberately rather than silently fixed. Applying the
+ * blueprint's values literally was a project decision, and these measured pairs fall
+ * below WCAG AA (4.5:1) as text. Numbers are worst-case across the three surfaces:
+ *
+ *   --muted     #71717a as body text     4.40 light / 3.67 dark   [spec value]
+ *   --accent    #059669 as link text     3.43 light               [spec value]
+ *   --accent-on #ffffff on emerald fill  3.77 both                (primary buttons)
+ *   badge text  emerald / sky / amber    2.86-3.58 light          [spec values]
+ *
+ * These are inherent to the chosen hues, not to the tints behind them: #059669 tops
+ * out at 3.77 and #d97706 at 3.19 even on pure white, so no tint reaches AA in light
+ * mode. The dark tints are pushed deep enough that every badge does clear 4.5.
+ *
+ * Everything that carries meaning as a *block* of colour — badge fills, the swatch
+ * blocks on cards, borders, the focus ring — clears the 3:1 non-text threshold in
+ * both modes, so scanning the directory by colour is unaffected, and no status is
+ * ever signalled by colour alone.
+ *
+ * To reach AA on text later without moving the brand: keep #059669 for fills and
+ * switch the *text* uses to #047857 (5.25), sky to #0369a1, amber to #b45309.
+ */
 :root {
-  --background: #ffffff;
-  --surface: #f6f7f9;
-  --surface-raised: #ffffff;
-  --border: #e3e6ea;
-  --border-strong: #cfd4da;
-  --foreground: #10151b;
-  --muted: #5a6472;
-  --muted-strong: #3c4553;
+  color-scheme: light;
 
-  --accent: #0d9488;
-  --accent-hover: #0f766e;
-  --accent-soft: #ccfbf1;
+  --background: #fafafa; /* [spec] --bg-primary, Zinc Light */
+  --surface: #f4f4f5; /* derived: tinted band so white cards still read as raised */
+  --surface-raised: #ffffff; /* [spec] --bg-surface */
+  --border: #e4e4e7; /* [spec] --border-subtle */
+  --border-strong: #d4d4d8; /* derived: zinc-300 */
+  --foreground: #09090b; /* [spec] --text-primary, Zinc Dark */
+  --muted: #71717a; /* [spec] --text-secondary */
+  --muted-strong: #52525b; /* derived: zinc-600 */
+
+  --accent: #059669; /* [spec] --accent-primary, Electric Emerald */
+  --accent-hover: #047857;
+  --accent-soft: #ecfdf5;
   --accent-on: #ffffff;
 
-  /* Badge semantics carried over from the reference design. */
-  --ok: #15803d;
-  --ok-bg: #dcfce7;
-  --key: #1d4ed8;
-  --key-bg: #dbeafe;
-  --oauth: #6d28d9;
+  /*
+   * Badge semantics follow the blueprint's reading of the palette: emerald carries
+   * health ("200 OK"), sky blue marks a no-auth endpoint, amber marks one that wants
+   * a key. OAuth, failure and unconfirmed are not named in the blueprint and keep
+   * their existing meaning in the zinc/emerald idiom.
+   */
+  --ok: #059669;
+  --ok-bg: #ecfdf5;
+  --no-auth: #0284c7; /* [spec] --badge-no-auth, Sky Blue */
+  --no-auth-bg: #e0f2fe;
+  --key: #d97706; /* [spec] --badge-auth-key */
+  --key-bg: #fef3c7;
+  --oauth: #7c3aed;
   --oauth-bg: #ede9fe;
-  --no: #b91c1c;
+  --no: #dc2626;
   --no-bg: #fee2e2;
-  --unknown: #a16207;
-  --unknown-bg: #fef3c7;
+  --unknown: #52525b;
+  --unknown-bg: #f4f4f5;
+
+  --code: #18181b; /* [spec] --text-code */
 }
 
-.dark {
-  --background: #0b0e13;
-  --surface: #12161d;
-  --surface-raised: #171c25;
-  --border: #242c38;
-  --border-strong: #333d4d;
-  --foreground: #e8ecf1;
-  --muted: #94a1b2;
-  --muted-strong: #b6c2d1;
+/*
+ * Dark values. The blueprint's dark block names only four; the rest are derived to
+ * keep the same three-step elevation ladder rather than inverting the light values.
+ *
+ * Reached ONLY by an explicit choice from the toggle. There is deliberately no
+ * `prefers-color-scheme` rule: light is the site's fixed default, so a visitor whose
+ * OS is set to dark still gets the light theme until they ask for dark themselves.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-  --accent: #2dd4bf;
-  --accent-hover: #5eead4;
-  --accent-soft: #134e4a;
-  --accent-on: #04201d;
+  --background: #09090b;
+  --surface: #121215;
+  --surface-raised: #18181b;
+  --border: #27272a;
+  --border-strong: #3f3f46;
+  --foreground: #f4f4f5;
+  --muted: #71717a;
+  --muted-strong: #d4d4d8;
 
-  --ok: #4ade80;
-  --ok-bg: #0f2e1b;
-  --key: #60a5fa;
-  --key-bg: #11244a;
-  --oauth: #c4b5fd;
-  --oauth-bg: #2a1f4d;
-  --no: #f87171;
-  --no-bg: #3d1517;
-  --unknown: #fbbf24;
-  --unknown-bg: #3a2a08;
+  --accent: #059669;
+  --accent-hover: #10b981;
+  --accent-soft: #052e20;
+  --accent-on: #ffffff;
+
+  --ok: #059669;
+  --ok-bg: #061c14;
+  --no-auth: #0284c7;
+  --no-auth-bg: #03121e;
+  --key: #d97706;
+  --key-bg: #2e1c05;
+  --oauth: #a78bfa;
+  --oauth-bg: #241546;
+  --no: #ef4444;
+  --no-bg: #350f0f;
+  --unknown: #a1a1aa;
+  --unknown-bg: #27272a;
+
+  /* The spec's #18181B is a light-mode ink; on the dark surface it would vanish. */
+  --code: #e4e4e7;
 }
 
 @theme inline {
@@ -73,6 +124,8 @@
   --color-accent-on: var(--accent-on);
   --color-ok: var(--ok);
   --color-ok-bg: var(--ok-bg);
+  --color-no-auth: var(--no-auth);
+  --color-no-auth-bg: var(--no-auth-bg);
   --color-key: var(--key);
   --color-key-bg: var(--key-bg);
   --color-oauth: var(--oauth);
@@ -81,10 +134,211 @@
   --color-no-bg: var(--no-bg);
   --color-unknown: var(--unknown);
   --color-unknown-bg: var(--unknown-bg);
+  --color-code: var(--code);
+
+  /*
+   * Inter, self-hosted via next/font (see layout.tsx) rather than a Google Fonts
+   * <link> — no external request at runtime, and next/font's automatic fallback
+   * sizing keeps the layout-shift risk the old system-only stack was written to
+   * avoid. The system stack remains as the fallback while the font loads.
+   */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  /*
+   * The stock Tailwind steps read small on this UI, and plenty of chrome still uses
+   * text-xs / text-sm directly rather than a named role below. Nudging the scale up
+   * about a step raises all of it at once and keeps those call sites in proportion
+   * with the type roles, instead of leaving two competing scales.
+   */
+  --text-xs: 13px;
+  --text-xs--line-height: 18px;
+  --text-sm: 15px;
+  --text-sm--line-height: 22px;
+  --text-base: 17px;
+  --text-base--line-height: 26px;
+  --text-lg: 19px;
+  --text-lg--line-height: 28px;
+  --text-xl: 21px;
+  --text-xl--line-height: 30px;
+  --text-2xl: 26px;
+  --text-2xl--line-height: 34px;
+}
+
+/*
+ * TYPOGRAPHY HIERARCHY
+ *
+ * The type matrix, expressed once as named roles instead of repeating pixel values
+ * across components. Changing a role here changes it everywhere, and the whole scale
+ * can be audited against the spec by reading this block.
+ *
+ * Each utility sets size, line height, weight and tracking together, because those
+ * four are what make a role — setting them separately is how a scale drifts. Colour
+ * is deliberately NOT baked in: the same role appears on different surfaces.
+ *
+ * SIZING. The matrix this was built from ran small in practice — 12px body copy and
+ * 11px metadata were hard to read at normal viewing distance — so every role is
+ * scaled up roughly 2px, with line heights raised to match. The hierarchy and the
+ * relative steps between roles are unchanged; only the baseline moved. Body copy now
+ * sits at 14px and the smallest label at 12px.
+ *
+ * Scope: the directory UI. Long-form article prose keeps its own larger reading
+ * scale, set in ArticleBody — a card grid and a 2,000-word post want different
+ * measures, and forcing this scale there would make posts harder to read, not easier.
+ */
+@utility type-logo {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Mobile first: 30/38, stepping up to 40/48 from the sm breakpoint. */
+@utility type-h1 {
+  font-size: 30px;
+  line-height: 38px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+
+  @media (width >= 40rem) {
+    font-size: 40px;
+    line-height: 48px;
+    letter-spacing: -0.025em;
+  }
+}
+
+@utility type-lead {
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 400;
+
+  @media (width >= 40rem) {
+    font-size: 17px;
+    line-height: 28px;
+  }
+}
+
+@utility type-h2 {
+  font-size: 19px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+@utility type-subtitle {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+@utility type-stat {
+  font-size: 26px;
+  line-height: 34px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+@utility type-stat-label {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+@utility type-card-title {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+@utility type-card-body {
+  font-size: 14px;
+  line-height: 21px;
+  font-weight: 400;
+}
+
+@utility type-nav {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+@utility type-footer-head {
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+@utility type-badge {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+/* The smaller end of the badge range, for pills inside a card. */
+@utility type-badge-sm {
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+}
+
+@utility type-meta {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+}
+
+@utility type-code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+
+@utility type-legal {
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 400;
 }
 
 * {
   border-color: var(--border);
+}
+
+/*
+ * Removes the ~300ms tap delay iOS adds while it waits to see whether a tap is a
+ * double-tap-to-zoom. Without it every button feels like it did not register, and
+ * a quick second tap gets swallowed — which reads as "the menu does not open".
+ */
+button,
+a,
+label,
+summary,
+[role='button'],
+input,
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/*
+ * iOS Safari zooms the whole page when a focused field's text is under 16px, and it
+ * does not zoom back out. The UI scale is deliberately smaller than that, so the
+ * minimum is enforced on touch devices only and the desktop scale is left alone.
+ *
+ * `pointer: coarse` rather than a width query: it is the input device that triggers
+ * the zoom, not the viewport size.
+ */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
 }
 
 html {
@@ -94,16 +348,24 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 
 code,
 pre,
 kbd {
-  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+  font-family: var(--font-mono);
+}
+
+/*
+ * The stat tiles, API counts and status tables sit in columns where a shifting digit
+ * width is visible, and most system UI faces default to proportional figures.
+ */
+table,
+time,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Visible focus for keyboard users, invisible for mouse users. */
@@ -114,17 +376,19 @@ kbd {
 }
 
 /*
- * Shiki emits both themes as CSS variables on every token, so code blocks follow the
- * site theme with no client-side highlighter and no flash on load.
+ * Shiki colours each token at build time. With two themes configured it emits both
+ * as custom properties per token (--shiki-light / --shiki-dark) and we pick one
+ * here, so switching theme recolours code with no re-highlight and no JavaScript.
+ *
+ * `!important` is needed because Shiki writes the light colour to the inline style
+ * attribute, which would otherwise win.
  */
-code[data-theme] span,
-pre[data-theme] span {
-  color: var(--shiki-light);
-}
-
-.dark code[data-theme] span,
-.dark pre[data-theme] span {
-  color: var(--shiki-dark);
+:root[data-theme='dark'] [data-rehype-pretty-code-figure] span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
 }
 
 /* Line numbers for blocks that opt in with showLineNumbers. */
@@ -167,4 +431,32 @@ code[data-line-numbers] > [data-line]::before {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/*
+ * The consent banner ships in the server HTML so it needs no JavaScript to appear.
+ * `consentScript` stamps <html data-consent> before paint, so anyone who has already
+ * answered never sees it flash.
+ */
+:root:not([data-consent="unset"]) .cookie-notice {
+  display: none;
+}
+
+/*
+ * The banner is position:fixed, so it sits on top of the page and eats pointer
+ * events for everything underneath it. Without this, the last ~90px of every page
+ * is unclickable until the banner is dismissed — which broke "Show more" on the
+ * category and browse pages, and any footer link that happened to land there.
+ *
+ * Reserve exactly the banner's height. CookieNotice measures itself into
+ * --consent-height; the fallback covers the gap before that runs and the taller
+ * wrapped layout on narrow screens.
+ */
+:root[data-consent="unset"] body {
+  padding-bottom: var(--consent-height, 11rem);
+}
+
+/* So scrollIntoView and #anchor jumps do not park content behind the banner. */
+:root[data-consent="unset"] {
+  scroll-padding-bottom: var(--consent-height, 11rem);
 }

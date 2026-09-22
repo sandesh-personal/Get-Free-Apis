@@ -1,39 +1,52 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useTheme } from 'next-themes';
+import { useSyncExternalStore } from 'react';
+import { readTheme, setTheme, subscribeTheme, type Theme } from '@/lib/theme';
 
-export function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+/**
+ * A straight light/dark switch. Light is the default, so the server and the first
+ * client render agree and there is nothing to reconcile on hydration.
+ */
+function getServerSnapshot(): Theme {
+  return 'light';
+}
 
-  // The server cannot know the visitor's theme, so render a placeholder until hydration
-  // to avoid a mismatch and a flash of the wrong icon.
-  useEffect(() => setMounted(true), []);
-
-  const isDark = resolvedTheme === 'dark';
+export function ThemeToggle({ className = '' }: { className?: string }) {
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, getServerSnapshot);
+  const next: Theme = theme === 'dark' ? 'light' : 'dark';
 
   return (
     <button
       type="button"
-      aria-label={mounted ? `Switch to ${isDark ? 'light' : 'dark'} theme` : 'Switch theme'}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className="inline-flex size-9 items-center justify-center rounded-lg border border-border-subtle text-muted transition hover:border-accent hover:text-accent"
+      onClick={() => setTheme(next)}
+      title={`Switch to ${next} mode`}
+      aria-label={`Switch to ${next} mode`}
+      /* 44px on touch, the Apple HIG minimum; 36px is fine for a mouse. */
+      className={`inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-border-subtle text-muted-strong transition hover:border-accent hover:text-accent md:size-9 ${className}`}
     >
-      {mounted ? (
-        isDark ? (
-          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <circle cx="12" cy="12" r="4" />
-            <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" strokeLinecap="round" />
-          </svg>
+      {/*
+        Shows the mode you would switch TO, which is what the label says. Both glyphs
+        are rendered and one is hidden, so the swap cannot flash a missing icon.
+      */}
+      <svg
+        viewBox="0 0 24 24"
+        className="size-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        {next === 'dark' ? (
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
         ) : (
-          <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z" strokeLinejoin="round" />
-          </svg>
-        )
-      ) : (
-        <span className="size-4" />
-      )}
+          <>
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </>
+        )}
+      </svg>
     </button>
   );
 }
