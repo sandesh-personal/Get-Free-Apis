@@ -1,7 +1,13 @@
 export const site = {
   name: 'GetFreeAPIs',
   domain: 'getfreeapis.com',
-  url: 'https://getfreeapis.com',
+  /**
+   * www, not apex: the apex is set up in Vercel/Cloudflare to redirect *into* www
+   * (308), so www is the URL that actually serves the page. Every canonical tag,
+   * sitemap entry and OG url is built from this, so it must match the live
+   * redirect direction rather than the other way round.
+   */
+  url: 'https://www.getfreeapis.com',
   tagline: '2,700+ Public APIs for Testing & Projects [No Key]',
 
   /**
