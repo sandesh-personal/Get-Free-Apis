@@ -40,6 +40,14 @@ export const site = {
   adsensePublisherId: null as string | null,
 
   /**
+   * GA4 Measurement ID (format `G-XXXXXXXXXX`), from a Web data stream in
+   * analytics.google.com. Loading is gated on consent the same way AdSense is —
+   * see ConsentedScripts — so this being set does not by itself mean anyone is
+   * being tracked; a visitor still has to accept the cookie banner first.
+   */
+  gaMeasurementId: 'G-SG0MKWN5WJ' as string | null,
+
+  /**
    * Enforce the publishing cadence in ROADMAP §9, which warns that 50 posts
    * appearing at once "looks automated" — the pattern behind a low-value-content
    * rejection.

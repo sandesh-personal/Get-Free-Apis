@@ -107,7 +107,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </main>
         <Footer />
         <CookieNotice />
-        <ConsentedScripts adsensePublisherId={site.adsensePublisherId} />
+        <ConsentedScripts
+          adsensePublisherId={site.adsensePublisherId}
+          gaMeasurementId={site.gaMeasurementId}
+        />
       </body>
     </html>
   );

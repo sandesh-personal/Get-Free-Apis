@@ -3,6 +3,13 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { readConsent, subscribeConsent } from '@/lib/consent';
 
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dataLayer: any[];
+  }
+}
+
 /**
  * Loads advertising and analytics only once consent has actually been given.
  *
@@ -20,7 +27,13 @@ import { readConsent, subscribeConsent } from '@/lib/consent';
  * clean load on the next navigation. That is the standard behaviour and the reason
  * withdrawal should also clear whatever the script stored.
  */
-export function ConsentedScripts({ adsensePublisherId }: { adsensePublisherId: string | null }) {
+export function ConsentedScripts({
+  adsensePublisherId,
+  gaMeasurementId,
+}: {
+  adsensePublisherId: string | null;
+  gaMeasurementId: string | null;
+}) {
   const consent = useSyncExternalStore(
     subscribeConsent,
     readConsent,
@@ -41,6 +54,25 @@ export function ConsentedScripts({ adsensePublisherId }: { adsensePublisherId: s
 
     document.head.appendChild(script);
   }, [consent, adsensePublisherId]);
+
+  useEffect(() => {
+    if (consent !== 'accepted' || !gaMeasurementId) return;
+    if (document.getElementById('ga4-loader')) return;
+
+    const script = document.createElement('script');
+    script.id = 'ga4-loader';
+    script.async = true;
+    script.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(gaMeasurementId);
+    document.head.appendChild(script);
+
+    window.dataLayer = window.dataLayer || [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    function gtag(...args: any[]) {
+      window.dataLayer.push(args);
+    }
+    gtag('js', new Date());
+    gtag('config', gaMeasurementId);
+  }, [consent, gaMeasurementId]);
 
   // On withdrawal, drop the cookies the advertising script set. It cannot be
   // unloaded, but its storage can go, and the next page view starts clean.
