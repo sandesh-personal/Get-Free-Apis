@@ -23,7 +23,6 @@ export type Api = {
   https: boolean;
   cors: Cors;
   sources: string[];
-  emoji?: string;
   health?: Health;
   status: Status;
 };
@@ -32,7 +31,6 @@ export type Category = {
   slug: string;
   name: string;
   description: string;
-  emoji: string;
   count: number;
 };
 
@@ -64,7 +62,17 @@ export type BrowseRow = {
   t: Status;
   v?: number; // health score
   l?: number; // average latency, ms
-  e?: string; // emoji
+  /*
+   * Origin only, not the full documentation URL. The card's copy-cURL button needs
+   * somewhere to point, and the origin is both what the snippet actually uses and
+   * about a third of the bytes of the full URL across 2,712 rows.
+   */
+  u?: string;
+  /*
+   * Reliability, and only when it differs from the score — they agree on roughly
+   * three quarters of the catalogue, so omitting the duplicate is free.
+   */
+  r?: number;
 };
 
 const CARD_DESCRIPTION_LIMIT = 160;
@@ -76,21 +84,54 @@ function truncate(text: string, limit: number): string {
   return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
 
-export function getBrowseIndex(): BrowseRow[] {
-  return apis.map((api) => ({
-    i: api.id,
-    n: api.name,
-    d: truncate(api.description, CARD_DESCRIPTION_LIMIT),
-    c: api.category,
-    s: api.categorySlug,
-    a: api.auth,
-    h: api.https ? 1 : 0,
-    o: api.cors,
-    t: api.status,
-    ...(api.health && { v: api.health.score, l: api.health.latencyMs }),
-    ...(api.emoji && { e: api.emoji }),
-  }));
+function originOf(url: string): string | undefined {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
 }
+
+export function getBrowseIndex(): BrowseRow[] {
+  return apis.map((api) => {
+    const origin = originOf(api.url);
+    return {
+      i: api.id,
+      n: api.name,
+      d: truncate(api.description, CARD_DESCRIPTION_LIMIT),
+      c: api.category,
+      s: api.categorySlug,
+      a: api.auth,
+      h: api.https ? 1 : 0,
+      o: api.cors,
+      t: api.status,
+      ...(origin && { u: origin }),
+      ...(api.health && {
+        v: api.health.score,
+        l: api.health.latencyMs,
+        ...(api.health.reliability !== api.health.score && { r: api.health.reliability }),
+      }),
+    };
+  });
+}
+
+/**
+ * The rows for one category.
+ *
+ * Category pages used to embed the whole 2,712-row index, which put ~800 KB of HTML
+ * on each of 56 pages to render at most a few dozen cards. They only ever filter
+ * within their own category, so that is all they need.
+ */
+export function getBrowseIndexFor(categorySlug: string): BrowseRow[] {
+  return getBrowseIndex().filter((row) => row.s === categorySlug);
+}
+
+/**
+ * Every record in the catalogue is checked in the same batch, so the whole grid
+ * shares one check date. Sending it once beats repeating it on 2,712 rows.
+ */
+export const catalogueCheckedAt: string =
+  apis.find((a) => a.health?.lastChecked)?.health?.lastChecked ?? '';
 
 /** Expands a compact row back into the shape ApiCard renders. */
 export function expandRow(row: BrowseRow): Api {
@@ -100,16 +141,20 @@ export function expandRow(row: BrowseRow): Api {
     description: row.d,
     category: row.c,
     categorySlug: row.s,
-    url: '',
+    url: row.u ?? '',
     auth: row.a,
     https: row.h === 1,
     cors: row.o,
     sources: [],
-    emoji: row.e,
     health:
       row.v === undefined
         ? undefined
-        : { score: row.v, reliability: row.v, latencyMs: row.l ?? 0, lastChecked: '' },
+        : {
+            score: row.v,
+            reliability: row.r ?? row.v,
+            latencyMs: row.l ?? 0,
+            lastChecked: catalogueCheckedAt,
+          },
     status: row.t,
   };
 }
@@ -156,41 +201,90 @@ export const stats = {
   corsEnabled: apis.filter((a) => a.cors === 'yes').length,
   httpsOnly: apis.filter((a) => a.https).length,
   verified: apis.filter((a) => a.health).length,
+  /** Responded at the last scheduled check. Distinct from `verified`, which counts
+   *  entries we have health data for at all, whatever that data says. */
+  live: apis.filter((a) => a.status === 'live').length,
+  down: apis.filter((a) => a.status === 'down').length,
   generatedAt: catalogue.generatedAt as string,
 };
 
-/** Curated entry points. Each maps to a filter that answers a real search intent. */
+/**
+ * Categories whose entries are tools a developer uses while building, rather than
+ * data sources they build against. Used by the "Free for developers" collection.
+ */
+const DEVELOPER_CATEGORIES = new Set([
+  'development',
+  'test-data',
+  'programming',
+  'continuous-integration',
+  'open-source-projects',
+  'data-validation',
+  'documents-and-productivity',
+  'url-shorteners',
+  'cloud-storage-and-file-sharing',
+]);
+
+/**
+ * Curated entry points. Each maps to a filter that answers a real search intent.
+ *
+ * `blurb` is the shorter, more technical line the homepage cards use; `description`
+ * stays as the longer prose the collection page and its meta description need. They
+ * are separate fields because a card has two lines to work with and a <meta> tag
+ * wants a full sentence.
+ */
 export const collections = [
   {
     slug: 'no-api-key',
     title: 'APIs with no key required',
     description:
-      'Call these straight away. No sign-up, no dashboard, no key to paste into a config file.',
-    emoji: '🔓',
+      'Call endpoints immediately with fetch() or cURL. No registration, no OAuth tokens, and no .env setup required for quick prototypes.',
+    blurb:
+      'Call endpoints straight away with cURL or frontend scripts. No signup forms, dashboard tokens, or config credentials required.',
+    cta: 'Browse open endpoints',
     filter: (a: Api) => a.auth === 'none',
   },
   {
     slug: 'browser-ready',
     title: 'Works directly in the browser',
     description:
-      'No key and CORS enabled, so these run from client-side JavaScript without a proxy or a backend.',
-    emoji: '🌐',
+      'CORS-compliant JSON endpoints with open Access-Control-Allow-Origin headers. Run requests straight from client-side React, Vue, or vanilla JavaScript without building an Express proxy.',
+    blurb:
+      'CORS-friendly endpoints with permissive origin headers. Query them directly from React, Vue, or static vanilla HTML files without a backend proxy.',
+    cta: 'Browse client-side APIs',
     filter: (a: Api) => a.auth === 'none' && a.cors === 'yes' && a.https,
   },
   {
     slug: 'for-beginners',
-    title: 'Best for learning',
+    title: 'Best for learning & portfolio projects',
     description:
-      'Verified, no key needed, and simple enough to get a response on your first attempt.',
-    emoji: '🎓',
+      'Predictable, read-only schemas for weather, e-commerce products, crypto prices, and movies. Ideal for practising state management, async data fetching, and pagination.',
+    blurb:
+      'Predictable schemas and clean JSON payloads. Recommended for tutorials, coding bootcamps, and frontend portfolio projects.',
+    cta: 'Browse beginner endpoints',
     filter: (a: Api) => a.auth === 'none' && a.https && (a.health?.score ?? 0) >= 80,
   },
   {
-    slug: 'fastest',
-    title: 'Fastest responding',
+    slug: 'free-for-developers',
+    title: 'Free developer utilities & mock data',
     description:
-      'Measured lowest average latency across our checks. Useful when response time matters.',
-    emoji: '⚡',
+      'Fake REST payloads, dummy user databases, placeholder images, and status monitors. The zero-cost tooling you need while scaffolding a full-stack MVP.',
+    blurb:
+      'Fake REST payloads, dummy user databases, placeholder images, and status monitors. Zero-cost tooling for scaffolding an MVP.',
+    cta: 'Browse dev tooling',
+    // Deliberately scoped to the developer-tooling categories rather than "anything
+    // free", because every API in this catalogue is free — the useful distinction
+    // is whether it is a tool for building, not a data source to build against.
+    filter: (a: Api) =>
+      DEVELOPER_CATEGORIES.has(a.categorySlug) && a.auth === 'none' && a.status === 'live',
+  },
+  {
+    slug: 'fastest',
+    title: 'Fastest responding endpoints',
+    description:
+      'Verified endpoints averaging under 150ms roundtrip response times. Filtered for high availability and minimal rate-limiting friction.',
+    blurb:
+      'Measured lowest average latency across our own checks. Filtered for high availability and minimal rate-limiting friction.',
+    cta: 'Browse fastest APIs',
     filter: (a: Api) => (a.health?.latencyMs ?? Infinity) < 200 && a.status === 'live',
   },
 ] as const;

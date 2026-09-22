@@ -19,7 +19,9 @@ import {
 } from './lib/sources';
 import {
   categoryDescription,
-  categoryEmoji,
+  CATEGORY_SLUG_ALIASES,
+  CATEGORY_NAME_OVERRIDE,
+  API_CATEGORY_OVERRIDE,
   inferCategorySlug,
   titleFromSlug,
 } from './lib/categories';
@@ -85,9 +87,8 @@ function merge(into: Merged, next: RawEntry): void {
   // Keep the most informative description rather than whichever arrived first.
   if (next.description.length > into.description.length) into.description = next.description;
 
-  // Health and emoji only ever come from freepublicapis, so take them wherever found.
+  // Health only ever comes from freepublicapis, so take it wherever found.
   if (next.health && !into.health) into.health = next.health;
-  if (next.emoji && !into.emoji) into.emoji = next.emoji;
 }
 
 type HealthResult = {
@@ -191,17 +192,24 @@ async function main(): Promise<void> {
   const apis: Api[] = [...byKey.values()]
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((entry): Api => {
-      const categorySlug =
+      const id = uniqueSlug(slugify(entry.name), takenSlugs);
+
+      const rawSlug =
         entry.category === 'Uncategorised'
           ? inferCategorySlug(entry.name, entry.description)
           : slugify(entry.category);
 
+      // Per-entry override wins, then the slug alias, then whatever upstream said.
+      const categorySlug =
+        API_CATEGORY_OVERRIDE[id] ?? CATEGORY_SLUG_ALIASES[rawSlug] ?? rawSlug;
+
       const categoryName =
-        entry.category === 'Uncategorised' ? titleFromSlug(categorySlug) : entry.category;
+        CATEGORY_NAME_OVERRIDE[categorySlug] ??
+        (entry.category === 'Uncategorised' || categorySlug !== rawSlug
+          ? titleFromSlug(categorySlug)
+          : entry.category);
 
       if (!categoryNames.has(categorySlug)) categoryNames.set(categorySlug, categoryName);
-
-      const id = uniqueSlug(slugify(entry.name), takenSlugs);
 
       const api: Api = {
         id,
@@ -214,7 +222,6 @@ async function main(): Promise<void> {
         https: entry.https,
         cors: entry.cors,
         sources: entry.sources.sort(),
-        emoji: entry.emoji,
         health: entry.health,
         status: entry.health ? (entry.health.score >= 50 ? 'live' : 'down') : 'unchecked',
       };
@@ -241,7 +248,6 @@ async function main(): Promise<void> {
       slug,
       name,
       description: categoryDescription(slug, name),
-      emoji: categoryEmoji(slug),
       count: apis.filter((a) => a.categorySlug === slug).length,
     }))
     .filter((c) => c.count > 0)

@@ -49,7 +49,6 @@ export function fetchPublicApiLists() {
 
 type FreePublicApi = {
   id: number;
-  emoji?: string;
   title: string;
   description?: string;
   documentation?: string;
@@ -85,7 +84,6 @@ export async function fetchFreePublicApis(): Promise<RawEntry[]> {
         https: url.startsWith('https://'),
         cors: 'unknown',
         source: SOURCES.freePublicApis.id,
-        emoji: item.emoji,
         health: hasHealth
           ? {
               score: clamp(item.health as number),

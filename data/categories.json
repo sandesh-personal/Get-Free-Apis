@@ -3,392 +3,336 @@
     "slug": "development",
     "name": "Development",
     "description": "Tooling for developers: source control, hosting, utilities and automation.",
-    "emoji": "💻",
-    "count": 266
+    "count": 263
   },
   {
     "slug": "geocoding",
     "name": "Geocoding",
     "description": "Address lookup, reverse geocoding, boundaries, maps and places data.",
-    "emoji": "🗺️",
     "count": 174
   },
   {
     "slug": "uncategorised",
     "name": "Uncategorised",
     "description": "Entries that upstream sources publish without a category.",
-    "emoji": "🗂️",
     "count": 153
   },
   {
     "slug": "games-and-comics",
     "name": "Games & Comics",
     "description": "Game catalogues, live stats, comics and trivia databases.",
-    "emoji": "🎮",
     "count": 142
   },
   {
     "slug": "government",
     "name": "Government",
     "description": "Official open data published by national and local government bodies.",
-    "emoji": "🏛️",
     "count": 137
   },
   {
     "slug": "finance",
     "name": "Finance",
     "description": "Market data, company fundamentals, banking and payment services.",
-    "emoji": "📈",
     "count": 119
   },
   {
     "slug": "cryptocurrency",
     "name": "Cryptocurrency",
     "description": "Prices, market data, on-chain activity and exchange information.",
-    "emoji": "₿",
-    "count": 108
+    "count": 106
   },
   {
     "slug": "transportation",
     "name": "Transportation",
     "description": "Transit schedules, flights, shipping, routing and live vehicle data.",
-    "emoji": "🚆",
     "count": 96
+  },
+  {
+    "slug": "ai",
+    "name": "AI",
+    "description": "Hosted models for language, vision, speech and inference, plus the metadata APIs that track model pricing and deprecation.",
+    "count": 82
   },
   {
     "slug": "open-data",
     "name": "Open Data",
     "description": "Free public APIs for open data, each one verified and kept up to date.",
-    "emoji": "📊",
     "count": 78
   },
   {
     "slug": "social",
     "name": "Social",
     "description": "Social networks, messaging, community platforms and user profiles.",
-    "emoji": "💬",
     "count": 72
   },
   {
     "slug": "security",
     "name": "Security",
     "description": "Threat intelligence, breach lookup, vulnerability feeds and scanning.",
-    "emoji": "🔒",
     "count": 71
-  },
-  {
-    "slug": "machine-learning",
-    "name": "Machine Learning",
-    "description": "Hosted models for language, vision, speech and inference.",
-    "emoji": "🤖",
-    "count": 67
   },
   {
     "slug": "video",
     "name": "Video",
     "description": "Video catalogues, streaming metadata, hosting and transcoding.",
-    "emoji": "🎬",
     "count": 66
   },
   {
     "slug": "sports-and-fitness",
     "name": "Sports & Fitness",
     "description": "Fixtures, live scores, standings, athletes and activity tracking.",
-    "emoji": "⚽",
     "count": 65
   },
   {
     "slug": "weather",
     "name": "Weather",
     "description": "Forecasts, current conditions, historical climate data and severe weather alerts.",
-    "emoji": "🌦️",
     "count": 64
   },
   {
     "slug": "science-and-math",
     "name": "Science & Math",
     "description": "Research datasets, astronomy, physics, chemistry and computation.",
-    "emoji": "🔬",
     "count": 53
   },
   {
     "slug": "health",
     "name": "Health",
     "description": "Medical reference data, nutrition, public health statistics and fitness.",
-    "emoji": "🏥",
     "count": 52
   },
   {
     "slug": "documents-and-productivity",
     "name": "Documents & Productivity",
     "description": "Free public APIs for documents & productivity, each one verified and kept up to date.",
-    "emoji": "📄",
-    "count": 50
+    "count": 48
   },
   {
     "slug": "test-data",
     "name": "Test Data",
     "description": "Mock endpoints, fake records and sandboxes for development and testing.",
-    "emoji": "🧪",
     "count": 48
-  },
-  {
-    "slug": "music",
-    "name": "Music",
-    "description": "Track metadata, lyrics, audio features and streaming catalogues.",
-    "emoji": "🎵",
-    "count": 46
   },
   {
     "slug": "business",
     "name": "Business",
     "description": "Company records, invoicing, CRM, analytics and productivity services.",
-    "emoji": "💼",
     "count": 46
+  },
+  {
+    "slug": "music",
+    "name": "Music",
+    "description": "Track metadata, lyrics, audio features and streaming catalogues.",
+    "count": 45
   },
   {
     "slug": "photography",
     "name": "Photography",
     "description": "Stock imagery, image hosting, processing and photo metadata.",
-    "emoji": "📷",
-    "count": 44
+    "count": 42
   },
   {
     "slug": "news",
     "name": "News",
     "description": "Headlines, full article feeds and aggregated media coverage.",
-    "emoji": "📰",
     "count": 39
   },
   {
     "slug": "food-and-drink",
     "name": "Food & Drink",
     "description": "Recipes, ingredients, nutrition facts, restaurants and beverages.",
-    "emoji": "🍔",
     "count": 38
   },
   {
     "slug": "currency-exchange",
     "name": "Currency Exchange",
     "description": "Live and historical foreign exchange rates and conversion.",
-    "emoji": "💱",
     "count": 37
   },
   {
     "slug": "anime",
     "name": "Anime",
     "description": "Anime, manga and related media catalogues, artwork and quotations.",
-    "emoji": "🎌",
     "count": 36
   },
   {
     "slug": "email",
     "name": "Email",
     "description": "Free public APIs for email, each one verified and kept up to date.",
-    "emoji": "✉️",
     "count": 36
   },
   {
     "slug": "personality",
     "name": "Personality",
     "description": "Free public APIs for personality, each one verified and kept up to date.",
-    "emoji": "✨",
     "count": 35
   },
   {
     "slug": "animals",
     "name": "Animals",
     "description": "Facts, images and datasets covering pets, wildlife and species records.",
-    "emoji": "🐾",
     "count": 34
   },
   {
     "slug": "books",
     "name": "Books",
     "description": "Book metadata, full texts, libraries and reading lists.",
-    "emoji": "📚",
     "count": 33
   },
   {
     "slug": "jobs",
     "name": "Jobs",
     "description": "Free public APIs for jobs, each one verified and kept up to date.",
-    "emoji": "💼",
     "count": 33
   },
   {
     "slug": "entertainment",
     "name": "Entertainment",
     "description": "Free public APIs for entertainment, each one verified and kept up to date.",
-    "emoji": "🍿",
     "count": 32
   },
   {
     "slug": "art-and-design",
     "name": "Art & Design",
     "description": "Free public APIs for art & design, each one verified and kept up to date.",
-    "emoji": "🎨",
-    "count": 31
+    "count": 28
   },
   {
     "slug": "environment",
     "name": "Environment",
     "description": "Free public APIs for environment, each one verified and kept up to date.",
-    "emoji": "🌍",
     "count": 28
   },
   {
     "slug": "url-shorteners",
     "name": "URL Shorteners",
     "description": "Free public APIs for url shorteners, each one verified and kept up to date.",
-    "emoji": "🔗",
-    "count": 24
-  },
-  {
-    "slug": "text-analysis",
-    "name": "Text Analysis",
-    "description": "Free public APIs for text analysis, each one verified and kept up to date.",
-    "emoji": "🔤",
     "count": 24
   },
   {
     "slug": "shopping",
     "name": "Shopping",
     "description": "Free public APIs for shopping, each one verified and kept up to date.",
-    "emoji": "🛒",
     "count": 24
   },
   {
     "slug": "calendar",
     "name": "Calendar",
     "description": "Free public APIs for calendar, each one verified and kept up to date.",
-    "emoji": "📅",
     "count": 24
+  },
+  {
+    "slug": "text-analysis",
+    "name": "Text Analysis",
+    "description": "Free public APIs for text analysis, each one verified and kept up to date.",
+    "count": 22
   },
   {
     "slug": "cloud-storage-and-file-sharing",
     "name": "Cloud Storage & File Sharing",
     "description": "Free public APIs for cloud storage & file sharing, each one verified and kept up to date.",
-    "emoji": "☁️",
     "count": 22
   },
   {
     "slug": "anti-malware",
     "name": "Anti-Malware",
     "description": "Free public APIs for anti-malware, each one verified and kept up to date.",
-    "emoji": "🛡️",
     "count": 19
   },
   {
     "slug": "data-validation",
     "name": "Data Validation",
     "description": "Free public APIs for data validation, each one verified and kept up to date.",
-    "emoji": "✅",
     "count": 19
   },
   {
     "slug": "vehicle",
     "name": "Vehicle",
     "description": "Free public APIs for vehicle, each one verified and kept up to date.",
-    "emoji": "🚗",
     "count": 17
   },
   {
     "slug": "blockchain",
     "name": "Blockchain",
     "description": "Free public APIs for blockchain, each one verified and kept up to date.",
-    "emoji": "⛓️",
     "count": 15
   },
   {
     "slug": "dictionaries",
     "name": "Dictionaries",
     "description": "Free public APIs for dictionaries, each one verified and kept up to date.",
-    "emoji": "📖",
     "count": 15
   },
   {
     "slug": "tracking",
     "name": "Tracking",
     "description": "Free public APIs for tracking, each one verified and kept up to date.",
-    "emoji": "📦",
     "count": 13
   },
   {
     "slug": "apilayer-apis",
     "name": "APILayer APIs",
     "description": "Free public APIs for apilayer apis, each one verified and kept up to date.",
-    "emoji": "🗂️",
     "count": 11
   },
   {
     "slug": "open-source-projects",
     "name": "Open Source Projects",
     "description": "Free public APIs for open source projects, each one verified and kept up to date.",
-    "emoji": "🧑‍💻",
     "count": 11
   },
   {
     "slug": "continuous-integration",
     "name": "Continuous Integration",
     "description": "Free public APIs for continuous integration, each one verified and kept up to date.",
-    "emoji": "🔁",
     "count": 8
   },
   {
     "slug": "phone",
     "name": "Phone",
     "description": "Free public APIs for phone, each one verified and kept up to date.",
-    "emoji": "📱",
     "count": 8
   },
   {
     "slug": "authentication-and-authorization",
     "name": "Authentication & Authorization",
     "description": "Free public APIs for authentication & authorization, each one verified and kept up to date.",
-    "emoji": "🔐",
     "count": 7
   },
   {
     "slug": "programming",
     "name": "Programming",
     "description": "Free public APIs for programming, each one verified and kept up to date.",
-    "emoji": "⌨️",
     "count": 5
   },
   {
     "slug": "education",
     "name": "Education",
     "description": "Free public APIs for education, each one verified and kept up to date.",
-    "emoji": "🗂️",
     "count": 4
   },
   {
     "slug": "patent",
     "name": "Patent",
     "description": "Free public APIs for patent, each one verified and kept up to date.",
-    "emoji": "⚖️",
     "count": 4
   },
   {
     "slug": "events",
     "name": "Events",
     "description": "Free public APIs for events, each one verified and kept up to date.",
-    "emoji": "🎟️",
     "count": 4
   },
   {
     "slug": "disasters",
     "name": "Disasters",
     "description": "Free public APIs for disasters, each one verified and kept up to date.",
-    "emoji": "🗂️",
     "count": 3
   },
   {
     "slug": "fraud-prevention",
     "name": "Fraud Prevention",
     "description": "Free public APIs for fraud prevention, each one verified and kept up to date.",
-    "emoji": "🗂️",
     "count": 2
   }
 ]

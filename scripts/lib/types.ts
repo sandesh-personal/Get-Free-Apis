@@ -26,7 +26,6 @@ export const ApiSchema = z.object({
   https: z.boolean(),
   cors: CorsSchema,
   sources: z.array(z.string()).min(1),
-  emoji: z.string().optional(),
   health: HealthSchema.optional(),
   status: z.enum(['live', 'down', 'unchecked']),
 });
@@ -36,7 +35,6 @@ export const CategorySchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(1),
   description: z.string(),
-  emoji: z.string(),
   count: z.number().int().nonnegative(),
 });
 export type Category = z.infer<typeof CategorySchema>;
@@ -59,6 +57,5 @@ export type RawEntry = {
   https: boolean;
   cors: Cors;
   source: string;
-  emoji?: string;
   health?: z.infer<typeof HealthSchema>;
 };

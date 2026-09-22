@@ -2,61 +2,50 @@
  * Categories are derived from the upstream data rather than hardcoded, so a new
  * upstream section does not silently vanish. These maps only supply presentation
  * detail and a fallback for entries that arrive without a category.
+ *
+ * Category emoji were removed deliberately: decorative emoji on every tile made the
+ * site read as machine-generated, and the category name alone is clearer.
  */
 
-export const CATEGORY_EMOJI: Record<string, string> = {
-  animals: '🐾',
-  anime: '🎌',
-  'anti-malware': '🛡️',
-  'art-and-design': '🎨',
-  'authentication-and-authorization': '🔐',
-  blockchain: '⛓️',
-  books: '📚',
-  business: '💼',
-  calendar: '📅',
-  'cloud-storage-and-file-sharing': '☁️',
-  'continuous-integration': '🔁',
-  cryptocurrency: '₿',
-  'currency-exchange': '💱',
-  'data-validation': '✅',
-  development: '💻',
-  dictionaries: '📖',
-  'documents-and-productivity': '📄',
-  email: '✉️',
-  entertainment: '🍿',
-  environment: '🌍',
-  events: '🎟️',
-  finance: '📈',
-  'food-and-drink': '🍔',
-  'games-and-comics': '🎮',
-  geocoding: '🗺️',
-  government: '🏛️',
-  health: '🏥',
-  jobs: '💼',
-  'machine-learning': '🤖',
-  music: '🎵',
-  news: '📰',
-  'open-data': '📊',
-  'open-source-projects': '🧑‍💻',
-  patent: '⚖️',
-  personality: '✨',
-  phone: '📱',
-  photography: '📷',
-  programming: '⌨️',
-  'science-and-math': '🔬',
-  security: '🔒',
-  shopping: '🛒',
-  social: '💬',
-  'sports-and-fitness': '⚽',
-  'test-data': '🧪',
-  'text-analysis': '🔤',
-  tracking: '📦',
-  transportation: '🚆',
-  'url-shorteners': '🔗',
-  vehicle: '🚗',
-  video: '🎬',
-  weather: '🌦️',
-  uncategorised: '🗂️',
+/**
+ * Upstream calls this "Machine Learning". Almost nobody searches for that any more,
+ * and every comparable directory now labels it AI, so the slug is rewritten here.
+ * A redirect in next.config.ts keeps the old URL working.
+ */
+export const CATEGORY_SLUG_ALIASES: Record<string, string> = {
+  'machine-learning': 'ai',
+  'artificial-intelligence': 'ai',
+};
+
+export const CATEGORY_NAME_OVERRIDE: Record<string, string> = {
+  ai: 'AI',
+};
+
+/**
+ * Entries whose upstream category buries what they actually are.
+ *
+ * The rule applied here is narrow on purpose: an entry moves into `ai` only when
+ * model inference is the service being sold — you send input, a model returns
+ * output — or when it brokers access to models. Job boards for AI roles, news
+ * about AI, regulation trackers and products that merely use AI internally keep
+ * their own category, because that is where someone looking for them would go.
+ */
+export const API_CATEGORY_OVERRIDE: Record<string, string> = {
+  'agent-gateway-api': 'ai',
+  'brainshop-ai': 'ai',
+  kavel: 'ai',
+  'launch-pics': 'ai',
+  'micro-saas-ai-suite': 'ai',
+  docstruct: 'ai',
+  'hirak-ocr': 'ai',
+  'ocr-space': 'ai',
+  'agify-io': 'ai',
+  sunor: 'ai',
+  'svg-new': 'ai',
+  upres: 'ai',
+  'text-till-kladdesign': 'ai',
+  tohuman: 'ai',
+  'scriptmasterlabs-mcp': 'ai',
 };
 
 export const CATEGORY_DESCRIPTION: Record<string, string> = {
@@ -68,7 +57,7 @@ export const CATEGORY_DESCRIPTION: Record<string, string> = {
   finance: 'Market data, company fundamentals, banking and payment services.',
   geocoding: 'Address lookup, reverse geocoding, boundaries, maps and places data.',
   government: 'Official open data published by national and local government bodies.',
-  'machine-learning': 'Hosted models for language, vision, speech and inference.',
+  ai: 'Hosted models for language, vision, speech and inference, plus the metadata APIs that track model pricing and deprecation.',
   music: 'Track metadata, lyrics, audio features and streaming catalogues.',
   news: 'Headlines, full article feeds and aggregated media coverage.',
   'test-data': 'Mock endpoints, fake records and sandboxes for development and testing.',
@@ -130,9 +119,6 @@ export function inferCategorySlug(name: string, description: string): string {
   return 'uncategorised';
 }
 
-export function categoryEmoji(slug: string): string {
-  return CATEGORY_EMOJI[slug] ?? '🗂️';
-}
 
 export function categoryDescription(slug: string, name: string): string {
   return (
