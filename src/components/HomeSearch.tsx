@@ -1,60 +1,46 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import Link from 'next/link';
+import { SearchBox } from './SearchBox';
 
-const SUGGESTIONS = ['weather', 'currency', 'movies', 'crypto', 'no key'];
+/**
+ * Real links to the destination each label promises, rather than buttons that ran a
+ * search for the word. A visitor clicking "weather" wants the weather category, and
+ * as anchors these also give the homepage internal links into the top categories
+ * for crawlers to follow.
+ */
+const SUGGESTIONS = [
+  { label: 'AI', href: '/categories/ai' },
+  { label: 'weather', href: '/categories/weather' },
+  { label: 'currency', href: '/categories/currency-exchange' },
+  { label: 'movies', href: '/categories/video' },
+  { label: 'crypto', href: '/categories/cryptocurrency' },
+  { label: 'no key', href: '/collections/no-api-key' },
+];
 
+/**
+ * The hero search. This is the only search field on the homepage — the header one is
+ * hidden here so the two do not compete for the same job or the same shortcut.
+ */
 export function HomeSearch() {
-  const router = useRouter();
-  const [query, setQuery] = useState('');
-
-  function go(value: string) {
-    const trimmed = value.trim();
-    router.push(trimmed ? `/browse?q=${encodeURIComponent(trimmed)}` : '/browse');
-  }
-
   return (
-    <div className="mx-auto w-full max-w-xl">
-      <form
-        role="search"
-        onSubmit={(e) => {
-          e.preventDefault();
-          go(query);
-        }}
-        className="flex items-center gap-2 rounded-xl border border-border-strong bg-surface-raised p-1.5 shadow-sm focus-within:border-accent"
-      >
-        <svg viewBox="0 0 24 24" className="ml-2 size-5 shrink-0 text-muted" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-          <circle cx="11" cy="11" r="7" />
-          <path d="m20 20-3.5-3.5" strokeLinecap="round" />
-        </svg>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search 2,700+ APIs — try “weather” or “currency”"
-          aria-label="Search APIs"
-          className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none placeholder:text-muted"
-        />
-        <button
-          type="submit"
-          className="shrink-0 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-on transition hover:bg-accent-hover"
-        >
-          Search
-        </button>
-      </form>
+    <div className="w-full">
+      <SearchBox
+        size="md"
+        buttonLabel="Search APIs"
+        placeholder="Search by topic, return format, or endpoint name…"
+      />
 
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
         <span>Popular:</span>
         {SUGGESTIONS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => go(s)}
+          <Link
+            key={s.href}
+            href={s.href}
             className="rounded-full border border-border-subtle px-2.5 py-1 transition hover:border-accent hover:text-accent"
           >
-            {s}
-          </button>
+            {s.label}
+          </Link>
         ))}
       </div>
     </div>
