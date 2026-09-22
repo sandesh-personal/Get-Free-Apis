@@ -4,8 +4,11 @@ import { notFound } from 'next/navigation';
 import { ApiCard } from '@/components/ApiCard';
 import { AuthBadge, CorsBadge, HttpsBadge } from '@/components/Badge';
 import { CodeTabs } from '@/components/CodeTabs';
+import { Faq } from '@/components/Faq';
 import { buildSnippets } from '@/lib/snippets';
+import { uptimeProof } from '@/lib/uptime';
 import { getAllApis, getApi, getCategory, getRelatedApis } from '@/lib/apis';
+import { apiFaq } from '@/lib/faq';
 import { site } from '@/lib/site';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -20,15 +23,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!api) return { title: 'API not found' };
 
   const keyNote = api.auth === 'none' ? 'No API key required.' : 'Requires authentication.';
+  const titleSuffix = api.auth === 'none' ? ' [No Key]' : '';
   const description = `${api.description.slice(0, 120)} ${keyNote} Free to use, with current status, CORS and HTTPS details.`;
 
   return {
-    title: `${api.name} — free ${api.category} API`,
+    title: `${api.name} API — Free ${api.category} API${titleSuffix}`,
     description: description.slice(0, 158),
     alternates: { canonical: `/apis/${api.id}` },
     openGraph: {
       type: 'article',
-      title: `${api.name} — free ${api.category} API`,
+      title: `${api.name} API — Free ${api.category} API${titleSuffix}`,
       description: description.slice(0, 158),
       url: `${site.url}/apis/${api.id}`,
     },
@@ -43,6 +47,7 @@ export default async function ApiDetailPage({ params }: Props) {
   const category = getCategory(api.categorySlug);
   const related = getRelatedApis(api);
   const snippets = buildSnippets(api);
+  const proof = uptimeProof(api);
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -106,10 +111,7 @@ export default async function ApiDetailPage({ params }: Props) {
         <header className="mb-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">
-                {api.emoji && <span aria-hidden>{api.emoji}</span>}
-                {api.name}
-              </h1>
+              <h1 className="text-3xl font-bold tracking-tight">{api.name}</h1>
               <p className="mt-3 max-w-2xl text-pretty leading-relaxed text-muted">
                 {api.description}
               </p>
@@ -134,10 +136,23 @@ export default async function ApiDetailPage({ params }: Props) {
                 href={`/categories/${category.slug}`}
                 className="rounded-md bg-surface px-2 py-0.5 text-xs font-medium text-muted transition hover:text-accent"
               >
-                {category.emoji} {category.name}
+                {category.name}
               </Link>
             )}
           </div>
+
+          {/* The verification stamp the blueprint asks for, directly under the badges. */}
+          {proof && (
+            <p className="mt-3 flex items-center gap-1.5 text-sm text-muted">
+              <span
+                aria-hidden
+                className={`size-2 shrink-0 rounded-full ${
+                  proof.tone === 'live' ? 'bg-ok' : 'bg-no'
+                }`}
+              />
+              {proof.label}
+            </p>
+          )}
         </header>
 
         {/* Facts */}
@@ -235,6 +250,12 @@ export default async function ApiDetailPage({ params }: Props) {
             </div>
           </section>
         )}
+
+        <Faq
+          items={apiFaq(api)}
+          heading={`${api.name} — common questions`}
+          intro="Answered from what our own scheduled checks found, not from the provider's marketing."
+        />
       </div>
     </>
   );

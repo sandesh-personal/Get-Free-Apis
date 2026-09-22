@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { collections, getCollectionApis } from '@/lib/apis';
 
 export const metadata: Metadata = {
-  title: 'Curated collections of free APIs',
+  title: 'Free API Collections — No Key, Browser-Ready',
   description:
     'Hand-picked shortcuts into the catalogue: APIs with no key, APIs that work straight from the browser, the best ones for learning, and the fastest responders.',
   alternates: { canonical: '/collections' },
@@ -13,7 +13,7 @@ export default function CollectionsPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Collections</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Free API collections</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
           Filters worth saving. Each collection answers a question people actually ask, rather than
           slicing the catalogue by subject.
@@ -28,7 +28,6 @@ export default function CollectionsPage() {
             className="group rounded-xl border border-border-subtle bg-surface-raised p-6 transition hover:border-accent hover:shadow-md"
           >
             <span aria-hidden className="text-3xl">
-              {collection.emoji}
             </span>
             <h2 className="mt-4 text-lg font-semibold group-hover:text-accent">
               {collection.title}

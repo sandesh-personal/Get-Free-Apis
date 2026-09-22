@@ -3,10 +3,7 @@ import Link from 'next/link';
 export default function NotFound() {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center px-4 py-24 text-center">
-      <p className="text-5xl" aria-hidden>
-        🔌
-      </p>
-      <h1 className="mt-6 text-3xl font-bold tracking-tight">That page is not here</h1>
+      <h1 className="text-3xl font-bold tracking-tight">That page is not here</h1>
       <p className="mt-3 leading-relaxed text-muted">
         The API you are looking for may have been renamed, or removed from the catalogue after it
         stopped responding. Searching usually finds it.

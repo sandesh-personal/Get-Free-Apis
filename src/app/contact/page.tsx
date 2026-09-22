@@ -18,8 +18,9 @@ export default function ContactPage() {
     >
       <h2>Get in touch</h2>
       <p>
-        Email <Todo>hello@getfreeapis.com</Todo> and we will reply. We read everything, and we
-        prioritise corrections over everything else.
+        Email <a href={`mailto:${site.email}`}>{site.email}</a> and we will reply. It reaches
+        Sandy directly, because there is nobody else. Corrections to a listing are prioritised
+        over everything else.
       </p>
       <p>
         <Todo>

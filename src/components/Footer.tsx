@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Logo } from './Logo';
+import { CookieSettingsButton } from './CookieNotice';
 import { footerNav, site } from '@/lib/site';
 import { stats } from '@/lib/apis';
 
@@ -14,14 +16,14 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-4 py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <span aria-hidden>🔌</span>
+            <Link href="/" className="type-logo flex items-center gap-2">
+              <Logo />
               <span>
                 Get<span className="text-accent">Free</span>APIs
               </span>
             </Link>
-            <p className="mt-3 text-sm leading-relaxed text-muted">{site.tagline}.</p>
-            <p className="mt-3 text-xs text-muted">
+            <p className="type-card-body mt-3 text-muted">{site.tagline}</p>
+            <p className="type-meta mt-3 text-muted">
               {stats.total.toLocaleString('en-GB')} APIs indexed
               <br />
               Catalogue updated {updated}
@@ -30,11 +32,11 @@ export function Footer() {
 
           {Object.entries(footerNav).map(([heading, links]) => (
             <div key={heading}>
-              <h2 className="mb-3 text-sm font-semibold text-foreground">{heading}</h2>
+              <h2 className="type-footer-head mb-3 text-foreground">{heading}</h2>
               <ul className="space-y-2">
                 {links.map((link) => (
                   <li key={link.href}>
-                    <Link href={link.href} className="text-sm text-muted transition hover:text-accent">
+                    <Link href={link.href} className="type-nav text-muted transition hover:text-accent">
                       {link.label}
                     </Link>
                   </li>
@@ -44,10 +46,14 @@ export function Footer() {
           ))}
         </div>
 
-        <div className="mt-10 flex flex-col gap-3 border-t border-border-subtle pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            &copy; {new Date().getFullYear()} {site.name}. Listings are aggregated from public
-            sources and verified independently.
+        <div className="type-legal mt-10 flex flex-col gap-3 border-t border-border-subtle pt-6 text-muted sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>
+              &copy; {new Date().getFullYear()} {site.name}. Listings are aggregated from public
+              sources and verified independently.
+            </span>
+            <span aria-hidden>&middot;</span>
+            <CookieSettingsButton className="underline underline-offset-2 hover:text-accent" />
           </p>
           <p>
             Data from{' '}

@@ -3,6 +3,7 @@ import { collections, getAllApis, getAllCategories, stats } from '@/lib/apis';
 import { getAllAuthors } from '@/lib/authors';
 import { getAllClusters, getAllPosts } from '@/lib/blog';
 import { site } from '@/lib/site';
+import { tools } from '@/lib/tools';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const updated = new Date(stats.generatedAt);
@@ -12,9 +13,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${site.url}/browse`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${site.url}/categories`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${site.url}/collections`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${site.url}/tools`, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${site.url}/status`, changeFrequency: 'daily', priority: 0.7 },
     { url: `${site.url}/blog`, changeFrequency: 'daily', priority: 0.9 },
     { url: `${site.url}/about`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${site.url}/faq`, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${site.url}/editorial-policy`, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${site.url}/contact`, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${site.url}/submit`, changeFrequency: 'monthly', priority: 0.4 },
@@ -26,6 +29,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const staticRoutes: MetadataRoute.Sitemap = staticPages.map((entry) => ({
     ...entry,
     lastModified: updated,
+  }));
+
+  /* Tools earn their own traffic on generic queries, so they rank alongside posts. */
+  const toolRoutes: MetadataRoute.Sitemap = tools.map((tool) => ({
+    url: `${site.url}/tools/${tool.slug}`,
+    lastModified: updated,
+    changeFrequency: 'monthly',
+    priority: 0.8,
   }));
 
   const categoryRoutes: MetadataRoute.Sitemap = getAllCategories().map((category) => ({
@@ -73,6 +84,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   return [
     ...staticRoutes,
+    ...toolRoutes,
     ...postRoutes,
     ...clusterRoutes,
     ...authorRoutes,

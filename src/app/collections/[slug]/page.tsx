@@ -2,7 +2,9 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ApiCardGrid } from '@/components/ApiCard';
+import { Faq } from '@/components/Faq';
 import { collections, getCollection, getCollectionApis } from '@/lib/apis';
+import { collectionFaq } from '@/lib/faq';
 import { site } from '@/lib/site';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -19,7 +21,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const count = getCollectionApis(slug).length;
 
   return {
-    title: `${collection.title} — ${count} free APIs`,
+    title: `${collection.title} — ${count} Free APIs`,
     description: collection.description.slice(0, 158),
     alternates: { canonical: `/collections/${collection.slug}` },
     openGraph: {
@@ -50,7 +52,6 @@ export default async function CollectionPage({ params }: Props) {
 
       <header className="mb-8">
         <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">
-          <span aria-hidden>{collection.emoji}</span>
           {collection.title}
         </h1>
         <p className="mt-3 max-w-2xl text-pretty leading-relaxed text-muted">
@@ -63,6 +64,8 @@ export default async function CollectionPage({ params }: Props) {
       </header>
 
       <ApiCardGrid apis={apis} />
+
+      <Faq items={collectionFaq(collection, apis.length)} />
     </div>
   );
 }

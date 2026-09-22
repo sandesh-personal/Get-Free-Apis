@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Prose, Todo } from '@/components/Prose';
+import { Prose } from '@/components/Prose';
 import { stats } from '@/lib/apis';
 import { site } from '@/lib/site';
 
@@ -94,16 +94,32 @@ export default function AboutPage() {
 
       <h2>Who runs it</h2>
       <p>
-        <Todo>
-          Replace this section with your real name, background and a photo before applying to any
-          ad network. Google weighs author transparency heavily, and a generic or missing byline
-          is one of the most common reasons a site is rejected.
-        </Todo>
+        This site is built and maintained by <Link href="/authors/sandy">Sandy</Link>, an
+        independent developer. It is a one-person project: the crawler that assembles the
+        catalogue, the checker that probes every listing, the site itself and the writing are
+        all mine.
       </p>
       <p>
-        Include what qualifies you to assess APIs, for example years spent building against them,
-        relevant roles, or open-source work. Link a GitHub profile and one other professional
-        profile. Keep it factual and verifiable.
+        I also built{' '}
+        <a href="https://savefrominternet.com" target="_blank" rel="noreferrer">
+          SaveFromInternet
+        </a>{' '}
+        and GrabReels, both of which run on other people&rsquo;s APIs. Several years of that &mdash;
+        parsers breaking when a platform shipped a change, rate limits arriving unannounced,
+        endpoints disappearing overnight &mdash; is where this directory came from. I kept
+        reaching for a list of free APIs and finding that nobody had checked whether the entries
+        still worked.
+      </p>
+      <p>
+        That is the whole claim to expertise here, and it is deliberately a narrow one: I am not
+        an authority on every API listed, and the site does not pretend otherwise. What I can
+        tell you is what happened when our checker called each one, on which date, and what came
+        back. Everything published on this site is measured rather than repeated, and where we
+        have not measured something we say so.
+      </p>
+      <p>
+        Corrections are genuinely welcome. If a listing is wrong or out of date,{' '}
+        <Link href="/contact">tell us</Link> and it gets fixed.
       </p>
 
       <h2>How we pay for it</h2>

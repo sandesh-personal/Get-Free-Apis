@@ -18,15 +18,20 @@ export default function PrivacyPage() {
     >
       <p>
         <Todo>
-          Template. Have it reviewed against your jurisdiction, and fill in the operator name and
-          contact address below, before you launch or apply to an ad network.
+          Have this reviewed against your jurisdiction before you launch or apply to an ad
+          network. The operator and contact details below are filled in; the legal wording is
+          not a substitute for advice.
         </Todo>
       </p>
 
       <h2>Who we are</h2>
       <p>
-        This site is {site.domain}, operated by <Todo>operator name and registered address</Todo>.
-        For any privacy question, contact <Todo>privacy@yourdomain.com</Todo>.
+        This site is {site.domain}, run by Sandy, an independent developer operating as a sole
+        trader. There is no company and no business premises, so no postal address is published.
+        For any privacy question &mdash; including a request to access or delete data we hold
+        about you &mdash; email{' '}
+        <a href={`mailto:${site.privacyEmail}`}>{site.privacyEmail}</a>, and we will respond
+        within 30 days.
       </p>
 
       <h2>What we collect</h2>

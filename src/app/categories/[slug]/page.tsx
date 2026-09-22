@@ -1,8 +1,12 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
 import { ApiCardGrid } from '@/components/ApiCard';
-import { getAllCategories, getApisByCategory, getCategory } from '@/lib/apis';
+import { BrowseClient } from '@/components/BrowseClient';
+import { Faq } from '@/components/Faq';
+import { getAllCategories, getApisByCategory, getBrowseIndexFor, getCategory } from '@/lib/apis';
+import { categoryFaq } from '@/lib/faq';
 import { site } from '@/lib/site';
 
 type Props = { params: Promise<{ slug: string }> };
@@ -20,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const noAuth = apis.filter((a) => a.auth === 'none').length;
 
   return {
-    title: `${category.count} free ${category.name} APIs`,
+    title: `Free ${category.name} APIs — ${category.count} Verified`,
     description: `${category.description} ${noAuth} of these ${category.count} APIs need no key at all. Each listing shows CORS, HTTPS and current status.`.slice(0, 158),
     alternates: { canonical: `/categories/${category.slug}` },
     openGraph: {
@@ -79,10 +83,7 @@ export default async function CategoryPage({ params }: Props) {
         </nav>
 
         <header className="mb-8">
-          <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight">
-            <span aria-hidden>{category.emoji}</span>
-            Free {category.name} APIs
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight">Free {category.name} APIs</h1>
           <p className="mt-3 max-w-2xl text-pretty leading-relaxed text-muted">
             {category.description}
           </p>
@@ -93,21 +94,42 @@ export default async function CategoryPage({ params }: Props) {
           </p>
         </header>
 
-        <ApiCardGrid apis={apis} />
+        {/* The same interactive view as /browse, pinned to this category, so search,
+            sort, shuffle and the auth filters all work here too. */}
+        <Suspense fallback={<ApiCardGrid apis={apis.slice(0, 24)} />}>
+          <BrowseClient
+            rows={getBrowseIndexFor(category.slug)}
+            categories={getAllCategories()}
+            lockedCategory={category}
+          />
+        </Suspense>
 
-        <section className="mt-12 rounded-xl border border-border-subtle bg-surface p-6">
-          <h2 className="font-semibold">Looking for something more specific?</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted">
-            Use the full catalogue to combine filters, for example {category.name.toLowerCase()} APIs
-            that need no key and support CORS.
-          </p>
-          <Link
-            href={`/browse?category=${category.slug}`}
-            className="mt-4 inline-block rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-on transition hover:bg-accent-hover"
-          >
-            Filter {category.name} APIs →
-          </Link>
+        {/*
+          The browse widget above is a client component, so its cards only exist after
+          hydration. This list is server-rendered, which means every API in the category
+          is reachable from the HTML — both for crawlers and for anyone without
+          JavaScript. It is also just a faster way to find a name you already know.
+        */}
+        <section className="mt-12 border-t border-border-subtle pt-8">
+          <h2 className="text-lg font-semibold">
+            All {category.count.toLocaleString('en-GB')} {category.name} APIs
+          </h2>
+          <ul className="mt-4 columns-2 gap-6 sm:columns-3 lg:columns-4">
+            {apis.map((api) => (
+              <li key={api.id} className="mb-1.5 break-inside-avoid text-sm">
+                <Link href={`/apis/${api.id}`} className="text-muted-strong hover:text-accent">
+                  {api.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
+
+        <Faq
+          items={categoryFaq(category)}
+          heading={`Free ${category.name} APIs — common questions`}
+          intro="Counts and timings below come from our own scheduled checks of this category."
+        />
       </div>
     </>
   );

@@ -1,5 +1,8 @@
 import type { Metadata } from 'next';
-import { Prose, Todo } from '@/components/Prose';
+import Link from 'next/link';
+import { Prose } from '@/components/Prose';
+import { getAllPostImages, photographerUrl, unsplashHome } from '@/lib/images';
+import { getPost } from '@/lib/blog';
 import { site } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -10,32 +13,61 @@ export const metadata: Metadata = {
 };
 
 export default function ImageCreditsPage() {
+  const images = getAllPostImages();
+
   return (
     <Prose
       title="Image credits"
       intro="Who made the photographs used on this site."
-      updated="2026-09-18"
+      updated="2026-09-20"
     >
       <h2>Photography</h2>
       <p>
-        Article header photography comes from{' '}
-        <a href="https://unsplash.com" target="_blank" rel="noreferrer">
+        Article header photography is served from{' '}
+        <a href={unsplashHome} target="_blank" rel="noreferrer">
           Unsplash
-        </a>{' '}
-        and is used under the{' '}
-        <a href="https://unsplash.com/license" target="_blank" rel="noreferrer">
-          Unsplash License
         </a>
-        , which permits commercial use without attribution. We credit photographers anyway,
-        because being able to see who made something is the same principle we apply to our own
-        work.
+        . Because we select these photographs through the Unsplash API rather than
+        downloading them by hand, our use falls under the{' '}
+        <a
+          href="https://help.unsplash.com/en/articles/2511245-unsplash-api-guidelines"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Unsplash API Guidelines
+        </a>
+        . Those guidelines require attribution, so every photograph below credits its
+        photographer both here and in the caption beneath the image itself.
       </p>
       <p>
-        <Todo>
-          This list is generated from data/image-credits.json by the image pipeline. Run the
-          download script and it will populate automatically.
-        </Todo>
+        They also require that the images stay hosted on Unsplash rather than being copied
+        onto our servers. That is why article headers load from Unsplash&rsquo;s own CDN. No
+        photograph on this site is stored by us.
       </p>
+
+      <h3>{images.length} photographs in use</h3>
+      <ul>
+        {images.map((image) => {
+          const post = getPost(image.slug);
+          return (
+            <li key={image.photoId}>
+              <a href={image.photoPageUrl} target="_blank" rel="noreferrer">
+                Photograph
+              </a>{' '}
+              by{' '}
+              <a href={photographerUrl(image)} target="_blank" rel="noreferrer">
+                {image.photographerName}
+              </a>
+              {post && (
+                <>
+                  {' '}
+                  &mdash; used on <Link href={`/blog/${image.slug}`}>{post.title}</Link>
+                </>
+              )}
+            </li>
+          );
+        })}
+      </ul>
 
       <h2>Diagrams and screenshots</h2>
       <p>
@@ -44,10 +76,11 @@ export default function ImageCreditsPage() {
         link back to the page they came from.
       </p>
 
-      <h2>Emoji</h2>
+      <h2>Icons</h2>
       <p>
-        Category and listing emoji render using the reader&rsquo;s own system font, so they appear
-        in whichever style their device provides. No emoji artwork is bundled with this site.
+        The few icons on this site &mdash; search, navigation, the status swatches &mdash; are
+        inline SVG paths written for this project. Nothing is loaded from an icon library, and
+        no icon font is bundled.
       </p>
     </Prose>
   );
