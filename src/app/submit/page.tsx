@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { Prose, Todo } from '@/components/Prose';
+import { Prose } from '@/components/Prose';
+import { SubmitForm } from '@/components/SubmitForm';
 import { site } from '@/lib/site';
 
 export const metadata: Metadata = {
@@ -16,8 +17,13 @@ export default function SubmitPage() {
       intro="Know a free API we are missing? Send it over."
       updated="2026-09-18"
     >
+      <SubmitForm email={site.submitEmail} />
+
       <h2>What we need</h2>
-      <p>Send the following to <Todo>submit@getfreeapis.com</Todo>:</p>
+      <p>
+        The form above collects all of it. If you would rather just write to us, send the same
+        details to <a href={`mailto:${site.submitEmail}`}>{site.submitEmail}</a>:
+      </p>
       <ul>
         <li>
           <strong>Name</strong> of the API
@@ -67,12 +73,6 @@ export default function SubmitPage() {
         build if they qualify. We will let you know either way.
       </p>
 
-      <p>
-        <Todo>
-          Phase 6 replaces this with a GitHub issue template and a review workflow, so submissions
-          arrive structured and tracked instead of by email.
-        </Todo>
-      </p>
     </Prose>
   );
 }
