@@ -1,13 +1,6 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
-
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700', '800'],
-  variable: '--font-inter',
-  display: 'swap',
-});
 import { Nav } from '@/components/Nav';
 import { Footer } from '@/components/Footer';
 import { CookieNotice } from '@/components/CookieNotice';
@@ -15,6 +8,21 @@ import { ConsentedScripts } from '@/components/ConsentedScripts';
 import { consentScript } from '@/lib/consent';
 import { themeScript } from '@/lib/theme';
 import { site } from '@/lib/site';
+
+/**
+ * Self-hosted rather than next/font/google: the latter fetches from Google's
+ * servers at *build* time, and that fetch failing (as it did on Vercel) takes the
+ * whole build down. This is the one physical file Google's own CSS API already
+ * points every weight 400-800 at — Inter's "latin" subset ships as a single
+ * variable-weight woff2, so one file covers the full range with no extra requests.
+ */
+const inter = localFont({
+  src: '../fonts/inter-variable.woff2',
+  weight: '100 900',
+  style: 'normal',
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
