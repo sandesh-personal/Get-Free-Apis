@@ -4,7 +4,7 @@ import { getAllApis, stats } from '@/lib/apis';
 import { StatusDot } from '@/components/Badge';
 
 export const metadata: Metadata = {
-  title: 'Live API status',
+  title: 'Free API Status — Live Uptime Checks',
   description:
     'Which free public APIs are responding right now, which have stopped, and how fast the healthy ones reply. Measured by us, not self-reported.',
   alternates: { canonical: '/status' },
@@ -28,7 +28,7 @@ export default function StatusPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">API status</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Free API status</h1>
         <p className="mt-3 max-w-2xl leading-relaxed text-muted">
           Most directories never check whether the APIs they list still work. We do, and we publish
           the failures alongside the successes. These numbers come from our own requests, not from
