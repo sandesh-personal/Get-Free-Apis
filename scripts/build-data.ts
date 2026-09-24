@@ -17,6 +17,7 @@ import {
   fetchPublicApis,
   SOURCES,
 } from './lib/sources';
+import { CUSTOM_ENTRIES } from './lib/custom-entries';
 import {
   categoryDescription,
   CATEGORY_SLUG_ALIASES,
@@ -39,8 +40,12 @@ import {
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 
-/** Sources listed in descending order of trust for category, auth and CORS fields. */
+/**
+ * Sources listed in descending order of trust for category, auth and CORS fields.
+ * 'custom' leads because those entries are hand-verified rather than scraped.
+ */
 const PRIORITY: string[] = [
+  'custom',
   SOURCES.publicApis.id,
   SOURCES.publicApiLists.id,
   SOURCES.freePublicApis.id,
@@ -70,7 +75,12 @@ function bestCors(a: Cors, b: Cors): Cors {
 type Merged = RawEntry & { sources: string[] };
 
 function merge(into: Merged, next: RawEntry): void {
-  if (!into.sources.includes(next.source)) into.sources.push(next.source);
+  // `next` is sometimes itself an already-merged group (see mergeSameVendorDuplicates),
+  // which carries multiple sources under `.sources` rather than one under `.source`.
+  const incomingSources = 'sources' in next ? (next as Merged).sources : [next.source];
+  for (const src of incomingSources) {
+    if (!into.sources.includes(src)) into.sources.push(src);
+  }
 
   const incomingWins = rank(next.source) < rank(into.source);
 
@@ -89,6 +99,71 @@ function merge(into: Merged, next: RawEntry): void {
 
   // Health only ever comes from freepublicapis, so take it wherever found.
   if (next.health && !into.health) into.health = next.health;
+}
+
+/**
+ * Known duplicates that neither dedup pass below can catch automatically: same
+ * product, same vendor, but the two upstream listings gave it different enough names
+ * (e.g. "5DollarFootball" vs "5Dollar Football API") that the same-vendor merge's
+ * name match doesn't fire, so an exact-URL alias is the only sure fix. Reported by a
+ * reader on Reddit for this exact pair — add more here as they turn up, rather than
+ * loosening the name match and risking false merges elsewhere.
+ */
+const DUPLICATE_KEY_ALIASES: Record<string, string> = {
+  '5dollarfootballapi.com/docs': '5dollarfootballapi.com',
+};
+
+/**
+ * Hosts excluded from the same-vendor merge below: multi-tenant platforms where one
+ * domain legitimately hosts many unrelated APIs, so "same host" carries no signal.
+ * Discovered the hard way — two different l0v3m0n3y GitHub repos both happened to be
+ * named "Temporary Email API" by their upstream listing and nearly got merged.
+ */
+const MULTI_TENANT_HOSTS = new Set([
+  'github.com',
+  'gitlab.com',
+  'app.swaggerhub.com',
+  'sampleapis.com',
+]);
+
+/**
+ * Catches the duplicate the exact-URL dedup above can't: two upstream sources linking
+ * different pages of the *same* product on the *same* vendor's own domain (a docs page
+ * vs the homepage, a v1 vs v2 reference). Exact-URL dedup treats those as two APIs; this
+ * pass recognises "same host, same normalised name" as one API listed twice.
+ *
+ * Deliberately narrower than merging on host alone — most shared hosts in this
+ * catalogue are platforms like sampleapis.com or github.com hosting many genuinely
+ * different APIs, where that would wrongly collapse unrelated entries.
+ */
+function mergeSameVendorDuplicates(entries: Merged[]): Merged[] {
+  const byIdentity = new Map<string, Merged>();
+  const passthrough: Merged[] = [];
+
+  for (const entry of entries) {
+    let host: string;
+    try {
+      host = new URL(entry.url).hostname.replace(/^www\./, '').toLowerCase();
+    } catch {
+      passthrough.push(entry);
+      continue;
+    }
+
+    if (MULTI_TENANT_HOSTS.has(host)) {
+      passthrough.push(entry);
+      continue;
+    }
+
+    const identity = `${host}::${slugify(entry.name)}`;
+    const existing = byIdentity.get(identity);
+    if (existing) {
+      merge(existing, entry);
+    } else {
+      byIdentity.set(identity, entry);
+    }
+  }
+
+  return [...byIdentity.values(), ...passthrough];
 }
 
 type HealthResult = {
@@ -161,6 +236,10 @@ async function main(): Promise<void> {
     }
   });
 
+  raw.push(...CUSTOM_ENTRIES);
+  counts.custom = CUSTOM_ENTRIES.length;
+  console.log(`  custom: ${CUSTOM_ENTRIES.length} entries`);
+
   if (raw.length === 0) throw new Error('every upstream source failed; refusing to write an empty catalogue');
 
   // Deduplicate on the canonical URL, which strips protocol, www, trailing slash and utm params.
@@ -168,7 +247,8 @@ async function main(): Promise<void> {
   const byKey = new Map<string, Merged>();
 
   for (const entry of raw) {
-    const key = canonicalKey(entry.url);
+    const rawKey = canonicalKey(entry.url);
+    const key = rawKey ? (DUPLICATE_KEY_ALIASES[rawKey] ?? rawKey) : null;
     if (!key) continue;
 
     const existing = byKey.get(key);
@@ -179,7 +259,10 @@ async function main(): Promise<void> {
     }
   }
 
-  console.log(`  ${raw.length} raw -> ${byKey.size} unique`);
+  console.log(`  ${raw.length} raw -> ${byKey.size} url-unique`);
+
+  const deduped = mergeSameVendorDuplicates([...byKey.values()]);
+  console.log(`  ${byKey.size} url-unique -> ${deduped.length} after same-vendor merge`);
 
   // Assign slugs and resolve categories.
   const takenSlugs = new Set<string>();
@@ -189,7 +272,7 @@ async function main(): Promise<void> {
     console.log(`  overlaying ${healthOverlay.size} results from our own checks`);
   }
 
-  const apis: Api[] = [...byKey.values()]
+  const apis: Api[] = deduped
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((entry): Api => {
       const id = uniqueSlug(slugify(entry.name), takenSlugs);

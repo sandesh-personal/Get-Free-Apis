@@ -225,10 +225,18 @@ export default async function ApiDetailPage({ params }: Props) {
           <h2 className="text-sm font-semibold">Where this listing comes from</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
             Aggregated from {api.sources.length === 1 ? 'one public source' : `${api.sources.length} public sources`}
-            {' '}({api.sources.join(', ')}), then normalised and checked by us. If something here is
-            wrong, <Link href="/contact" className="text-accent underline">tell us</Link> and we
-            will correct it.
+            {' '}({api.sources.join(', ')}), then normalised and checked by us.
           </p>
+          <a
+            href={`mailto:${site.email}?subject=${encodeURIComponent(
+              `Correction: ${api.name}`,
+            )}&body=${encodeURIComponent(
+              `Listing: ${site.url}/apis/${api.id}\n\nWhat's wrong:\n\n\nWhat it should say (with a source if you have one):\n\n`,
+            )}`}
+            className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-border-subtle bg-surface-raised px-3 py-1.5 text-sm font-medium transition hover:border-accent hover:text-accent"
+          >
+            Report an issue with this listing ↗
+          </a>
         </section>
 
         {related.length > 0 && (

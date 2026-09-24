@@ -1,10 +1,11 @@
 {
-  "generatedAt": "2026-09-18T08:29:05.745Z",
-  "total": 2712,
+  "generatedAt": "2026-09-24T07:31:52.051Z",
+  "total": 2737,
   "sources": {
-    "public-apis": 1844,
+    "public-apis": 1902,
     "public-api-lists": 837,
-    "freepublicapis": 654
+    "freepublicapis": 658,
+    "custom": 1
   },
   "apis": [
     {
@@ -200,30 +201,9 @@
       "status": "live"
     },
     {
-      "id": "5dollar-football-api",
-      "name": "5Dollar Football API",
-      "description": "The 5Dollar Football API provides access to detailed football data, including live scores, fixtures, odds, and statistics for various leagues and teams. It allows users to retrieve information on matches, standings, and historical data for analysis in real-time or for backtesting purposes.",
-      "category": "Sports & Fitness",
-      "categorySlug": "sports-and-fitness",
-      "url": "https://5dollarfootballapi.com/docs",
-      "auth": "other",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "freepublicapis"
-      ],
-      "health": {
-        "score": 98,
-        "reliability": 100,
-        "latencyMs": 781,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
       "id": "5dollarfootball",
       "name": "5DollarFootball",
-      "description": "Football fixtures, results, standings and historical odds with corner and card lines",
+      "description": "The 5Dollar Football API provides access to detailed football data, including live scores, fixtures, odds, and statistics for various leagues and teams. It allows users to retrieve information on matches, standings, and historical data for analysis in real-time or for backtesting purposes.",
       "category": "Sports & Fitness",
       "categorySlug": "sports-and-fitness",
       "url": "https://5dollarfootballapi.com/",
@@ -231,10 +211,11 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "freepublicapis",
         "public-apis"
       ],
       "health": {
-        "score": 100,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 764,
         "lastChecked": "2026-09-18"
@@ -489,8 +470,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 76,
-        "reliability": 63,
+        "score": 89,
+        "reliability": 82,
         "latencyMs": 1027,
         "lastChecked": "2026-09-18"
       },
@@ -683,7 +664,7 @@
         "public-apis"
       ],
       "health": {
-        "score": 95,
+        "score": 98,
         "reliability": 100,
         "latencyMs": 881,
         "lastChecked": "2026-09-18"
@@ -797,6 +778,36 @@
       "status": "live"
     },
     {
+      "id": "aether-x-port-congestion",
+      "name": "Aether-X Port Congestion",
+      "description": "Real-time port congestion risk scores, ETA delays and waiting vessels for 15 global ports",
+      "category": "Transportation",
+      "categorySlug": "transportation",
+      "url": "https://aether-x-oracle-production.up.railway.app/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
+      "id": "aether-x-port-congestion-oracle",
+      "name": "Aether-X Port Congestion Oracle",
+      "description": "Predictive port congestion, ETA delay and freight volatility signals for 16 global ports",
+      "category": "Transportation",
+      "categorySlug": "transportation",
+      "url": "https://rapidapi.com/belegante/api/aether-x-port-congestion-oracle",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "affirmation-generator-api",
       "name": "Affirmation Generator API",
       "description": "This API provides inspirational affirmations to boost positivity and self-esteem. Users can retrieve random affirmations to enhance their mental wellness and motivation.",
@@ -860,6 +871,21 @@
       "status": "live"
     },
     {
+      "id": "agent-nexus",
+      "name": "Agent Nexus",
+      "description": "Continuously probed registry of APIs, MCP servers and CLIs callable by agents",
+      "category": "Development",
+      "categorySlug": "development",
+      "url": "https://agentnexus.app/llms.txt",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "agent-nexus-api",
       "name": "Agent Nexus API",
       "description": "The Agent Nexus API provides a continuously verified registry of APIs, MCP servers, and CLIs that AI agents can call. Users can discover capabilities, search the registry, and retrieve detailed information about specific interfaces without needing an account or an API key.",
@@ -873,7 +899,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 93,
+        "score": 90,
         "reliability": 100,
         "latencyMs": 2730,
         "lastChecked": "2026-09-18"
@@ -1019,33 +1045,13 @@
       "https": true,
       "cors": "yes",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 437,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "ai-dev-jobs-2",
-      "name": "AI Dev Jobs",
-      "description": "AI and ML job listings from 289+ companies",
-      "category": "Jobs",
-      "categorySlug": "jobs",
-      "url": "https://aidevboard.com/api/v1/jobs",
-      "auth": "none",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 521,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -1281,6 +1287,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
+    },
+    {
+      "id": "airnow",
+      "name": "AirNow",
+      "description": "US EPA air quality data and forecasts",
+      "category": "Environment",
+      "categorySlug": "environment",
+      "url": "https://docs.airnowapi.org/",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "airportsapi",
@@ -1811,7 +1832,7 @@
     {
       "id": "amiiboapi",
       "name": "AmiiboAPI",
-      "description": "Nintendo Amiibo Information",
+      "description": "A RESTful API for Amiibo providing information on different amiibos, types, game series, characters, and more. It is primarily used for educational purposes and allows reading-only access with no authentication required.",
       "category": "Games & Comics",
       "categorySlug": "games-and-comics",
       "url": "https://amiiboapi.com/",
@@ -1819,33 +1840,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "freepublicapis",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 16019,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "amiiboapi-2",
-      "name": "AmiiboAPI",
-      "description": "A RESTful API for Amiibo providing information on different amiibos, types, game series, characters, and more. It is primarily used for educational purposes and allows reading-only access with no authentication required.",
-      "category": "Games & Comics",
-      "categorySlug": "games-and-comics",
-      "url": "https://amiiboapi.com/docs/",
-      "auth": "other",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "freepublicapis"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 16048,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -1866,7 +1867,7 @@
         "public-apis"
       ],
       "health": {
-        "score": 100,
+        "score": 98,
         "reliability": 100,
         "latencyMs": 890,
         "lastChecked": "2026-09-18"
@@ -2047,8 +2048,8 @@
       "id": "answerbook-api",
       "name": "Answerbook API",
       "description": "The Answerbook API provides access to a collection of random answers and features, such as a random password generator and Tang poetry retrieval. It can be deployed on Cloudflare Workers, making it adaptable for various applications.",
-      "category": "Books",
-      "categorySlug": "books",
+      "category": "Security",
+      "categorySlug": "security",
       "url": "https://github.com/tbdavid2019/answerbook-api",
       "auth": "other",
       "https": true,
@@ -3169,6 +3170,21 @@
       "status": "live"
     },
     {
+      "id": "atlasfetch",
+      "name": "AtlasFetch",
+      "description": "Reverse geocode coordinates to country, region and municipality with ISO 3166 codes",
+      "category": "Geocoding",
+      "categorySlug": "geocoding",
+      "url": "https://atlasfetch.xyz/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "atomic-mail",
       "name": "Atomic Mail",
       "description": "Email for AI agents: programmatic inbox creation and send/receive over JMAP",
@@ -3234,9 +3250,9 @@
     {
       "id": "audexum",
       "name": "Audexum",
-      "description": "Text-to-speech REST API with 43 voices and 33 languages",
-      "category": "Text Analysis",
-      "categorySlug": "text-analysis",
+      "description": "Speech-to-text in 25 languages and text-to-speech with 43 voices in 32 languages",
+      "category": "AI",
+      "categorySlug": "ai",
       "url": "https://audexum.com/docs",
       "auth": "apiKey",
       "https": true,
@@ -3435,8 +3451,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 24,
-        "reliability": 43,
+        "score": 16,
+        "reliability": 23,
         "latencyMs": 526,
         "lastChecked": "2026-09-18"
       },
@@ -3588,6 +3604,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "ayes-and-noes",
+      "name": "Ayes and Noes",
+      "description": "UK House of Commons MPs, parties and recorded votes",
+      "category": "Government",
+      "categorySlug": "government",
+      "url": "https://ayesandnoes.co.uk/developers",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "aylien-text-analysis",
@@ -4449,7 +4480,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 98,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 1037,
         "lastChecked": "2026-09-18"
@@ -4624,6 +4655,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
+    },
+    {
+      "id": "bike-reliability",
+      "name": "Bike Reliability",
+      "description": "UK motorcycle reliability ranked by first-time MOT pass rates",
+      "category": "Vehicle",
+      "categorySlug": "vehicle",
+      "url": "https://bikereliability.co.uk/developers",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "billplz",
@@ -6110,6 +6156,27 @@
     {
       "id": "breaking-bad-quotes",
       "name": "Breaking Bad Quotes",
+      "description": "A free API to retrieve quotes from Breaking Bad.",
+      "category": "Uncategorised",
+      "categorySlug": "uncategorised",
+      "url": "https://breakingbadquotes.xyz/",
+      "auth": "other",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "freepublicapis"
+      ],
+      "health": {
+        "score": 63,
+        "reliability": 0,
+        "latencyMs": 1007,
+        "lastChecked": "2026-09-18"
+      },
+      "status": "live"
+    },
+    {
+      "id": "breaking-bad-quotes-2",
+      "name": "Breaking Bad Quotes",
       "description": "Some Breaking Bad quotes",
       "category": "Video",
       "categorySlug": "video",
@@ -6124,31 +6191,25 @@
       "health": {
         "score": 100,
         "reliability": 100,
-        "latencyMs": 1007,
+        "latencyMs": 929,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
     },
     {
-      "id": "breaking-bad-quotes-2",
-      "name": "Breaking Bad Quotes",
-      "description": "A free API to retrieve quotes from Breaking Bad.",
-      "category": "Uncategorised",
-      "categorySlug": "uncategorised",
-      "url": "https://breakingbadquotes.xyz/",
-      "auth": "other",
+      "id": "breed-health-score",
+      "name": "Breed Health Score",
+      "description": "Dog breed health scores, median lifespans and conditions",
+      "category": "Animals",
+      "categorySlug": "animals",
+      "url": "https://breedhealthscore.com/developers/",
+      "auth": "none",
       "https": true,
       "cors": "no",
       "sources": [
-        "freepublicapis"
+        "public-apis"
       ],
-      "health": {
-        "score": 63,
-        "reliability": 0,
-        "latencyMs": 929,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
+      "status": "unchecked"
     },
     {
       "id": "breezometer-pollen",
@@ -6418,8 +6479,8 @@
         "public-apis"
       ],
       "health": {
-        "score": 86,
-        "reliability": 75,
+        "score": 84,
+        "reliability": 78,
         "latencyMs": 817,
         "lastChecked": "2026-09-18"
       },
@@ -6825,6 +6886,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "calorieninjas",
+      "name": "CalorieNinjas",
+      "description": "Nutrition and calorie data for foods and recipes",
+      "category": "Food & Drink",
+      "categorySlug": "food-and-drink",
+      "url": "https://calorieninjas.com/api",
+      "auth": "other",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "cambio-uruguay",
@@ -7306,8 +7382,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 74,
-        "reliability": 57,
+        "score": 80,
+        "reliability": 73,
         "latencyMs": 1333,
         "lastChecked": "2026-09-18"
       },
@@ -7327,8 +7403,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 26,
-        "reliability": 48,
+        "score": 18,
+        "reliability": 28,
         "latencyMs": 202,
         "lastChecked": "2026-09-18"
       },
@@ -7678,8 +7754,8 @@
       "id": "check-e-mail-or-username-for-a-data-breach",
       "name": "Check e-mail or username for a data breach",
       "description": "LeakCheck is a service that enables users and companies to ascertain whether their credentials have been compromised. By utilising this API, users can ascertain whether their email address or username has been involved in any data breach.",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
+      "category": "Security",
+      "categorySlug": "security",
       "url": "https://wiki.leakcheck.io/en/api/public",
       "auth": "other",
       "https": true,
@@ -7689,7 +7765,7 @@
       ],
       "health": {
         "score": 95,
-        "reliability": 100,
+        "reliability": 98,
         "latencyMs": 777,
         "lastChecked": "2026-09-18"
       },
@@ -8068,6 +8144,7 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
@@ -8077,27 +8154,6 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
-    },
-    {
-      "id": "circleci-2",
-      "name": "CircleCI",
-      "description": "Automate the software development process using continuous integration and continuous delivery",
-      "category": "Continuous Integration",
-      "categorySlug": "continuous-integration",
-      "url": "https://circleci.com/docs/api/v2/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 439,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
     },
     {
       "id": "cisco-spark",
@@ -8654,6 +8710,21 @@
       "status": "live"
     },
     {
+      "id": "claudecookie",
+      "name": "claudecookie",
+      "description": "Convert cookie formats, check Claude sessions and generate Claude Code credentials",
+      "category": "Development",
+      "categorySlug": "development",
+      "url": "https://claudecookie.com/api/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "cleanuri",
       "name": "CleanURI",
       "description": "URL shortener service",
@@ -8844,6 +8915,21 @@
       "status": "down"
     },
     {
+      "id": "clinicaltrials-gov",
+      "name": "ClinicalTrials.gov",
+      "description": "Search and retrieve data on clinical trials registered worldwide: conditions, interventions, sponsors, locations and results.",
+      "category": "Pharma",
+      "categorySlug": "pharma",
+      "url": "https://clinicaltrials.gov/api/v2/studies",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "custom"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "clockify",
       "name": "Clockify",
       "description": "Clockify's REST-based API can be used to push/pull data to/from it & integrate it with other systems",
@@ -8878,8 +8964,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 95,
-        "reliability": 100,
+        "score": 94,
+        "reliability": 97,
         "latencyMs": 1492,
         "lastChecked": "2026-09-18"
       },
@@ -9053,27 +9139,6 @@
         "score": 100,
         "reliability": 100,
         "latencyMs": 880,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "cloudmersive-validate-2",
-      "name": "Cloudmersive Validate",
-      "description": "Validate international phone numbers",
-      "category": "Phone",
-      "categorySlug": "phone",
-      "url": "https://cloudmersive.com/phone-number-validation-API",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-apis"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 784,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -9311,6 +9376,27 @@
       "status": "down"
     },
     {
+      "id": "codex-reset-api",
+      "name": "Codex Reset API",
+      "description": "The Codex Reset API provides publicly accessible information about Codex usage-limit resets, including a 24-48 hour forecast, verified reset history, and current service status. Users can interact with this read-only MCP server and receive data in JSON format without needing an API key or sign-up.",
+      "category": "Weather",
+      "categorySlug": "weather",
+      "url": "https://codex-reset.com/developers",
+      "auth": "other",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "freepublicapis"
+      ],
+      "health": {
+        "score": 95,
+        "reliability": 100,
+        "latencyMs": 326,
+        "lastChecked": "2026-09-24"
+      },
+      "status": "live"
+    },
+    {
       "id": "coffee",
       "name": "Coffee",
       "description": "Start your day with a lovely coffee~ Provides access to a collection of 1257 coffee images. Users can request a random coffee image in JSON format.",
@@ -9346,7 +9432,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 98,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 417,
         "lastChecked": "2026-09-18"
@@ -9541,7 +9627,7 @@
       "health": {
         "score": 29,
         "reliability": 50,
-        "latencyMs": 169,
+        "latencyMs": 158,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -9734,8 +9820,8 @@
         "public-apis"
       ],
       "health": {
-        "score": 98,
-        "reliability": 100,
+        "score": 97,
+        "reliability": 98,
         "latencyMs": 594,
         "lastChecked": "2026-09-18"
       },
@@ -9955,7 +10041,7 @@
     {
       "id": "colorado-information-marketplace",
       "name": "Colorado Information Marketplace",
-      "description": "Colorado State Government Open Data",
+      "description": "Explore a wide range of public datasets and resources from the Colorado Information Marketplace, including information on government revenue and expenditures, transportation, demographics, business, and more. Access charts, maps, datasets, and documents to gain insights into various aspects of life in Colorado. A valuable tool for researchers, businesses, and the general public seeking data-driven insights.",
       "category": "Government",
       "categorySlug": "government",
       "url": "https://data.colorado.gov/",
@@ -9963,34 +10049,14 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "freepublicapis",
         "public-api-lists",
         "public-apis"
       ],
       "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 2284,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "colorado-information-marketplace-2",
-      "name": "Colorado Information Marketplace",
-      "description": "Explore a wide range of public datasets and resources from the Colorado Information Marketplace, including information on government revenue and expenditures, transportation, demographics, business, and more. Access charts, maps, datasets, and documents to gain insights into various aspects of life in Colorado. A valuable tool for researchers, businesses, and the general public seeking data-driven insights.",
-      "category": "Government",
-      "categorySlug": "government",
-      "url": "https://data.colorado.gov/browse",
-      "auth": "other",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "freepublicapis"
-      ],
-      "health": {
         "score": 90,
         "reliability": 93,
-        "latencyMs": 2054,
+        "latencyMs": 2284,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -10306,7 +10372,7 @@
       ],
       "health": {
         "score": 9,
-        "reliability": 5,
+        "reliability": 4,
         "latencyMs": 692,
         "lastChecked": "2026-09-18"
       },
@@ -10396,6 +10462,27 @@
         "reliability": 100,
         "latencyMs": 230,
         "lastChecked": "2026-09-18"
+      },
+      "status": "live"
+    },
+    {
+      "id": "cork-and-curve-api",
+      "name": "Cork & Curve API",
+      "description": "This API provides wine travel data for AI agents, including verified places, festivals with dates, and bookable experiences such as stays and car hire. Publicly accessible without a key, it offers an optional attribution feature for users who provide their X-API-Key.",
+      "category": "AI",
+      "categorySlug": "ai",
+      "url": "https://corkandcurve.com/api/v1/docs",
+      "auth": "other",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "freepublicapis"
+      ],
+      "health": {
+        "score": 90,
+        "reliability": 100,
+        "latencyMs": 603,
+        "lastChecked": "2026-09-24"
       },
       "status": "live"
     },
@@ -11412,6 +11499,21 @@
       "status": "live"
     },
     {
+      "id": "crustdata",
+      "name": "Crustdata",
+      "description": "People and company data covering profiles, headcount, funding and contacts",
+      "category": "Business",
+      "categorySlug": "business",
+      "url": "https://docs.crustdata.com/",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "crxcavator",
       "name": "CRXcavator",
       "description": "Chrome extension risk scoring",
@@ -11644,6 +11746,21 @@
       "status": "live"
     },
     {
+      "id": "curatorsearch",
+      "name": "CuratorSearch",
+      "description": "Museum and gallery jobs from 400+ institutions' own careers pages, with advertised salaries",
+      "category": "Jobs",
+      "categorySlug": "jobs",
+      "url": "https://curatorsearch.com/developers",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "cure-cancer-with-ai",
       "name": "Cure Cancer With AI",
       "description": "Oncology research, clinical trials, FDA approvals, news, and MAMMAL predictions",
@@ -11781,33 +11898,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 983,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "currencylayer-2",
-      "name": "Currencylayer",
-      "description": "Exchange rates and currency conversion",
-      "category": "Currency Exchange",
-      "categorySlug": "currency-exchange",
-      "url": "https://currencylayer.com/documentation",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 2379,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -12218,7 +12315,7 @@
     {
       "id": "data-usa",
       "name": "Data USA",
-      "description": "US Public Data",
+      "description": "Browse 47,000+ automated reports, view aggregated data, merge and download data, compare reports",
       "category": "Government",
       "categorySlug": "government",
       "url": "https://datausa.io/about/api/",
@@ -12226,33 +12323,13 @@
       "https": true,
       "cors": "yes",
       "sources": [
+        "freepublicapis",
         "public-apis"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1149,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "data-usa-2",
-      "name": "Data USA",
-      "description": "Browse 47,000+ automated reports, view aggregated data, merge and download data, compare reports",
-      "category": "Uncategorised",
-      "categorySlug": "uncategorised",
-      "url": "https://datausa.io/",
-      "auth": "other",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "freepublicapis"
       ],
       "health": {
         "score": 63,
         "reliability": 0,
-        "latencyMs": 1142,
+        "latencyMs": 1149,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -12780,8 +12857,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 62,
-        "reliability": 4,
+        "score": 61,
+        "reliability": 3,
         "latencyMs": 660,
         "lastChecked": "2026-09-18"
       },
@@ -13012,8 +13089,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 93,
-        "reliability": 100,
+        "score": 94,
+        "reliability": 90,
         "latencyMs": 821,
         "lastChecked": "2026-09-18"
       },
@@ -13263,33 +13340,13 @@
       "https": true,
       "cors": "yes",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 1144,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "digitalocean-status-2",
-      "name": "DigitalOcean Status",
-      "description": "Status of all DigitalOcean services",
-      "category": "Development",
-      "categorySlug": "development",
-      "url": "https://status.digitalocean.com/api/v2",
-      "auth": "none",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1016,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -13524,6 +13581,27 @@
         "reliability": 100,
         "latencyMs": 444,
         "lastChecked": "2026-09-18"
+      },
+      "status": "live"
+    },
+    {
+      "id": "disposable-email-api",
+      "name": "Disposable Email API",
+      "description": "GrabMail's Disposable Email API allows users to create temporary email addresses to receive messages without requiring sign-up or API keys on public domains. Messages are accessible via HTTP requests and are automatically deleted after five days. Ideal for developers needing a quick, disposable inbox solution.",
+      "category": "Email",
+      "categorySlug": "email",
+      "url": "https://grabmail.io/docs/api",
+      "auth": "other",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "freepublicapis"
+      ],
+      "health": {
+        "score": 95,
+        "reliability": 100,
+        "latencyMs": 367,
+        "lastChecked": "2026-09-24"
       },
       "status": "live"
     },
@@ -14070,33 +14148,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 776,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "dribbble-2",
-      "name": "Dribbble",
-      "description": "Design",
-      "category": "Art & Design",
-      "categorySlug": "art-and-design",
-      "url": "http://developer.dribbble.com/v2/",
-      "auth": "oauth",
-      "https": false,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1882,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -14317,18 +14375,20 @@
     {
       "id": "dungeons-and-dragons",
       "name": "Dungeons and Dragons",
-      "description": "Reference for 5th edition spells, classes, monsters, and more",
+      "description": "This API provides access to the 5th Edition Dungeons and Dragons System Reference Document (SRD). It allows developers to retrieve information about spells, classes, monsters, and other game elements through a modern RESTful interface.",
       "category": "Games & Comics",
       "categorySlug": "games-and-comics",
       "url": "https://www.dnd5eapi.co/docs/",
       "auth": "none",
-      "https": false,
+      "https": true,
       "cors": "yes",
       "sources": [
+        "freepublicapis",
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
-        "score": 100,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 1299,
         "lastChecked": "2026-09-18"
@@ -14337,28 +14397,6 @@
     },
     {
       "id": "dungeons-and-dragons-2",
-      "name": "Dungeons and Dragons",
-      "description": "This API provides access to the 5th Edition Dungeons and Dragons System Reference Document (SRD). It allows developers to retrieve information about spells, classes, monsters, and other game elements through a modern RESTful interface.",
-      "category": "Games & Comics",
-      "categorySlug": "games-and-comics",
-      "url": "http://www.dnd5eapi.co/",
-      "auth": "none",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "freepublicapis",
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 95,
-        "reliability": 100,
-        "latencyMs": 454,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "dungeons-and-dragons-3",
       "name": "Dungeons and Dragons",
       "description": "REST + GraphQL API for the 5e SRD database",
       "category": "Uncategorised",
@@ -14373,7 +14411,7 @@
       "health": {
         "score": 95,
         "reliability": 100,
-        "latencyMs": 402,
+        "latencyMs": 454,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -14728,8 +14766,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 94,
-        "reliability": 97,
+        "score": 95,
+        "reliability": 100,
         "latencyMs": 1111,
         "lastChecked": "2026-09-18"
       },
@@ -15052,6 +15090,21 @@
       "status": "live"
     },
     {
+      "id": "email-spam-tester",
+      "name": "Email Spam Tester",
+      "description": "Send a test message and get a spam score, 41 checks with RFC citations and a fix plan",
+      "category": "Email",
+      "categorySlug": "email",
+      "url": "https://email-spam-tester.com/api-docs/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "email-validation",
       "name": "Email Validation",
       "description": "Validate email addresses for deliverability and spam",
@@ -15357,33 +15410,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 1406,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "epa-2",
-      "name": "EPA",
-      "description": "Web services and data sets from the US Environmental Protection Agency",
-      "category": "Government",
-      "categorySlug": "government",
-      "url": "https://www.epa.gov/developers",
-      "auth": "none",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 476,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -15622,6 +15655,21 @@
       "status": "live"
     },
     {
+      "id": "eu-vat-rates-by-commodity-code",
+      "name": "EU VAT Rates by Commodity Code",
+      "description": "EU VAT rates mapped to CN and CPA commodity codes, all 27 member states",
+      "category": "Government",
+      "categorySlug": "government",
+      "url": "https://github.com/humora2504/eu-vat-by-commodity-code",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "eu-vat-validation-api",
       "name": "EU VAT Validation API",
       "description": "This API enables real-time validation of EU VAT numbers using the official VIES service. It provides not only the validity of the VAT number but also the associated company's name and address in a single JSON response.",
@@ -15749,6 +15797,21 @@
       "status": "down"
     },
     {
+      "id": "eurovalidate",
+      "name": "EuroValidate",
+      "description": "EU VAT (VIES), IBAN and EORI validation with company name & address lookup",
+      "category": "Business",
+      "categorySlug": "business",
+      "url": "https://eurovalidate.com/",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "euskalmet",
       "name": "Euskalmet",
       "description": "Meteorological data of the Basque Country",
@@ -15824,6 +15887,7 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
@@ -15833,27 +15897,6 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
-    },
-    {
-      "id": "eventbrite-2",
-      "name": "Eventbrite",
-      "description": "Find events",
-      "category": "Events",
-      "categorySlug": "events",
-      "url": "https://www.eventbrite.com/developer/v3/",
-      "auth": "oauth",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 501,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
     },
     {
       "id": "evil-insult-generator",
@@ -15877,6 +15920,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "exactcup",
+      "name": "ExactCup",
+      "description": "Cooking ingredient densities: grams per US cup, tablespoon, teaspoon and mL",
+      "category": "Food & Drink",
+      "categorySlug": "food-and-drink",
+      "url": "https://exactcup.github.io/api/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "exchange-rate-api",
@@ -16698,33 +16756,13 @@
       "cors": "no",
       "sources": [
         "freepublicapis",
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 1441,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "federal-register-2",
-      "name": "Federal Register",
-      "description": "The Daily Journal of the United States Government",
-      "category": "Government",
-      "categorySlug": "government",
-      "url": "https://www.federalregister.gov/reader-aids/developer-resources",
-      "auth": "none",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1478,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -16885,8 +16923,8 @@
       "category": "APILayer APIs",
       "categorySlug": "apilayer-apis",
       "url": "https://www.filestack.com/signup-free//",
-      "auth": "other",
-      "https": false,
+      "auth": "apiKey",
+      "https": true,
       "cors": "no",
       "sources": [
         "public-apis"
@@ -16900,25 +16938,19 @@
       "status": "live"
     },
     {
-      "id": "filestack-2",
-      "name": "Filestack",
-      "description": "Filestack File Uploader & File Upload API",
-      "category": "Cloud Storage & File Sharing",
-      "categorySlug": "cloud-storage-and-file-sharing",
-      "url": "https://www.filestack.com/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
+      "id": "filesystem",
+      "name": "Filesystem",
+      "description": "Read/write local files",
+      "category": "MCP Servers",
+      "categorySlug": "mcp-servers",
+      "url": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "auth": "none",
+      "https": false,
+      "cors": "unknown",
       "sources": [
         "public-apis"
       ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1847,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
+      "status": "unchecked"
     },
     {
       "id": "fileup",
@@ -17105,11 +17137,26 @@
       ],
       "health": {
         "score": 87,
-        "reliability": 71,
+        "reliability": 70,
         "latencyMs": 494,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "finance-clearly-tax-rates",
+      "name": "Finance Clearly Tax Rates",
+      "description": "Current UK and US tax rates, allowances and thresholds",
+      "category": "Finance",
+      "categorySlug": "finance",
+      "url": "https://financeclearly.com/tax-rates-api/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "financial-data",
@@ -17173,6 +17220,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
+    },
+    {
+      "id": "finbridge",
+      "name": "FinBridge",
+      "description": "Official-source financials, segments, valuation, peers and prices for KR, US, JP, TW companies",
+      "category": "Finance",
+      "categorySlug": "finance",
+      "url": "https://www.gronox.kr/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "findsaunaplunge",
@@ -17421,30 +17483,9 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 65,
-        "reliability": 20,
+        "score": 73,
+        "reliability": 40,
         "latencyMs": 978,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "fitkit-nutrition-api-2",
-      "name": "FitKit Nutrition API",
-      "description": "The FitKit API provides nutrition parsing and fitness calculators to determine caloric intake and macro distribution. It supports both free and paid endpoints for basic food recognition and detailed analysis of nutrition and fitness metrics.",
-      "category": "Food & Drink",
-      "categorySlug": "food-and-drink",
-      "url": "https://smeltworks.com/fitkit/docs",
-      "auth": "other",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "freepublicapis"
-      ],
-      "health": {
-        "score": 65,
-        "reliability": 20,
-        "latencyMs": 990,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -18190,6 +18231,21 @@
       "status": "live"
     },
     {
+      "id": "fraudcoins",
+      "name": "FraudCoins",
+      "description": "On-chain top-10 holder concentration and contract permissions for crypto tokens",
+      "category": "Cryptocurrency",
+      "categorySlug": "cryptocurrency",
+      "url": "https://fraudcoins.com/data/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "fraudlabs-pro",
       "name": "FraudLabs Pro",
       "description": "Screen order information using AI to detect frauds",
@@ -18268,8 +18324,8 @@
         "public-apis"
       ],
       "health": {
-        "score": 76,
-        "reliability": 43,
+        "score": 69,
+        "reliability": 23,
         "latencyMs": 411,
         "lastChecked": "2026-09-18"
       },
@@ -19250,6 +19306,21 @@
       "status": "live"
     },
     {
+      "id": "gankdat",
+      "name": "gankdat",
+      "description": "UK & EU tenders, UK planning, UK sanctions, US exclusions, UK insolvency and incorporations as JSON",
+      "category": "Government",
+      "categorySlug": "government",
+      "url": "https://gankdat.com/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "gateio",
       "name": "Gateio",
       "description": "API provides spot, margin and futures trading operations",
@@ -19496,8 +19567,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 61,
-        "reliability": 2,
+        "score": 63,
+        "reliability": 0,
         "latencyMs": 1269,
         "lastChecked": "2026-09-18"
       },
@@ -19731,33 +19802,13 @@
       "https": true,
       "cors": "yes",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 683,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "geocode-xyz-2",
-      "name": "Geocode.xyz",
-      "description": "Provides worldwide forward/reverse geocoding, batch geocoding and geoparsing",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
-      "url": "https://geocode.xyz/",
-      "auth": "none",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 654,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -20011,7 +20062,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 95,
+        "score": 98,
         "reliability": 100,
         "latencyMs": 1083,
         "lastChecked": "2026-09-18"
@@ -20358,6 +20409,21 @@
       "status": "live"
     },
     {
+      "id": "github-3",
+      "name": "GitHub",
+      "description": "Repos, issues, PRs, code search",
+      "category": "MCP Servers",
+      "categorySlug": "mcp-servers",
+      "url": "https://github.com/github/github-mcp-server",
+      "auth": "oauth",
+      "https": false,
+      "cors": "unknown",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "github-contribution-chart-generator",
       "name": "GitHub Contribution Chart Generator",
       "description": "Create an image of your GitHub contributions",
@@ -20413,7 +20479,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 95,
+        "score": 98,
         "reliability": 100,
         "latencyMs": 719,
         "lastChecked": "2026-09-18"
@@ -20476,7 +20542,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 90,
+        "score": 93,
         "reliability": 100,
         "latencyMs": 924,
         "lastChecked": "2026-09-18"
@@ -20561,7 +20627,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 98,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 89,
         "lastChecked": "2026-09-18"
@@ -21368,8 +21434,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 6,
-        "reliability": 3,
+        "score": 13,
+        "reliability": 0,
         "latencyMs": 2204,
         "lastChecked": "2026-09-18"
       },
@@ -21481,6 +21547,21 @@
       "status": "live"
     },
     {
+      "id": "gtfs-scorecard",
+      "name": "GTFS Scorecard",
+      "description": "Data-quality grades and prioritized fixes for 2,400+ public transit GTFS feed records",
+      "category": "Transportation",
+      "categorySlug": "transportation",
+      "url": "https://github.com/ChelseaKR/gtfs-scorecard/blob/main/docs/api.md",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "gubanov-files-api",
       "name": "Gubanov Files API",
       "description": "This API provides access to the database at gubanovfiles.com, collecting information and promotional materials from bloggers related to the 'SEZ PPT Alabuga'. Users can fetch project mentions and relevant data programmatically.",
@@ -21494,8 +21575,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 90,
-        "reliability": 87,
+        "score": 91,
+        "reliability": 90,
         "latencyMs": 878,
         "lastChecked": "2026-09-18"
       },
@@ -21602,9 +21683,9 @@
         "public-apis"
       ],
       "health": {
-        "score": 3,
+        "score": 8,
         "reliability": 8,
-        "latencyMs": 6264,
+        "latencyMs": 1872,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -21651,6 +21732,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
+    },
+    {
+      "id": "gzw-data",
+      "name": "GZW Data",
+      "description": "Gray Zone Warfare weapons, missions, loot, armor and game data",
+      "category": "Games & Comics",
+      "categorySlug": "games-and-comics",
+      "url": "https://gzw-data.vercel.app/docs/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "hackerearth",
@@ -21806,27 +21902,6 @@
     {
       "id": "harry-potter-api",
       "name": "Harry Potter API",
-      "description": "API to get data from Harry Potter books, movies, characters and spells",
-      "category": "Books",
-      "categorySlug": "books",
-      "url": "https://github.com/fedeperin/potterapi",
-      "auth": "none",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 941,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "harry-potter-api-2",
-      "name": "Harry Potter API",
       "description": "API providing data on Harry Potter characters and spells. Includes routes for all characters, specific character by ID, Hogwarts students and staff, characters in a house, and all spells.",
       "category": "Uncategorised",
       "categorySlug": "uncategorised",
@@ -21839,6 +21914,27 @@
       ],
       "health": {
         "score": 98,
+        "reliability": 100,
+        "latencyMs": 941,
+        "lastChecked": "2026-09-18"
+      },
+      "status": "live"
+    },
+    {
+      "id": "harry-potter-api-2",
+      "name": "Harry Potter API",
+      "description": "API to get data from Harry Potter books, movies, characters and spells",
+      "category": "Books",
+      "categorySlug": "books",
+      "url": "https://github.com/fedeperin/potterapi",
+      "auth": "none",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-api-lists"
+      ],
+      "health": {
+        "score": 100,
         "reliability": 100,
         "latencyMs": 311,
         "lastChecked": "2026-09-18"
@@ -22177,33 +22273,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 2434,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "hellosalut-2",
-      "name": "HelloSalut",
-      "description": "Get hello translation following user language",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
-      "url": "https://www.fourtonfish.com/hellosalut/hello/",
-      "auth": "none",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 3741,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -23727,8 +23803,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 86,
-        "reliability": 70,
+        "score": 79,
+        "reliability": 50,
         "latencyMs": 373,
         "lastChecked": "2026-09-18"
       },
@@ -24752,8 +24828,8 @@
       "id": "ip-address-api",
       "name": "IP Address API",
       "description": "IpQuery is a versatile API that provides essential information about an IP address, including geolocation data and VPN detection capabilities. It is designed for developers, enabling them to filter and utilize data points critical for enhancing application security and personalization.",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
+      "category": "Security",
+      "categorySlug": "security",
       "url": "https://ipquery.io/",
       "auth": "other",
       "https": true,
@@ -24963,8 +25039,8 @@
       "id": "ip-geolocation-api-3",
       "name": "IP Geolocation API",
       "description": "Comprehensive IP address intelligence API providing geolocation, security analysis, and network information. Features include real-time IP geolocation, advanced threat detection, VPN detection, email validation, and risk scoring for fraud prevention.",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
+      "category": "Security",
+      "categorySlug": "security",
       "url": "https://ip-api.io/api-docs.html",
       "auth": "other",
       "https": true,
@@ -25068,8 +25144,8 @@
       "id": "ip-reputation-api",
       "name": "IP Reputation API",
       "description": "The Netbait API provides an abuse score for any IPv4 address, indicating its maliciousness on a scale from 0 to 1. It allows public access without authentication, returning real-time threat assessments based on continuously updated data.",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
+      "category": "Security",
+      "categorySlug": "security",
       "url": "https://netbait.org/docs",
       "auth": "other",
       "https": true,
@@ -25478,6 +25554,7 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
@@ -25487,27 +25564,6 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
-    },
-    {
-      "id": "ipgeo-2",
-      "name": "IPGEO",
-      "description": "Unlimited free IP Address API with useful information",
-      "category": "Development",
-      "categorySlug": "development",
-      "url": "https://api.techniknews.net/",
-      "auth": "none",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 311,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
     },
     {
       "id": "ipgeolocation",
@@ -25550,6 +25606,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "ipgeolocationapi",
+      "name": "ipgeolocationapi",
+      "description": "IP geolocation with ASN, timezone, currency and threat data, 5,000 keyless calls a day",
+      "category": "Geocoding",
+      "categorySlug": "geocoding",
+      "url": "https://ipgeolocationapi.io/docs",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "ipgeolocationapi-com",
@@ -25766,6 +25837,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "ipstack-mcp",
+      "name": "IPstack MCP",
+      "description": "IP geolocation, threat and timezone lookups for agents",
+      "category": "MCP Servers",
+      "categorySlug": "mcp-servers",
+      "url": "https://ipstack.com/mcp",
+      "auth": "apiKey",
+      "https": false,
+      "cors": "unknown",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "ipwhois",
@@ -26034,8 +26120,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 85,
-        "reliability": 80,
+        "score": 84,
+        "reliability": 77,
         "latencyMs": 1098,
         "lastChecked": "2026-09-18"
       },
@@ -26269,8 +26355,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 25,
-        "reliability": 53,
+        "score": 28,
+        "reliability": 55,
         "latencyMs": 1105,
         "lastChecked": "2026-09-18"
       },
@@ -26397,7 +26483,7 @@
         "public-api-lists"
       ],
       "health": {
-        "score": 93,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 445,
         "lastChecked": "2026-09-18"
@@ -27781,8 +27867,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 89,
-        "reliability": 83,
+        "score": 86,
+        "reliability": 77,
         "latencyMs": 938,
         "lastChecked": "2026-09-18"
       },
@@ -28200,7 +28286,8 @@
       "https": true,
       "cors": "yes",
       "sources": [
-        "public-api-lists"
+        "public-api-lists",
+        "public-apis"
       ],
       "health": {
         "score": 100,
@@ -28437,8 +28524,8 @@
         "public-apis"
       ],
       "health": {
-        "score": 97,
-        "reliability": 99,
+        "score": 94,
+        "reliability": 98,
         "latencyMs": 1439,
         "lastChecked": "2026-09-18"
       },
@@ -28479,9 +28566,9 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 39,
-        "reliability": 77,
-        "latencyMs": 461,
+        "score": 31,
+        "reliability": 57,
+        "latencyMs": 448,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -28890,6 +28977,21 @@
       "status": "live"
     },
     {
+      "id": "litport-free-proxy",
+      "name": "Litport Free Proxy",
+      "description": "Live-tested HTTP, SOCKS4, and SOCKS5 proxies with latency, uptime, and geolocation",
+      "category": "Development",
+      "categorySlug": "development",
+      "url": "https://litport.net/docs/free-proxy-api",
+      "auth": "none",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "livetrafficcam",
       "name": "LiveTrafficCam",
       "description": "Live US state DOT traffic cameras with verified live status and measured uptime",
@@ -29094,8 +29196,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 30,
-        "reliability": 72,
+        "score": 22,
+        "reliability": 52,
         "latencyMs": 224,
         "lastChecked": "2026-09-18"
       },
@@ -29175,33 +29277,13 @@
       "https": true,
       "cors": "yes",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 2091,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "longevity-world-cup-2",
-      "name": "Longevity World Cup",
-      "description": "Public biological age competition data with biomarkers and rankings",
-      "category": "Health",
-      "categorySlug": "health",
-      "url": "https://longevityworldcup.com/swagger",
-      "auth": "none",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1739,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -29493,33 +29575,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 0,
         "reliability": 0,
         "latencyMs": 334,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "down"
-    },
-    {
-      "id": "mac-address-vendor-lookup-2",
-      "name": "MAC address vendor lookup",
-      "description": "Retrieve vendor details and other information regarding a given MAC address or an OUI",
-      "category": "Development",
-      "categorySlug": "development",
-      "url": "https://macaddress.io/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 0,
-        "reliability": 0,
-        "latencyMs": 329,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -29544,6 +29606,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
+    },
+    {
+      "id": "madeonsol",
+      "name": "MadeOnSol",
+      "description": "Real-time Solana & Robinhood Chain KOL trades, deployer reputation, and DEX activity",
+      "category": "Cryptocurrency",
+      "categorySlug": "cryptocurrency",
+      "url": "https://madeonsol.com/developer",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "magic-8-ball-api",
@@ -29645,7 +29722,7 @@
       ],
       "health": {
         "score": 41,
-        "reliability": 94,
+        "reliability": 96,
         "latencyMs": 609,
         "lastChecked": "2026-09-18"
       },
@@ -29726,33 +29803,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 913,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "mailboxvalidator-2",
-      "name": "MailboxValidator",
-      "description": "Validate email address to improve deliverability",
-      "category": "Business",
-      "categorySlug": "business",
-      "url": "https://www.mailboxvalidator.com/api-single-validation",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 911,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -29949,6 +30006,21 @@
       "status": "live"
     },
     {
+      "id": "malwagon",
+      "name": "Malwagon",
+      "description": "Detonates files and URLs in instrumented VMs and returns behaviour, IOCs and ATT&CK",
+      "category": "Anti-Malware",
+      "categorySlug": "anti-malware",
+      "url": "https://malwagon.com/docs/api",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "malwarebazaar",
       "name": "MalwareBazaar",
       "description": "Collect and share malware samples",
@@ -29971,16 +30043,17 @@
     },
     {
       "id": "mangadex",
-      "name": "Mangadex",
+      "name": "MangaDex",
       "description": "ad-free manga reader offering high-quality images",
       "category": "Anime",
       "categorySlug": "anime",
-      "url": "https://api.mangadex.org/docs/",
-      "auth": "none",
+      "url": "https://api.mangadex.org/docs.html",
+      "auth": "apiKey",
       "https": true,
       "cors": "yes",
       "sources": [
-        "public-api-lists"
+        "public-api-lists",
+        "public-apis"
       ],
       "health": {
         "score": 100,
@@ -29989,27 +30062,6 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
-    },
-    {
-      "id": "mangadex-2",
-      "name": "MangaDex",
-      "description": "Manga Database and Community",
-      "category": "Anime",
-      "categorySlug": "anime",
-      "url": "https://api.mangadex.org/docs.html",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "public-apis"
-      ],
-      "health": {
-        "score": 0,
-        "reliability": 0,
-        "latencyMs": 528,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "down"
     },
     {
       "id": "mangapi",
@@ -30119,27 +30171,6 @@
     {
       "id": "mapbox-2",
       "name": "Mapbox",
-      "description": "Maps, directions, geocoding",
-      "category": "Tracking",
-      "categorySlug": "tracking",
-      "url": "https://docs.mapbox.com/api/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-apis"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 148,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "mapbox-3",
-      "name": "Mapbox",
       "description": "Create/customize beautiful digital maps",
       "category": "Geocoding",
       "categorySlug": "geocoding",
@@ -30153,7 +30184,7 @@
       "health": {
         "score": 100,
         "reliability": 100,
-        "latencyMs": 3542,
+        "latencyMs": 148,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -32248,7 +32279,8 @@
       "https": true,
       "cors": "no",
       "sources": [
-        "public-api-lists"
+        "public-api-lists",
+        "public-apis"
       ],
       "health": {
         "score": 100,
@@ -32262,8 +32294,8 @@
       "id": "mullvad-vpn-api",
       "name": "Mullvad VPN API",
       "description": "The Mullvad VPN API enables users to interact with the Mullvad VPN browser extension, facilitating privacy and security solutions against mass surveillance and censorship. It provides functionalities such as retrieving the current IP address associated with the VPN connection.",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
+      "category": "Security",
+      "categorySlug": "security",
       "url": "https://github.com/l0v3m0n3y/mullvad",
       "auth": "other",
       "https": true,
@@ -32293,9 +32325,9 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 34,
-        "reliability": 70,
-        "latencyMs": 815,
+        "score": 26,
+        "reliability": 50,
+        "latencyMs": 841,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -32314,7 +32346,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 93,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 3934,
         "lastChecked": "2026-09-18"
@@ -32421,8 +32453,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 98,
-        "reliability": 100,
+        "score": 96,
+        "reliability": 97,
         "latencyMs": 1367,
         "lastChecked": "2026-09-18"
       },
@@ -32703,6 +32735,21 @@
       "status": "live"
     },
     {
+      "id": "namegender",
+      "name": "NameGender",
+      "description": "Gender from a first name, full name, email or username, with probability",
+      "category": "Development",
+      "categorySlug": "development",
+      "url": "https://namegender.com/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "namomemes",
       "name": "NaMoMemes",
       "description": "Memes on Narendra Modi",
@@ -32760,7 +32807,7 @@
       ],
       "health": {
         "score": 95,
-        "reliability": 99,
+        "reliability": 100,
         "latencyMs": 1478,
         "lastChecked": "2026-09-18"
       },
@@ -32809,6 +32856,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "nasa-power",
+      "name": "NASA POWER",
+      "description": "Global solar and weather data for energy and agriculture",
+      "category": "Weather",
+      "categorySlug": "weather",
+      "url": "https://power.larc.nasa.gov/docs/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "nasdaq-data-link",
@@ -32994,8 +33056,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 96,
-        "reliability": 97,
+        "score": 94,
+        "reliability": 90,
         "latencyMs": 1089,
         "lastChecked": "2026-09-18"
       },
@@ -33121,9 +33183,9 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 29,
-        "reliability": 51,
-        "latencyMs": 472,
+        "score": 31,
+        "reliability": 50,
+        "latencyMs": 0,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -33341,6 +33403,21 @@
       "status": "live"
     },
     {
+      "id": "neuronto-ard-registry",
+      "name": "Neuronto ARD Registry",
+      "description": "Search index of MCP servers, agents and APIs, with the tools each server actually exposes",
+      "category": "Open Source Projects",
+      "categorySlug": "open-source-projects",
+      "url": "https://neuronto.com/api-docs",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "new-york-times",
       "name": "New York Times",
       "description": "The New York Times Developer Network",
@@ -33448,6 +33525,21 @@
       "status": "live"
     },
     {
+      "id": "newsmesh",
+      "name": "NewsMesh",
+      "description": "Premium news data from thousands of sources",
+      "category": "News",
+      "categorySlug": "news",
+      "url": "https://newsmesh.co/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "newswire-firehose-api",
       "name": "Newswire Firehose API",
       "description": "The Newswire Firehose API provides access to merged and deduplicated financial news headlines from multiple public newswire feeds. Users can filter results by ticker symbols and keywords, with a limit on the number of headlines retrieved per request.",
@@ -33461,8 +33553,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 66,
-        "reliability": 23,
+        "score": 74,
+        "reliability": 43,
         "latencyMs": 897,
         "lastChecked": "2026-09-18"
       },
@@ -33471,7 +33563,7 @@
     {
       "id": "newsx",
       "name": "NewsX",
-      "description": "Get or Search Latest Breaking News with ML Powered Summaries",
+      "description": "Get or Search Latest Breaking News with ML Powered Summaries 🤖",
       "category": "News",
       "categorySlug": "news",
       "url": "https://rapidapi.com/machaao-inc-machaao-inc-default/api/newsx/",
@@ -33916,10 +34008,10 @@
     {
       "id": "non-working-days",
       "name": "Non-Working Days",
-      "description": "Database of ICS files for non working days",
+      "description": "Simple API for checking working, non-working or short days for Russia, Ukraine, Belarus and Kazakhstan",
       "category": "Calendar",
       "categorySlug": "calendar",
-      "url": "https://github.com/gadael/icsdb",
+      "url": "https://isdayoff.ru/",
       "auth": "none",
       "https": true,
       "cors": "no",
@@ -33938,10 +34030,10 @@
     {
       "id": "non-working-days-2",
       "name": "Non-Working Days",
-      "description": "Simple API for checking working, non-working or short days for Russia, Ukraine, Belarus and Kazakhstan",
+      "description": "Database of ICS files for non working days",
       "category": "Calendar",
       "categorySlug": "calendar",
-      "url": "https://isdayoff.ru/",
+      "url": "https://github.com/gadael/icsdb",
       "auth": "none",
       "https": true,
       "cors": "no",
@@ -34052,33 +34144,13 @@
       "https": true,
       "cors": "yes",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 863,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "not-human-search-2",
-      "name": "Not Human Search",
-      "description": "AI-ready website discovery and scoring",
-      "category": "Development",
-      "categorySlug": "development",
-      "url": "https://nothumansearch.ai/api/v1/search",
-      "auth": "none",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 912,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -34438,8 +34510,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 65,
-        "reliability": 20,
+        "score": 73,
+        "reliability": 40,
         "latencyMs": 351,
         "lastChecked": "2026-09-18"
       },
@@ -34616,6 +34688,21 @@
       "status": "down"
     },
     {
+      "id": "oddsradarwire",
+      "name": "OddsRadarWire",
+      "description": "Live and prematch Betradar odds with raw no-vig probabilities, REST and SSE",
+      "category": "Sports & Fitness",
+      "categorySlug": "sports-and-fitness",
+      "url": "https://oddsradarwire.com/docs.html",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "odweather",
       "name": "ODWeather",
       "description": "Weather and weather webcams",
@@ -34734,8 +34821,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 98,
-        "reliability": 100,
+        "score": 96,
+        "reliability": 97,
         "latencyMs": 2168,
         "lastChecked": "2026-09-18"
       },
@@ -35164,6 +35251,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "open-ephemeris",
+      "name": "Open Ephemeris",
+      "description": "Sub-arcsecond planetary positions, natal charts, transits, and Human Design from NASA JPL DE440",
+      "category": "Science & Math",
+      "categorySlug": "science-and-math",
+      "url": "https://openephemeris.com/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "open-food-facts",
@@ -36252,27 +36354,6 @@
       "status": "live"
     },
     {
-      "id": "open-meteo",
-      "name": "Open Meteo",
-      "description": "Open-Meteo is an open-source weather API and offers free access for non-commercial use. No API key required. Start using it now!",
-      "category": "Weather",
-      "categorySlug": "weather",
-      "url": "https://open-meteo.com/en/docs",
-      "auth": "other",
-      "https": true,
-      "cors": "yes",
-      "sources": [
-        "freepublicapis"
-      ],
-      "health": {
-        "score": 97,
-        "reliability": 98,
-        "latencyMs": 97,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
       "id": "open-movie-database",
       "name": "Open Movie Database",
       "description": "Movie information",
@@ -36460,17 +36541,17 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 96,
-        "reliability": 97,
+        "score": 91,
+        "reliability": 83,
         "latencyMs": 1381,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
     },
     {
-      "id": "open-meteo-2",
+      "id": "open-meteo",
       "name": "Open-Meteo",
-      "description": "Global weather forecast API for non-commercial use",
+      "description": "Open-Meteo is an open-source weather API and offers free access for non-commercial use. No API key required. Start using it now!",
       "category": "Environment",
       "categorySlug": "environment",
       "url": "https://open-meteo.com/",
@@ -36478,13 +36559,14 @@
       "https": true,
       "cors": "yes",
       "sources": [
+        "freepublicapis",
         "public-api-lists",
         "public-apis"
       ],
       "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 67,
+        "score": 97,
+        "reliability": 98,
+        "latencyMs": 97,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -36717,8 +36799,8 @@
         "public-apis"
       ],
       "health": {
-        "score": 93,
-        "reliability": 88,
+        "score": 94,
+        "reliability": 90,
         "latencyMs": 551,
         "lastChecked": "2026-09-18"
       },
@@ -37057,8 +37139,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 89,
-        "reliability": 83,
+        "score": 90,
+        "reliability": 87,
         "latencyMs": 1681,
         "lastChecked": "2026-09-18"
       },
@@ -37127,6 +37209,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "opensubtitles",
+      "name": "OpenSubtitles",
+      "description": "Search and download subtitles for movies and TV shows",
+      "category": "Video",
+      "categorySlug": "video",
+      "url": "https://www.opensubtitles.com/",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "openunfurl",
@@ -37862,8 +37959,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 23,
-        "reliability": 49,
+        "score": 25,
+        "reliability": 52,
         "latencyMs": 943,
         "lastChecked": "2026-09-18"
       },
@@ -37986,33 +38083,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 413,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "pastebin-2",
-      "name": "Pastebin",
-      "description": "Plain Text Storage",
-      "category": "Cloud Storage & File Sharing",
-      "categorySlug": "cloud-storage-and-file-sharing",
-      "url": "https://pastebin.com/api/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 669,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -38478,8 +38555,8 @@
         "public-apis"
       ],
       "health": {
-        "score": 98,
-        "reliability": 100,
+        "score": 96,
+        "reliability": 97,
         "latencyMs": 953,
         "lastChecked": "2026-09-18"
       },
@@ -39023,33 +39100,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 2168,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "plaid-2",
-      "name": "Plaid",
-      "description": "Connect with users’ bank accounts and access transaction data",
-      "category": "Finance",
-      "categorySlug": "finance",
-      "url": "https://plaid.com/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1498,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -39410,8 +39467,8 @@
         "public-api-lists"
       ],
       "health": {
-        "score": 43,
-        "reliability": 88,
+        "score": 44,
+        "reliability": 90,
         "latencyMs": 352,
         "lastChecked": "2026-09-18"
       },
@@ -40238,8 +40295,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 85,
-        "reliability": 67,
+        "score": 78,
+        "reliability": 47,
         "latencyMs": 979,
         "lastChecked": "2026-09-18"
       },
@@ -40417,15 +40474,15 @@
     {
       "id": "programming-quotes",
       "name": "Programming Quotes",
-      "description": "Programming Quotes API for open source projects",
+      "description": "An api which generates quotes from programmers",
       "category": "Personality",
       "categorySlug": "personality",
-      "url": "https://github.com/skolakoda/programming-quotes-api",
+      "url": "https://programming-quotesapi.vercel.app/",
       "auth": "none",
       "https": true,
       "cors": "no",
       "sources": [
-        "public-apis"
+        "public-api-lists"
       ],
       "health": {
         "score": 100,
@@ -40438,15 +40495,15 @@
     {
       "id": "programming-quotes-2",
       "name": "Programming Quotes",
-      "description": "An api which generates quotes from programmers",
+      "description": "Programming Quotes API for open source projects",
       "category": "Personality",
       "categorySlug": "personality",
-      "url": "https://programming-quotesapi.vercel.app/",
+      "url": "https://github.com/skolakoda/programming-quotes-api",
       "auth": "none",
       "https": true,
       "cors": "no",
       "sources": [
-        "public-api-lists"
+        "public-apis"
       ],
       "health": {
         "score": 0,
@@ -40492,7 +40549,7 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 98,
+        "score": 95,
         "reliability": 100,
         "latencyMs": 1111,
         "lastChecked": "2026-09-18"
@@ -40969,6 +41026,21 @@
       "status": "live"
     },
     {
+      "id": "pvgis",
+      "name": "PVGIS",
+      "description": "EU solar radiation and photovoltaic performance estimates",
+      "category": "Environment",
+      "categorySlug": "environment",
+      "url": "https://joint-research-centre.ec.europa.eu/pvgis-photovoltaic-geographical-information-system/getting-started-pvgis/api-non-interactive-service",
+      "auth": "none",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "pvwatts",
       "name": "PVWatts",
       "description": "Energy production photovoltaic (PV) energy systems",
@@ -41394,25 +41466,19 @@
       "status": "live"
     },
     {
-      "id": "quotable-quotes",
-      "name": "Quotable Quotes",
+      "id": "quotable",
+      "name": "Quotable",
       "description": "Quotable is a free, open source quotations API",
-      "category": "Personality",
-      "categorySlug": "personality",
+      "category": "Development",
+      "categorySlug": "development",
       "url": "https://github.com/lukePeavey/quotable",
       "auth": "none",
       "https": true,
-      "cors": "no",
+      "cors": "yes",
       "sources": [
         "public-apis"
       ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 1146,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
+      "status": "unchecked"
     },
     {
       "id": "quote-garden",
@@ -41901,6 +41967,21 @@
       "status": "live"
     },
     {
+      "id": "random-lexicon",
+      "name": "Random Lexicon",
+      "description": "Random words and definitions using optional filters",
+      "category": "Dictionaries",
+      "categorySlug": "dictionaries",
+      "url": "https://randomlexicon.com/api-reference",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "random-profiles",
       "name": "Random Profiles",
       "description": "Fake user profiles and companies with 100+ fields each",
@@ -42073,6 +42154,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "rankfabrik-jobs",
+      "name": "RankFabrik Jobs",
+      "description": "Aggregated job postings search, deduplicated on identifier, with coverage per segment",
+      "category": "Jobs",
+      "categorySlug": "jobs",
+      "url": "https://rankfabrik.com/produits/emplois",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "rankfabrik-verify",
@@ -42640,8 +42736,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 85,
-        "reliability": 87,
+        "score": 89,
+        "reliability": 90,
         "latencyMs": 1000,
         "lastChecked": "2026-09-18"
       },
@@ -42793,6 +42889,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "remoteok",
+      "name": "RemoteOK",
+      "description": "Remote job board for digital nomads",
+      "category": "Jobs",
+      "categorySlug": "jobs",
+      "url": "https://remoteok.com/api",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "remove-bg",
@@ -43021,8 +43132,8 @@
         "public-apis"
       ],
       "health": {
-        "score": 91,
-        "reliability": 83,
+        "score": 98,
+        "reliability": 100,
         "latencyMs": 521,
         "lastChecked": "2026-09-18"
       },
@@ -43158,6 +43269,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "revaddress",
+      "name": "RevAddress",
+      "description": "US address standardization, congressional and state legislative districts, Census data; free tier",
+      "category": "Data Validation",
+      "categorySlug": "data-validation",
+      "url": "https://revaddress.com/docs/",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "revcardata",
@@ -43986,6 +44112,21 @@
       "status": "live"
     },
     {
+      "id": "scanmalware",
+      "name": "ScanMalware",
+      "description": "Scan URLs in a sandboxed browser and search past scans by domain, IP, ASN, JARM or favicon hash",
+      "category": "Anti-Malware",
+      "categorySlug": "anti-malware",
+      "url": "https://scanmalware.com/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "schemashield",
       "name": "SchemaShield",
       "description": "Read-only preflight for breaking schema changes and downstream query impact",
@@ -44529,28 +44670,8 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
-      ],
-      "health": {
-        "score": 0,
-        "reliability": 0,
-        "latencyMs": 79,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "down"
-    },
-    {
-      "id": "securitytrails-2",
-      "name": "SecurityTrails",
-      "description": "Domain and IP related information such as current and historical WHOIS and DNS records",
-      "category": "Security",
-      "categorySlug": "security",
-      "url": "https://securitytrails.com/corp/api",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
       ],
       "health": {
         "score": 0,
@@ -44580,6 +44701,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "seedfinder",
+      "name": "SeedFinder",
+      "description": "Minecraft Bedrock structures prediction",
+      "category": "Games & Comics",
+      "categorySlug": "games-and-comics",
+      "url": "https://mineseedfinder.vercel.app/seedfinder",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "segmentlite",
@@ -44913,8 +45049,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 98,
-        "reliability": 100,
+        "score": 96,
+        "reliability": 97,
         "latencyMs": 1127,
         "lastChecked": "2026-09-18"
       },
@@ -45081,8 +45217,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 95,
-        "reliability": 98,
+        "score": 98,
+        "reliability": 100,
         "latencyMs": 1905,
         "lastChecked": "2026-09-18"
       },
@@ -45787,6 +45923,21 @@
       "status": "live"
     },
     {
+      "id": "smklog",
+      "name": "SMKlog",
+      "description": "Live parcel shipping rates and labels from a plain-words item description",
+      "category": "Transportation",
+      "categorySlug": "transportation",
+      "url": "https://smklog.com/openapi.json",
+      "auth": "none",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "smtpfast",
       "name": "SMTPfast",
       "description": "Send transactional email, manage contacts and broadcasts, free 3,000 emails/month",
@@ -45905,8 +46056,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 70,
-        "reliability": 40,
+        "score": 64,
+        "reliability": 23,
         "latencyMs": 928,
         "lastChecked": "2026-09-18"
       },
@@ -45998,6 +46149,21 @@
       "status": "live"
     },
     {
+      "id": "solar-system-opendata",
+      "name": "Solar System OpenData",
+      "description": "Data and facts on solar system bodies and planets",
+      "category": "Science & Math",
+      "categorySlug": "science-and-math",
+      "url": "https://api.le-systeme-solaire.net/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "solematica",
       "name": "Solematica",
       "description": "Compare Italian solar (photovoltaic) installer offers, energy prices (PUN/ARERA) and satellite roof data",
@@ -46017,6 +46183,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "sololuck",
+      "name": "SoloLuck",
+      "description": "Bitcoin solo mining pool stats, per-address miner stats and an open dataset of solo-mined blocks",
+      "category": "Cryptocurrency",
+      "categorySlug": "cryptocurrency",
+      "url": "https://sololuck.io/api",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "sonar",
@@ -46157,33 +46338,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 695,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "soundcloud-2",
-      "name": "SoundCloud",
-      "description": "Allow users to upload and share sounds",
-      "category": "Music",
-      "categorySlug": "music",
-      "url": "https://developers.soundcloud.com/",
-      "auth": "oauth",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 663,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -46203,8 +46364,8 @@
         "public-api-lists"
       ],
       "health": {
-        "score": 62,
-        "reliability": 5,
+        "score": 63,
+        "reliability": 6,
         "latencyMs": 922,
         "lastChecked": "2026-09-18"
       },
@@ -46213,7 +46374,7 @@
     {
       "id": "spaceflight-news",
       "name": "Spaceflight News",
-      "description": "Spaceflight related news",
+      "description": "Spaceflight related news 🚀",
       "category": "News",
       "categorySlug": "news",
       "url": "https://spaceflightnewsapi.net/",
@@ -46255,6 +46416,27 @@
     {
       "id": "spacex",
       "name": "SpaceX",
+      "description": "GraphQL, Company, Ships, launchpad and launch data",
+      "category": "Science & Math",
+      "categorySlug": "science-and-math",
+      "url": "https://api.spacex.land/graphql/",
+      "auth": "none",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "health": {
+        "score": 100,
+        "reliability": 100,
+        "latencyMs": 843,
+        "lastChecked": "2026-09-18"
+      },
+      "status": "live"
+    },
+    {
+      "id": "spacex-2",
+      "name": "SpaceX",
       "description": "Open Source REST API for launch, rocket, core, capsule, starlink, launchpad, and landing pad data.",
       "category": "Science & Math",
       "categorySlug": "science-and-math",
@@ -46268,28 +46450,7 @@
         "public-apis"
       ],
       "health": {
-        "score": 63,
-        "reliability": 0,
-        "latencyMs": 843,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "spacex-2",
-      "name": "SpaceX",
-      "description": "GraphQL, Company, Ships, launchpad and launch data",
-      "category": "Science & Math",
-      "categorySlug": "science-and-math",
-      "url": "https://api.spacex.land/graphql/",
-      "auth": "none",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-apis"
-      ],
-      "health": {
-        "score": 0,
+        "score": 13,
         "reliability": 0,
         "latencyMs": 311,
         "lastChecked": "2026-09-18"
@@ -47103,15 +47264,15 @@
     {
       "id": "steam-2",
       "name": "Steam",
-      "description": "Internal Steam Web API documentation",
+      "description": "Steam Client Interaction",
       "category": "Games & Comics",
       "categorySlug": "games-and-comics",
-      "url": "https://github.com/Revadike/InternalSteamWebAPI/wiki",
-      "auth": "none",
+      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API",
+      "auth": "oauth",
       "https": true,
       "cors": "no",
       "sources": [
-        "public-apis"
+        "public-api-lists"
       ],
       "health": {
         "score": 100,
@@ -47124,15 +47285,15 @@
     {
       "id": "steam-3",
       "name": "Steam",
-      "description": "Steam Client Interaction",
+      "description": "Internal Steam Web API documentation",
       "category": "Games & Comics",
       "categorySlug": "games-and-comics",
-      "url": "https://developer.valvesoftware.com/wiki/Steam_Web_API",
-      "auth": "oauth",
+      "url": "https://github.com/Revadike/InternalSteamWebAPI/wiki",
+      "auth": "none",
       "https": true,
       "cors": "no",
       "sources": [
-        "public-api-lists"
+        "public-apis"
       ],
       "health": {
         "score": 100,
@@ -47198,8 +47359,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 92,
-        "reliability": 99,
+        "score": 93,
+        "reliability": 100,
         "latencyMs": 973,
         "lastChecked": "2026-09-18"
       },
@@ -47474,8 +47635,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 84,
-        "reliability": 65,
+        "score": 86,
+        "reliability": 68,
         "latencyMs": 900,
         "lastChecked": "2026-09-18"
       },
@@ -47564,6 +47725,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "down"
+    },
+    {
+      "id": "sudoku100",
+      "name": "Sudoku100",
+      "description": "Free Sudoku puzzle generation and embedding with images, solver links and interactive games",
+      "category": "Games & Comics",
+      "categorySlug": "games-and-comics",
+      "url": "https://www.sudoku100.com/api",
+      "auth": "none",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "sugra",
@@ -47815,7 +47991,7 @@
         "public-apis"
       ],
       "health": {
-        "score": 100,
+        "score": 98,
         "reliability": 100,
         "latencyMs": 614,
         "lastChecked": "2026-09-18"
@@ -47928,6 +48104,21 @@
       "status": "down"
     },
     {
+      "id": "swiftnodes",
+      "name": "SwiftNodes",
+      "description": "Multi-chain blockchain RPC nodes (Ethereum, Solana and 75+ networks)",
+      "category": "Blockchain",
+      "categorySlug": "blockchain",
+      "url": "https://swiftnodes.io/",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "swiss-federal-railways-sbb",
       "name": "Swiss Federal Railways (SBB)",
       "description": "This API provides departure, delay, and cancellation data from the Swiss Federal Railways (SBB) for the previous day. It compares scheduled (soll) vs. actual (ist) operations.",
@@ -48025,8 +48216,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 96,
-        "reliability": 97,
+        "score": 98,
+        "reliability": 100,
         "latencyMs": 1049,
         "lastChecked": "2026-09-18"
       },
@@ -48050,6 +48241,27 @@
         "reliability": 100,
         "latencyMs": 919,
         "lastChecked": "2026-09-18"
+      },
+      "status": "live"
+    },
+    {
+      "id": "tablejourney-agent-api",
+      "name": "TableJourney Agent API",
+      "description": "This API provides food travel data for AI agents, including verified places, festivals, bookable experiences, and accommodations. Users can access booking links and optional attribution features, with public access and an optional API key for further customization.",
+      "category": "AI",
+      "categorySlug": "ai",
+      "url": "https://tablejourney.com/api/v1/docs",
+      "auth": "other",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "freepublicapis"
+      ],
+      "health": {
+        "score": 83,
+        "reliability": 91,
+        "latencyMs": 834,
+        "lastChecked": "2026-09-24"
       },
       "status": "live"
     },
@@ -48736,8 +48948,8 @@
       "id": "temporary-email-api-2",
       "name": "Temporary Email API",
       "description": "The Temporary Email API provides users with a way to generate temporary email addresses for secure and anonymous communication. Users can create, check, and manage temporary email addresses, allowing for the receipt of emails without exposing their actual email address.",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
+      "category": "Email",
+      "categorySlug": "email",
       "url": "https://github.com/l0v3m0n3y/temporarymail",
       "auth": "other",
       "https": true,
@@ -49710,6 +49922,21 @@
       "status": "down"
     },
     {
+      "id": "threatcluster",
+      "name": "ThreatCluster",
+      "description": "Threat intelligence: incident clusters, validated IOCs, CVEs, ransomware leak-site victims",
+      "category": "Security",
+      "categorySlug": "security",
+      "url": "https://threatcluster.io/api/public/v1/docs",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "thronesapi",
       "name": "ThronesApi",
       "description": "Game Of Thrones Characters Data with imagery",
@@ -49734,8 +49961,8 @@
       "id": "throwaway-email-api",
       "name": "Throwaway Email API",
       "description": "The Throwaway Email API allows users to check if an email address is from a disposable domain. It provides endpoints to search by domain name or email address. This service is useful for validating and filtering unwanted temporary emails.",
-      "category": "Geocoding",
-      "categorySlug": "geocoding",
+      "category": "Email",
+      "categorySlug": "email",
       "url": "https://throwaway.cloud/api",
       "auth": "other",
       "https": true,
@@ -50228,33 +50455,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 291,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "tomba-email-finder-2",
-      "name": "Tomba Email finder",
-      "description": "Email Finder for B2B sales and email marketing",
-      "category": "Business",
-      "categorySlug": "business",
-      "url": "https://tomba.io/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 304,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -50323,6 +50530,21 @@
       "status": "down"
     },
     {
+      "id": "toolforte",
+      "name": "ToolForte",
+      "description": "Deterministic utilities: IBAN/VAT validation, cron parsing, regex, diffs, Dutch holidays and test data",
+      "category": "Development",
+      "categorySlug": "development",
+      "url": "https://toolforte.com/developers",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "unknown",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "top-5-stocks",
       "name": "Top 5 Stocks",
       "description": "Daily AI-ranked stock and crypto watchlists",
@@ -50357,8 +50579,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 97,
-        "reliability": 98,
+        "score": 98,
+        "reliability": 100,
         "latencyMs": 372,
         "lastChecked": "2026-09-18"
       },
@@ -51094,7 +51316,7 @@
     {
       "id": "transport-for-ottawa-canada",
       "name": "Transport for Ottawa, Canada",
-      "description": "OC Transpo API",
+      "description": "OC Transpo next bus arrival API",
       "category": "Transportation",
       "categorySlug": "transportation",
       "url": "https://www.octranspo.com/en/plan-your-trip/travel-tools/developers",
@@ -51102,33 +51324,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 0,
         "reliability": 0,
         "latencyMs": 696,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "down"
-    },
-    {
-      "id": "transport-for-ottawa-canada-2",
-      "name": "Transport for Ottawa, Canada",
-      "description": "OC Transpo next bus arrival API",
-      "category": "Transportation",
-      "categorySlug": "transportation",
-      "url": "http://www.octranspo.com/index.php/developers",
-      "auth": "none",
-      "https": false,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 0,
-        "reliability": 0,
-        "latencyMs": 1132,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -51799,6 +52001,21 @@
       "status": "live"
     },
     {
+      "id": "tubetotranscript",
+      "name": "TubeToTranscript",
+      "description": "Extract clean YouTube video transcripts via REST API",
+      "category": "Video",
+      "categorySlug": "video",
+      "url": "https://www.tubetotranscript.com/youtube-transcript-api",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "tumblr",
       "name": "Tumblr",
       "description": "Read and write Tumblr Data",
@@ -52433,7 +52650,7 @@
       "health": {
         "score": 46,
         "reliability": 97,
-        "latencyMs": 171,
+        "latencyMs": 172,
         "lastChecked": "2026-09-18"
       },
       "status": "down"
@@ -52719,7 +52936,7 @@
     {
       "id": "urgences-quebec",
       "name": "Urgences Québec",
-      "description": "Hourly emergency room occupancy, stretcher counts and wait times for every hospital in Quebec, Canada",
+      "description": "Hourly ER occupancy, patients waiting and mean stay duration for every ER in the Québec health ministry feed, archived since 10 Aug 2026",
       "category": "Health",
       "categorySlug": "health",
       "url": "https://sante.handled.tools/api",
@@ -52727,33 +52944,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 252,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "urgences-quebec-2",
-      "name": "Urgences Québec",
-      "description": "Hourly ER occupancy, patients waiting and mean stay duration for every ER in the Québec health ministry feed, archived since 10 Aug 2026",
-      "category": "Health",
-      "categorySlug": "health",
-      "url": "https://sante.handled.tools/en/donnees",
-      "auth": "none",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 424,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -53410,8 +53607,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 94,
-        "reliability": 97,
+        "score": 95,
+        "reliability": 100,
         "latencyMs": 1950,
         "lastChecked": "2026-09-18"
       },
@@ -54396,6 +54593,21 @@
       "status": "down"
     },
     {
+      "id": "votepredictor",
+      "name": "VotePredictor",
+      "description": "US election forecasts, congressional voting records and forecaster accuracy ratings",
+      "category": "Government",
+      "categorySlug": "government",
+      "url": "https://votepredictor.com/developers",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "voxodds",
       "name": "VoxOdds",
       "description": "Polymarket and Kalshi odds, all-in executable quotes, EV checks and audited forecast scores",
@@ -54493,8 +54705,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 90,
-        "reliability": 87,
+        "score": 94,
+        "reliability": 97,
         "latencyMs": 1010,
         "lastChecked": "2026-09-18"
       },
@@ -55011,10 +55223,10 @@
     {
       "id": "weather-data-api",
       "name": "Weather Data API",
-      "description": "WeatherXu provides comprehensive weather data through a simple JSON-based REST API. Users can access current conditions, hourly forecasts, and 10-day predictions for any location worldwide, ensuring reliability and accuracy.",
+      "description": "This API provides comprehensive weather data including current conditions, hourly forecasts, and daily summaries. It includes metrics such as temperature, humidity, wind speed, precipitation, and various other atmospheric parameters.",
       "category": "Weather",
       "categorySlug": "weather",
-      "url": "https://weatherxu.com/documentation",
+      "url": "https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,wind_speed_10m_max,sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,uv_index_clear_sky_max,rain_sum,showers_sum,snowfall_sum,precipitation_hours,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum,et0_fao_evapotranspiration&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,vapour_pressure_deficit,et0_fao_evapotranspiration,visibility,evapotranspiration,cloud_cover_high,cloud_cover_mid,cloud_cover_low,cloud_cover,surface_pressure,pressure_msl,weather_code,wind_speed_10m,wind_speed_80m,wind_speed_120m,wind_speed_180m,wind_direction_10m,wind_direction_80m,wind_direction_120m,wind_direction_180m,wind_gusts_10m,temperature_80m,temperature_120m,temperature_180m,soil_temperature_0cm,soil_temperature_6cm,soil_temperature_18cm,soil_temperature_54cm,soil_moisture_0_to_1cm,soil_moisture_1_to_3cm,soil_moisture_3_to_9cm,soil_moisture_9_to_27cm,soil_moisture_27_to_81cm&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure&timezone=auto",
       "auth": "other",
       "https": true,
       "cors": "no",
@@ -55022,8 +55234,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 63,
-        "reliability": 0,
+        "score": 94,
+        "reliability": 97,
         "latencyMs": 1543,
         "lastChecked": "2026-09-18"
       },
@@ -55032,10 +55244,10 @@
     {
       "id": "weather-data-api-2",
       "name": "Weather Data API",
-      "description": "This API provides comprehensive weather data including current conditions, hourly forecasts, and daily summaries. It includes metrics such as temperature, humidity, wind speed, precipitation, and various other atmospheric parameters.",
+      "description": "WeatherXu provides comprehensive weather data through a simple JSON-based REST API. Users can access current conditions, hourly forecasts, and 10-day predictions for any location worldwide, ensuring reliability and accuracy.",
       "category": "Weather",
       "categorySlug": "weather",
-      "url": "https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,wind_speed_10m_max,sunrise,sunset,daylight_duration,sunshine_duration,uv_index_max,uv_index_clear_sky_max,rain_sum,showers_sum,snowfall_sum,precipitation_hours,precipitation_sum,precipitation_probability_max,wind_gusts_10m_max,wind_direction_10m_dominant,shortwave_radiation_sum,et0_fao_evapotranspiration&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,vapour_pressure_deficit,et0_fao_evapotranspiration,visibility,evapotranspiration,cloud_cover_high,cloud_cover_mid,cloud_cover_low,cloud_cover,surface_pressure,pressure_msl,weather_code,wind_speed_10m,wind_speed_80m,wind_speed_120m,wind_speed_180m,wind_direction_10m,wind_direction_80m,wind_direction_120m,wind_direction_180m,wind_gusts_10m,temperature_80m,temperature_120m,temperature_180m,soil_temperature_0cm,soil_temperature_6cm,soil_temperature_18cm,soil_temperature_54cm,soil_moisture_0_to_1cm,soil_moisture_1_to_3cm,soil_moisture_3_to_9cm,soil_moisture_9_to_27cm,soil_moisture_27_to_81cm&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure&timezone=auto",
+      "url": "https://weatherxu.com/documentation",
       "auth": "other",
       "https": true,
       "cors": "yes",
@@ -55043,8 +55255,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 94,
-        "reliability": 97,
+        "score": 63,
+        "reliability": 0,
         "latencyMs": 1570,
         "lastChecked": "2026-09-18"
       },
@@ -55189,33 +55401,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 927,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "weatherstack-2",
-      "name": "WeatherStack",
-      "description": "Humidity & Air & Pressure API",
-      "category": "Environment",
-      "categorySlug": "environment",
-      "url": "https://weatherstack.com/documentation",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 2473,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -55807,8 +55999,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 86,
-        "reliability": 88,
+        "score": 90,
+        "reliability": 93,
         "latencyMs": 488,
         "lastChecked": "2026-09-18"
       },
@@ -56146,8 +56338,8 @@
         "freepublicapis"
       ],
       "health": {
-        "score": 91,
-        "reliability": 97,
+        "score": 93,
+        "reliability": 100,
         "latencyMs": 1630,
         "lastChecked": "2026-09-18"
       },
@@ -56186,33 +56378,13 @@
       "https": true,
       "cors": "no",
       "sources": [
+        "public-api-lists",
         "public-apis"
       ],
       "health": {
         "score": 100,
         "reliability": 100,
         "latencyMs": 735,
-        "lastChecked": "2026-09-18"
-      },
-      "status": "live"
-    },
-    {
-      "id": "words-2",
-      "name": "Words",
-      "description": "Definitions and synonyms for more than 150,000 words",
-      "category": "Dictionaries",
-      "categorySlug": "dictionaries",
-      "url": "https://www.wordsapi.com/",
-      "auth": "apiKey",
-      "https": true,
-      "cors": "no",
-      "sources": [
-        "public-api-lists"
-      ],
-      "health": {
-        "score": 100,
-        "reliability": 100,
-        "latencyMs": 743,
         "lastChecked": "2026-09-18"
       },
       "status": "live"
@@ -56497,6 +56669,21 @@
       "status": "live"
     },
     {
+      "id": "xeramail-temp-mail",
+      "name": "Xeramail Temp Mail",
+      "description": "Temp email address REST API for privacy, testing, automation with OTP extraction",
+      "category": "Email",
+      "categorySlug": "email",
+      "url": "https://xeramail.com/docs/api",
+      "auth": "apiKey",
+      "https": true,
+      "cors": "no",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "xfetch",
       "name": "xfetch",
       "description": "Read API for X/Twitter search, profiles, tweets, and social graph",
@@ -56583,6 +56770,21 @@
       "status": "live"
     },
     {
+      "id": "xlsx-inspector",
+      "name": "XLSX Inspector",
+      "description": "Inspect XLSX/XLSM structure: sheets, formulas, macros and external links",
+      "category": "Development",
+      "categorySlug": "development",
+      "url": "https://api.lifestep.io/",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
+    },
+    {
       "id": "xmath",
       "name": "xMath",
       "description": "Random mathematical expressions",
@@ -56623,6 +56825,21 @@
         "lastChecked": "2026-09-18"
       },
       "status": "live"
+    },
+    {
+      "id": "xoomar",
+      "name": "XOOMAR",
+      "description": "US market data from SEC, FINRA, CFTC and the Fed: filings, insiders, earnings dates, short interest",
+      "category": "Finance",
+      "categorySlug": "finance",
+      "url": "https://xoomar.com/markets/api",
+      "auth": "none",
+      "https": true,
+      "cors": "yes",
+      "sources": [
+        "public-apis"
+      ],
+      "status": "unchecked"
     },
     {
       "id": "xquik",

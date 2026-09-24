@@ -66,8 +66,10 @@ export const CATEGORY_DESCRIPTION: Record<string, string> = {
   'sports-and-fitness': 'Fixtures, live scores, standings, athletes and activity tracking.',
   development: 'Tooling for developers: source control, hosting, utilities and automation.',
   security: 'Threat intelligence, breach lookup, vulnerability feeds and scanning.',
+  email: 'Sending, validating, and disposable-inbox APIs for handling email programmatically.',
   video: 'Video catalogues, streaming metadata, hosting and transcoding.',
   health: 'Medical reference data, nutrition, public health statistics and fitness.',
+  pharma: 'Drug and clinical trial registries, regulatory filings and pharmaceutical research data.',
   'food-and-drink': 'Recipes, ingredients, nutrition facts, restaurants and beverages.',
   science: 'Research data, astronomy, physics, chemistry and reference constants.',
   'science-and-math': 'Research datasets, astronomy, physics, chemistry and computation.',
@@ -78,13 +80,23 @@ export const CATEGORY_DESCRIPTION: Record<string, string> = {
   uncategorised: 'Entries that upstream sources publish without a category.',
 };
 
-/** Keyword rules for entries that arrive without a category, used in listed order. */
+/**
+ * Keyword rules for entries that arrive without a category, checked in listed order
+ * and returning on first match — so more specific categories must be listed before
+ * more generic ones. `security` and `email` sit ahead of `geocoding` deliberately:
+ * geocoding's bare `address` keyword otherwise catches "email address" in a data-breach
+ * or temp-mail API's description before the entry ever reaches a rule that actually
+ * names it (a real bug found via a Reddit reader flagging a breach-checker API filed
+ * under Geocoding).
+ */
 const INFERENCE_RULES: Array<[string, RegExp]> = [
   ['weather', /\b(weather|forecast|climate|temperature|rainfall|meteorolog|hurricane|storm)\b/i],
   ['cryptocurrency', /\b(crypto|bitcoin|ethereum|blockchain|token|defi|nft|web3)\b/i],
   ['currency-exchange', /\b(exchange rate|currency|forex|fx rate|conversion rate)\b/i],
   ['finance', /\b(stock|finance|financial|market|trading|bank|invoice|payment|tax|invest)\b/i],
   ['machine-learning', /\b(\ai\b|artificial intelligence|machine learning|\bllm\b|\bgpt\b|neural|inference|embedding)\b/i],
+  ['security', /\b(security|breach|vulnerab|malware|phishing|threat|password|encrypt)\b/i],
+  ['email', /\b(email|smtp|mailbox|newsletter|inbox)\b/i],
   ['geocoding', /\b(geocod|map|location|coordinates|latitude|longitude|address|places|country|countries|city|cities|postal|zip)\b/i],
   ['animals', /\b(animal|dog|cat|bird|fish|pet|species|wildlife|axolotl|dinosaur)\b/i],
   ['anime', /\b(anime|manga|waifu|otaku)\b/i],
@@ -99,8 +111,6 @@ const INFERENCE_RULES: Array<[string, RegExp]> = [
   ['health', /\b(health|medical|medicine|covid|disease|hospital|doctor|drug|clinical)\b/i],
   ['government', /\b(government|federal|census|public sector|parliament|election|municipal)\b/i],
   ['science-and-math', /\b(science|nasa|space|astronom|physics|chemistry|math|research|satellite)\b/i],
-  ['security', /\b(security|breach|vulnerab|malware|phishing|threat|password|encrypt)\b/i],
-  ['email', /\b(email|smtp|mailbox|newsletter|inbox)\b/i],
   ['phone', /\b(phone|sms|telephone|mobile number|carrier lookup)\b/i],
   ['test-data', /\b(mock|fake|placeholder|dummy|test data|sandbox|random user|lorem)\b/i],
   ['development', /\b(developer|api tool|webhook|deploy|hosting|github|git |ci\/cd|json|http)\b/i],
