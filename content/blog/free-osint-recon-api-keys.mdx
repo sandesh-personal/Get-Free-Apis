@@ -1,0 +1,215 @@
+---
+title: "Free OSINT API keys: SecurityTrails, Shodan, Censys, FOFA and more"
+description: "SecurityTrails, Shodan, Censys, FOFA, GreyNoise, MalwareBazaar and BinaryEdge: which keys are free, what the free tier allows, how to get each one, and what a keyless call returned when we tried."
+cluster: roundups
+imageQuery: "network cables server rack"
+author: sandy
+publishedAt: "2026-09-27"
+updatedAt: "2026-09-27"
+relatedApis:
+  - securitytrails
+  - shodan
+  - censys
+  - fofa
+  - greynoise
+  - malwarebazaar
+  - binaryedge
+relatedPosts:
+  - hide-api-keys-frontend
+  - api-key-stopped-working
+  - 401-vs-403-api-authentication
+sources:
+  - label: "SecurityTrails API"
+    url: "https://securitytrails.com/corp/api"
+  - label: "Shodan: credit types explained"
+    url: "https://help.shodan.io/the-basics/credit-types-explained"
+  - label: "Censys: transition guide for free users"
+    url: "https://docs.censys.com/docs/transition-guides-for-free-solo-and-teams-subscribers"
+  - label: "FOFA API documentation"
+    url: "https://en.fofa.info/api"
+  - label: "Using the GreyNoise Community API"
+    url: "https://docs.greynoise.io/docs/using-the-greynoise-community-api"
+  - label: "MalwareBazaar community API"
+    url: "https://bazaar.abuse.ch/api/"
+  - label: "Coalition: BinaryEdge transition FAQ"
+    url: "https://help.coalitioninc.com/hc/en-us/articles/34383910057371-BinaryEdge-Transition-FAQ"
+faq:
+  - q: "Which OSINT API keys are free?"
+    a: "SecurityTrails, Shodan, Censys, FOFA, GreyNoise and MalwareBazaar all issue a key with a free account. The free allowances differ enormously: GreyNoise's Community API is unlimited with a free key, while SecurityTrails gives a small monthly allowance and Censys limits free accounts to lookups. BinaryEdge no longer issues keys at all."
+  - q: "Is the BinaryEdge API still working?"
+    a: "No. Coalition shut BinaryEdge down at 23:59 GMT on 31 March 2025. Old keys stopped working that night and the documentation URL now redirects to a Coalition help page. Remove it from your tool's config and use Shodan, Censys or FOFA instead."
+  - q: "How do I get a Censys API ID and secret?"
+    a: "You no longer can on a free account. Censys disabled the legacy Search API, which used an API ID and secret, for free users. Free accounts now generate a Personal Access Token on the Censys Platform and send it as a Bearer token, and can use the lookup endpoints only."
+  - q: "What is a FOFA key?"
+    a: "The API key attached to your FOFA account, found in your personal centre after registering at en.fofa.info. Since late 2023 the API needs only the key; the older email-plus-key format still works. A free account's key returns limited results, and F-points unlock more."
+  - q: "My recon tool says SECURITYTRAILS_API_KEY is missing. What does that mean?"
+    a: "It is the name of the setting the tool reads the key from, not an error with SecurityTrails. Sign up for a free SecurityTrails account, copy the key, and put it in the tool's config file or environment. Then call the ping endpoint once to confirm the key works before blaming the tool."
+---
+
+People search for `securitytrails_api_key`, `binaryedge_api_key` and `greynoise_api_key` with underscores, and there is a reason. Those are the names of settings in recon tools such as theHarvester and subfinder. You install the tool, it prints a list of a dozen providers with empty keys, and you have to work out which ones are free, which are worth the signup, and which no longer exist.
+
+This post answers that for the seven providers people ask us about most. We did not copy it from their marketing pages. We called every one of them without a key on 27 September 2026 and recorded exactly what came back. That tells you what a missing or broken key looks like before you start debugging your tool.
+
+<Answer>
+Get the free keys for **[GreyNoise](/apis/greynoise)** (unlimited Community lookups), **[Shodan](/apis/shodan)** and **[MalwareBazaar](/apis/malwarebazaar)** first: they cost nothing and are genuinely useful on a free account. **[SecurityTrails](/apis/securitytrails)**, **[Censys](/apis/censys)** and **[FOFA](/apis/fofa)** also issue free keys, but with tight allowances. **[BinaryEdge](/apis/binaryedge)** shut down on 31 March 2025, so delete its key from your config.
+</Answer>
+
+## The shortlist
+
+<ApiTable ids={["greynoise", "shodan", "malwarebazaar", "securitytrails", "censys", "fofa", "binaryedge"]} />
+
+| Provider | Key | What the free account gets | Where the key goes |
+| --- | --- | --- | --- |
+| GreyNoise | Optional | A few Community lookups a day with no key; unlimited with a free key | `key` header |
+| Shodan | Free | A key, but few credits; the $49 one-time Membership adds 100 query credits a month | `key` query parameter |
+| MalwareBazaar | Free, required | Full community API | `Auth-Key` header |
+| SecurityTrails | Free | A small monthly allowance, long documented as 50 queries | `APIKEY` header |
+| Censys | Free | Lookup endpoints only: hosts, certificates, web properties | `Authorization: Bearer` |
+| FOFA | Free | Limited results; F-points unlock more | `key` query parameter |
+| BinaryEdge | None | Shut down on 31 March 2025 | — |
+
+## What a keyless call returns
+
+This is the table we wish existed when a tool says "invalid credentials" and you cannot tell whether the problem is your key, your config or the provider.
+
+<Tested date="2026-09-27" result="Two of seven answered with data and no key. Four refused. FOFA refused while still returning HTTP 200.">
+Each request was sent from a plain curl with no key, token or Authorization header.
+</Tested>
+
+| Provider | Request | HTTP | Body |
+| --- | --- | --- | --- |
+| GreyNoise | `GET /v3/community/8.8.8.8` | 200 | IP data, `"noise": false` |
+| Shodan | `GET /shodan/host/8.8.8.8` | 200 | Full host record: ports 443 and 53, ISP Google LLC |
+| SecurityTrails | `GET /v1/ping` | 401 | `Please check user credentials` |
+| Censys | `GET /v3/global/asset/host/8.8.8.8` | 401 | `"message":"Access credentials are invalid"` |
+| MalwareBazaar | `POST /api/v1/` | 401 | `{"error": "Unauthorized"}` |
+| FOFA | `GET /api/v1/info/my` | **200** | `{"error":true,"errmsg":"[-700] 账号无效"}` |
+| BinaryEdge | `GET /v2/user/subscription` | 403 | Nothing; the service is gone |
+
+Two of these will catch you out.
+
+**FOFA reports failure with a 200.** The error lives in the JSON body: `error: true`, plus a message in Chinese that means "account invalid". Code that only checks the status code will happily treat a rejected key as an empty result. Always check the `error` field.
+
+**GreyNoise uses 404 as an answer.** When we looked up 1.1.1.1, the Community API returned HTTP 404 with a JSON body saying `"IP not observed scanning the internet."` That is data, not a missing endpoint. If your code treats every 404 as "broken URL", it will log errors for every clean IP.
+
+<Callout type="note" title="Shodan answered without a key">
+Our keyless host lookup for 8.8.8.8 returned a complete record. Do not build on that. Shodan's documentation puts the key on every endpoint, and searching needs one. It may simply be tolerating light keyless use on host lookups today.
+</Callout>
+
+## GreyNoise: the best free key on this list
+
+GreyNoise tells you whether an IP address is mass-scanning the internet, or belongs to a known benign service such as a search engine crawler. That is exactly the question you have when an IP appears in your logs.
+
+The Community API answers a handful of lookups a day with no key. With the key from a free account, Community lookups are unlimited. Our keyless calls came back with an `X-Ratelimit-Limit: 25` header, while the documentation says 10 a day. Plan for the lower number, or simply register.
+
+```bash
+curl -s -H "key: $GREYNOISE_API_KEY" https://api.greynoise.io/v3/community/8.8.8.8
+```
+
+## Shodan: free key, few credits
+
+Every Shodan account gets an API key immediately. What limits you is credits. Searches without filters cost no query credits. Filtered searches, such as `product:mongodb`, and extra pages of results cost one credit per 100 results, and credits reset monthly. A free account has very little to spend, which is why the one-time $49 Membership is the usual upgrade. It adds 100 query credits and 100 scan credits a month and never renews.
+
+```bash
+curl -s "https://api.shodan.io/shodan/host/8.8.8.8?key=$SHODAN_API_KEY"
+```
+
+## MalwareBazaar: free, but the key is now mandatory
+
+abuse.ch now requires an `Auth-Key` on every MalwareBazaar request, and our keyless call got a flat 401. Older scripts that worked without one break with exactly that `Unauthorized` body. Get a key by signing in at auth.abuse.ch; registration is open to anyone.
+
+```bash
+curl -s -X POST https://mb-api.abuse.ch/api/v1/ \
+  -H "Auth-Key: $MALWAREBAZAAR_AUTH_KEY" \
+  -d "query=get_recent&selector=time"
+```
+
+## SecurityTrails: useful data, tiny allowance
+
+SecurityTrails, now part of Recorded Future, has the historical DNS and subdomain data recon tools want. The free account has long been documented at 50 queries a month; your dashboard shows the current figure. That is enough to confirm a key works and run a few lookups, not to enumerate an organisation. Recon tools can burn a month's allowance in a single run, so give SecurityTrails a low priority in your tool's config.
+
+The ping endpoint costs nothing useful and tells you whether the key is valid:
+
+```bash
+curl -s https://api.securitytrails.com/v1/ping -H "APIKEY: $SECURITYTRAILS_API_KEY"
+```
+
+## Censys: the API ID and secret are gone
+
+This is the one that confuses people most, because many tutorials and tools still ask for a Censys "API ID" and "API secret". Those belonged to the legacy Search API, which Censys has disabled for free users. A free account now generates a **Personal Access Token** on the Censys Platform and sends it as a Bearer token.
+
+The free token covers lookup endpoints only: fetch a host, certificate or web property you already know about. Search needs a paid plan. If your tool still has two Censys fields, it is expecting the old API and needs updating.
+
+```bash
+curl -s https://api.platform.censys.io/v3/global/asset/host/8.8.8.8 \
+  -H "Authorization: Bearer $CENSYS_PAT"
+```
+
+## FOFA: what "a FOFA key" is
+
+FOFA is a search engine for internet-connected assets, popular in Chinese-language security tooling. Every registered account has an API key in its personal centre. Since late 2023 the API needs only that key; the old `email` plus `key` format still works for compatibility. Free accounts return limited results. F-points unlock more, and you can earn them by submitting assets FOFA has not recorded yet as well as by buying them.
+
+Queries are sent base64-encoded:
+
+```bash
+Q=$(printf 'domain="example.com"' | base64)
+curl -s "https://fofa.info/api/v1/search/all?key=$FOFA_KEY&qbase64=$Q"
+```
+
+## BinaryEdge: delete the key
+
+Coalition bought BinaryEdge in 2020 and folded its scanning data into its own products. It switched off the standalone platform and API at 23:59 GMT on 31 March 2025. The API now returns 403 and the documentation URL redirects to a Coalition help article. That redirect is why some directories, briefly including ours, still showed it as live.
+
+If your tool has a `binaryedge_api_key` setting, leave it empty. Users reported the shutdown against both subfinder and theHarvester, so update the tool too if it still lists the source. [Shodan](/apis/shodan), [Censys](/apis/censys) and [FOFA](/apis/fofa) cover the same ground.
+
+## Check every key before you run a tool
+
+A recon run that silently skips half its sources because two keys were pasted with a trailing space is a waste of an afternoon. Checking each key once, directly, takes seconds.
+
+```bash
+#!/usr/bin/env bash
+# Prints the HTTP status each provider returns for your key. Expect 200 across the board.
+check() { printf '%-15s %s\n' "$1" "$(curl -s -o /dev/null -w '%{http_code}' "${@:2}")"; }
+
+check greynoise      -H "key: $GREYNOISE_API_KEY" https://api.greynoise.io/v3/community/8.8.8.8
+check shodan         "https://api.shodan.io/api-info?key=$SHODAN_API_KEY"
+check securitytrails -H "APIKEY: $SECURITYTRAILS_API_KEY" https://api.securitytrails.com/v1/ping
+check censys         -H "Authorization: Bearer $CENSYS_PAT" https://api.platform.censys.io/v3/global/asset/host/8.8.8.8
+check malwarebazaar  -H "Auth-Key: $MALWAREBAZAAR_AUTH_KEY" -X POST -d "query=get_recent&selector=time" https://mb-api.abuse.ch/api/v1/
+```
+
+FOFA needs the body check described above, so it is easier in Python:
+
+```python
+import os
+import requests
+
+r = requests.get(
+    "https://fofa.info/api/v1/info/my",
+    params={"key": os.environ["FOFA_KEY"]},
+    timeout=10,
+)
+data = r.json()
+# FOFA returns HTTP 200 even for a bad key, so the status code proves nothing.
+if data.get("error"):
+    raise SystemExit(f"FOFA rejected the key: {data.get('errmsg')}")
+print("FOFA key OK")
+```
+
+<Callout type="danger" title="Keep these keys out of git">
+Recon tool configs live in your home directory for a reason. A committed `provider-config.yaml` or `.env` with working Shodan and SecurityTrails keys will be found by scanners within hours. If one leaks, revoke it in the provider's dashboard first, then clean the history. See [how to keep API keys out of your code](/blog/hide-api-keys-frontend).
+</Callout>
+
+## Which to get first
+
+**Five minutes, maximum value.** GreyNoise, Shodan and MalwareBazaar. All free, all useful without paying.
+
+**Subdomain and DNS history.** SecurityTrails, but ration it, because the free allowance is small.
+
+**Certificate and host detail.** Censys, knowing that free tokens can look things up but not search.
+
+**A second asset index alongside Shodan.** FOFA, with the F-points model in mind.
+
+**BinaryEdge.** Nothing. It is gone.
+
+We re-check these providers on a schedule, and each one's page shows its current status and the date we last verified its key terms. [Browse the Security category](/categories/security) for the rest.

@@ -251,6 +251,20 @@
     "photoPageUrl": "https://unsplash.com/photos/alleyway-with-red-lanterns-in-tokyo-D68ADLeMh5Q",
     "fetchedAt": "2026-09-20"
   },
+  "free-apis-that-shut-down": {
+    "slug": "free-apis-that-shut-down",
+    "query": "closed sign shop window",
+    "photoId": "4TsDHnlUfqc",
+    "rawUrl": "https://images.unsplash.com/photo-1727767579106-c30a4c1c74c5?ixid=M3wxMDY1ODk5fDB8MXxzZWFyY2h8MXx8Y2xvc2VkJTIwc2lnbiUyMHNob3AlMjB3aW5kb3d8ZW58MXwwfHx8MTc5MDUzMTUyN3ww&ixlib=rb-4.1.0",
+    "altDescription": "A closed sign hanging from a glass door",
+    "colour": "#262626",
+    "width": 5064,
+    "height": 3376,
+    "photographerName": "Tim Mossholder",
+    "photographerUsername": "timmossholder",
+    "photoPageUrl": "https://unsplash.com/photos/a-closed-sign-hanging-from-a-glass-door-4TsDHnlUfqc",
+    "fetchedAt": "2026-09-27"
+  },
   "free-country-flag-and-geography-apis": {
     "slug": "free-country-flag-and-geography-apis",
     "query": "world flags row",
@@ -432,6 +446,20 @@
     "photographerUsername": "codzilla_swiss",
     "photoPageUrl": "https://unsplash.com/photos/business-newspaper-article-WYd_PkCa1BY",
     "fetchedAt": "2026-09-20"
+  },
+  "free-osint-recon-api-keys": {
+    "slug": "free-osint-recon-api-keys",
+    "query": "network cables server rack",
+    "photoId": "2JJ3wBHu4_0",
+    "rawUrl": "https://images.unsplash.com/photo-1695668548342-c0c1ad479aee?ixid=M3wxMDY1ODk5fDB8MXxzZWFyY2h8Mnx8bmV0d29yayUyMGNhYmxlcyUyMHNlcnZlciUyMHJhY2t8ZW58MXwwfHx8MTc5MDUzMTUyOHww&ixlib=rb-4.1.0",
+    "altDescription": "a rack of servers in a server room",
+    "colour": "#262626",
+    "width": 8478,
+    "height": 5652,
+    "photographerName": "Kevin Ache",
+    "photographerUsername": "kevinache",
+    "photoPageUrl": "https://unsplash.com/photos/a-rack-of-servers-in-a-server-room-2JJ3wBHu4_0",
+    "fetchedAt": "2026-09-27"
   },
   "free-qr-code-and-barcode-apis": {
     "slug": "free-qr-code-and-barcode-apis",

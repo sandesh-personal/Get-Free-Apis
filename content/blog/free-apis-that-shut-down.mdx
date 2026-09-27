@@ -1,0 +1,188 @@
+---
+title: "Free APIs that shut down or stopped being free (2022–2026)"
+description: "WeTransfer, IEX Cloud, BinaryEdge, Nordigen, Untappd, and the Spotify, Censys and CARTO rule changes: what happened, when, and what to use instead. Checked against each provider's own announcement."
+cluster: roundups
+imageQuery: "closed sign shop window"
+author: sandy
+publishedAt: "2026-09-27"
+updatedAt: "2026-09-27"
+relatedApis:
+  - wetransfer
+  - iex-cloud
+  - binaryedge
+  - nordigen
+  - untappd
+  - spotify
+  - censys
+  - carto
+relatedPosts:
+  - surviving-breaking-api-changes
+  - check-if-an-api-is-alive
+  - when-a-free-tier-is-not-enough
+sources:
+  - label: "WeTransfer: we've retired our Public API"
+    url: "https://help.wetransfer.com/hc/en-us/articles/360038551772-We-ve-retired-our-Public-API"
+  - label: "IEX Cloud shutdown analysis"
+    url: "https://www.alphavantage.co/iexcloud_shutdown_analysis_and_migration/"
+  - label: "Coalition: BinaryEdge transition FAQ"
+    url: "https://help.coalitioninc.com/hc/en-us/articles/34383910057371-BinaryEdge-Transition-FAQ"
+  - label: "GoCardless Bank Account Data: new signups disabled"
+    url: "https://bankaccountdata.gocardless.com/new-signups-disabled"
+  - label: "Spotify: February 2026 Web API dev mode changes"
+    url: "https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide"
+  - label: "Spotify: updating the criteria for Web API extended access"
+    url: "https://developer.spotify.com/blog/2025-04-15-updating-the-criteria-for-web-api-extended-access"
+  - label: "Censys: transition guide for free users"
+    url: "https://docs.censys.com/docs/transition-guides-for-free-solo-and-teams-subscribers"
+  - label: "CARTO Basemaps API key"
+    url: "https://carto.com/basemaps/apikey/"
+faq:
+  - q: "Is the WeTransfer API still available?"
+    a: "No. WeTransfer stopped giving its Public API to new users in 2020 and disabled it in May 2022. There is no public replacement. For programmatic file sharing, look at file.io, Gofile or MEGA instead."
+  - q: "What replaced IEX Cloud?"
+    a: "Nothing from IEX. IEX Group retired every IEX Cloud API product on 31 August 2024 to focus on its exchange business. Alpha Vantage, Finnhub and Twelve Data are the usual free-tier replacements for the same kind of stock data."
+  - q: "Is the Nordigen bank data API still free?"
+    a: "Not for new users. GoCardless bought Nordigen and ran its free API as Bank Account Data, then disabled new signups in July 2025. Existing integrations may keep working, but you cannot start a new project on it."
+  - q: "Can I still use the Spotify Web API for free?"
+    a: "Yes, with heavy limits. Since February 2026 the app owner needs Spotify Premium, a development-mode app is capped at five users and one client ID, and several endpoints were removed. Extended access is only for registered businesses with at least 250,000 monthly active users."
+  - q: "How can I find out before an API I depend on shuts down?"
+    a: "Watch for the early signs: signups closed to new users, documentation that stops changing, a free tier quietly cut back, or an acquisition. Check the API on a schedule, not just when it breaks, and alert on redirects to another domain as well as on errors."
+---
+
+Every directory of free APIs slowly fills with dead ones, and ours is no exception. The difference we try to make is saying so. This post collects the free APIs people still search for that have shut down, closed to new users, or changed their terms so much that "free" needs a footnote.
+
+Everything here is checked against the provider's own announcement or documentation, and against our own requests on 27 September 2026. Where we could not find an official date, we say so rather than guess.
+
+<Answer>
+**Gone:** [WeTransfer](/apis/wetransfer) (disabled May 2022), [IEX Cloud](/apis/iex-cloud) (31 August 2024) and [BinaryEdge](/apis/binaryedge) (31 March 2025). **Closed to new users:** [Nordigen](/apis/nordigen) (July 2025) and [Untappd](/apis/untappd). **Still running, but much less free:** [Spotify](/apis/spotify) (February 2026), [Censys](/apis/censys) and [CARTO](/apis/carto) basemaps (September 2026).
+</Answer>
+
+## The short version
+
+<ApiTable ids={["wetransfer", "iex-cloud", "binaryedge", "nordigen", "untappd", "spotify", "censys", "carto"]} />
+
+| API | What happened | When | Use instead |
+| --- | --- | --- | --- |
+| WeTransfer | Public API retired | Disabled May 2022 | [file.io](/apis/file-io), [Gofile](/apis/gofile), [MEGA](/apis/mega-nz) |
+| IEX Cloud | Every API product retired | 31 August 2024 | [Alpha Vantage](/apis/alpha-vantage), [Finnhub](/apis/finnhub), [Twelve Data](/apis/twelve-data) |
+| BinaryEdge | Platform and API shut down | 31 March 2025 | [Shodan](/apis/shodan), [Censys](/apis/censys), [FOFA](/apis/fofa) |
+| Nordigen | New signups disabled | July 2025 | [Plaid](/apis/plaid) |
+| Untappd | New API applications closed | No reopening date | None with the same data |
+| Spotify | Dev mode needs Premium, 5 users | February 2026 | Still usable, within the limits |
+| Censys | Legacy API ID and secret disabled for free users | No date published | Censys Platform token |
+| CARTO Basemaps | Key required; commercial cap | 23 September 2026 | Free key, within the caps |
+
+## What the dead ones look like now
+
+A shut-down API rarely returns a tidy error. More often the documentation URL redirects somewhere that answers 200, and a naive uptime check reports it as healthy. This is what our checker saw.
+
+<Tested date="2026-09-27" result="Only one of the five returned an error status. Two redirected to a working page on another site and looked healthy.">
+Requests sent by our health checker to each listing's documentation URL, following redirects.
+</Tested>
+
+| API | URL we checked | What happened |
+| --- | --- | --- |
+| WeTransfer | `developers.wetransfer.com` | HTTP 503 after 1.5 s |
+| IEX Cloud | `iexcloud.io/docs/api/` | No response; timed out after 10 s |
+| IEX (original API) | `iextrading.com/developer/` | 200, after redirecting to an IEX market-data product page |
+| BinaryEdge | `docs.binaryedge.io/api-v2.html` | 200, after redirecting to a Coalition help article |
+| Nordigen | `nordigen.com/…/quickstart_guide/` | Connection failed |
+
+The two redirects are the dangerous pattern. BinaryEdge's documentation now lands on a Coalition help page, which is a perfectly healthy page on a perfectly healthy site. Until we marked it by hand, our own directory listed BinaryEdge as live. A status code alone cannot tell you that the thing you wanted has gone.
+
+## WeTransfer: retired in stages
+
+WeTransfer announced in early 2020 that it would stop developing the Public API, stop fixing it, and stop giving it to new users. It disabled the API in May 2022. Its Ruby SDK on GitHub had already been archived in December 2020. There is no public replacement, and the developer site now returns a 503.
+
+For programmatic file sharing, the catalogue has keyless and keyed options: [file.io](/apis/file-io) (no key), [Gofile](/apis/gofile) and [MEGA](/apis/mega-nz). Check each one's page for its current status and terms before you build on it.
+
+## IEX Cloud: the one that hurt most
+
+IEX Cloud was one of the stock data APIs developers liked most. On 31 May 2024, IEX Group announced it would retire every IEX Cloud API product by 31 August 2024 to refocus on its exchange business. That gave customers three months, and on the day every endpoint went dark.
+
+It is also a reminder that there were two IEX APIs. The original free IEX API had already been replaced by IEX Cloud, and its old developer URL now redirects to a market-data product page. Both are gone. [Alpha Vantage](/apis/alpha-vantage), [Finnhub](/apis/finnhub) and [Twelve Data](/apis/twelve-data) are where most people moved. See [free stock market and finance APIs](/blog/free-stock-market-and-finance-apis) for how they compare.
+
+## BinaryEdge: absorbed by its buyer
+
+Coalition bought BinaryEdge in 2020 and built its scanning data into Coalition's own risk products. Five years later it shut the standalone platform down: accounts closed and the API stopped at 23:59 GMT on 31 March 2025. Recon tools that still ask for a `binaryedge_api_key` are asking for something that no longer exists. Our [guide to free OSINT API keys](/blog/free-osint-recon-api-keys) covers what to use instead.
+
+## Nordigen: acquired, then closed
+
+Nordigen offered free access to European bank account data under PSD2, which made it a favourite for budgeting apps and side projects. GoCardless bought it and ran it as Bank Account Data. In July 2025 GoCardless disabled new signups; the page at `bankaccountdata.gocardless.com/new-signups-disabled` says as much. The old `nordigen.com` documentation no longer responds at all. Existing integrations may continue, but you cannot start a new project on it.
+
+## Untappd: closed with no date
+
+Untappd is not accepting new API applications while it reworks its review and support process, and has not set a date to reopen. Developers who already hold a key can keep using it. If you need beer and brewery data today, there is no free equivalent with Untappd's check-in data.
+
+## Spotify: still free, far less useful
+
+Spotify has not shut its Web API, but two changes have hollowed out the free version.
+
+In 2025 Spotify tightened extended access, the quota you need to serve real users. Since 15 May 2025 it accepts applications only from organisations, not individuals, with at least 250,000 monthly active users.
+
+In February 2026 development mode changed. The app owner must now hold an active Premium subscription or the app stops working. New developers get one client ID, apps are capped at five users, several endpoint families were removed, and search results per page dropped from 50 to 10. New apps got the limits from 11 February and existing apps were migrated on 9 March.
+
+The practical result: fine for a personal project used by you and four friends, and a dead end for anything public unless you are already a sizeable business.
+
+## Censys: the API ID and secret stopped working
+
+Censys moved to a new platform, and free accounts lost access to the legacy Search API, which is the one that used an API ID and secret. Free users now create a Personal Access Token and can call the lookup endpoints only. Tutorials and tools that ask for two Censys credentials are describing the old system.
+
+## CARTO Basemaps: a key where there was none
+
+CARTO's basemap tiles were long a keyless favourite for Leaflet and deck.gl maps. Now a map loaded without a key shows an "API key required" watermark. The key is free: enter an email and it arrives in about a minute. The allowances are 5 million requests a month for non-commercial use and 1 million for commercial use. From 23 September 2026, commercial use above that needs the Basemaps Commercial plan. Keys registered before that date keep working unchanged until 30 November 2026.
+
+## Why free APIs die
+
+Look at the list again and a pattern appears.
+
+**Acquisition.** Coalition bought BinaryEdge, GoCardless bought Nordigen, and SecurityTrails is now part of Recorded Future. A free tier that helped a startup get noticed is a cost line to the company that bought it.
+
+**It was never the core business.** IEX Cloud was a small part of an exchange operator's revenue. WeTransfer's API was a side door to a consumer product.
+
+**Abuse and cost.** Spotify says its 2026 changes are aimed at risky automated and AI-driven use. A free tier that becomes a scraping target gets fenced off.
+
+None of these came without warning. Signups closed, documentation stopped changing, or an acquisition was announced months before the API went dark.
+
+## How to see it coming
+
+Checking an API only when it breaks is too late. A small scheduled job that flags the warning signs costs almost nothing. The most useful signal, and the one naive checks miss, is a redirect to a different domain.
+
+```js
+// Flags a docs or API URL that now redirects to another site, the BinaryEdge pattern.
+async function checkApi(url) {
+  const res = await fetch(url, { redirect: 'follow', signal: AbortSignal.timeout(10_000) });
+  const from = new URL(url).hostname.replace(/^www\./, '');
+  const to = new URL(res.url).hostname.replace(/^www\./, '');
+
+  if (!to.endsWith(from)) return { url, verdict: 'moved', to: res.url };
+  if (!res.ok) return { url, verdict: 'error', status: res.status };
+  return { url, verdict: 'ok' };
+}
+```
+
+The same check in Python, for a cron job:
+
+```python
+from urllib.parse import urlparse
+import requests
+
+def check_api(url: str) -> dict:
+    r = requests.get(url, timeout=10, allow_redirects=True)
+    host = lambda u: urlparse(u).hostname.removeprefix("www.")
+    if not host(r.url).endswith(host(url)):
+        return {"url": url, "verdict": "moved", "to": r.url}
+    if not r.ok:
+        return {"url": url, "verdict": "error", "status": r.status_code}
+    return {"url": url, "verdict": "ok"}
+```
+
+A `moved` verdict is not proof of a shutdown, since plenty of providers reorganise their docs. It is a prompt for a human to look, which is exactly what caught BinaryEdge for us. For the full approach, see [how to check whether an API is still alive](/blog/check-if-an-api-is-alive) and [surviving breaking API changes](/blog/surviving-breaking-api-changes).
+
+<Callout type="tip" title="Wrap every third-party API in one module">
+When IEX Cloud went dark, the teams that migrated in an afternoon were the ones that called it from exactly one file. Put each external API behind a small interface of your own, so a replacement means rewriting one adapter rather than hunting through the codebase.
+</Callout>
+
+## Keeping this list honest
+
+Each API above has a page in our directory showing its current status, and a hand-checked note with the date we last verified it. Shut-down APIs keep their pages on purpose. Someone searching for "WeTransfer API" deserves to find out it is gone, and what to use instead, rather than a 404. The [status page](/status) lists every API we have confirmed as shut down, alongside those simply failing our checks. If you know of one we have missed, [tell us](/contact).
