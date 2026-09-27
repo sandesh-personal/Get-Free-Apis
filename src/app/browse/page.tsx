@@ -4,7 +4,7 @@ import { BrowseClient } from '@/components/BrowseClient';
 import { getAllCategories, getBrowseIndex, stats } from '@/lib/apis';
 
 export const metadata: Metadata = {
-  title: 'Free Public API List — Search 2,712 APIs',
+  title: `Free Public API List — Search ${stats.total.toLocaleString('en-GB')} APIs`,
   description: `Search and filter ${stats.total.toLocaleString('en-GB')} free public APIs by category, authentication, CORS support and HTTPS. Find an API that needs no key in seconds.`,
   alternates: { canonical: '/browse' },
 };
