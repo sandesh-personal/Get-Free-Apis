@@ -16,6 +16,7 @@
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { isUp } from './lib/health';
 
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USER_AGENT =
@@ -57,6 +58,10 @@ async function probe(id: string, url: string): Promise<Result> {
   // Sending an Origin header is what makes a server disclose its CORS policy.
   const headers = { 'User-Agent': USER_AGENT, Origin: 'https://getfreeapis.com', Accept: '*/*' };
 
+  // A failed HEAD is kept so that a GET which then times out does not erase the fact
+  // that the server did answer.
+  let headResult: Result | undefined;
+
   for (const method of ['HEAD', 'GET'] as const) {
     try {
       const response = await fetch(url, {
@@ -66,22 +71,28 @@ async function probe(id: string, url: string): Promise<Result> {
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
 
-      // Some servers reject HEAD with 405 but answer GET perfectly well.
-      if (method === 'HEAD' && (response.status === 405 || response.status === 501)) continue;
-
-      const latencyMs = Math.round(performance.now() - started);
-      return {
+      const result: Result = {
         id,
         url,
         ok: response.ok,
         httpStatus: response.status,
-        latencyMs,
+        latencyMs: Math.round(performance.now() - started),
         cors: readCors(response.headers),
         ...(response.url && response.url !== url && { redirectedTo: response.url }),
         checkedAt,
       };
+
+      // Plenty of servers and bot walls reject HEAD (405, 501, 403, 404) but answer GET
+      // perfectly well, so any HEAD failure gets a second chance with GET.
+      if (method === 'HEAD' && !response.ok) {
+        headResult = result;
+        continue;
+      }
+
+      return result;
     } catch (error) {
       if (method === 'GET') {
+        if (headResult) return headResult;
         return {
           id,
           url,
@@ -152,7 +163,8 @@ async function main(): Promise<void> {
   );
 
   const elapsed = Math.round((Date.now() - started) / 1000);
-  const ok = results.filter((r) => r.ok);
+  const ok = results.filter(isUp);
+  const blocked = results.filter((r) => !r.ok && isUp(r));
   const corsYes = results.filter((r) => r.cors === 'yes');
   const latencies = ok.map((r) => r.latencyMs!).filter(Boolean).sort((a, b) => a - b);
 
@@ -172,6 +184,7 @@ async function main(): Promise<void> {
 
   console.log('\nWrote data/health.json');
   console.log(`  responding:      ${ok.length}/${results.length}`);
+  console.log(`    of which blocked our checker (401/403/429): ${blocked.length}`);
   console.log(`  failing:         ${results.length - ok.length}`);
   console.log(`  CORS confirmed:  ${corsYes.length}`);
   console.log(`  median latency:  ${report.medianLatencyMs ?? 'n/a'} ms`);
