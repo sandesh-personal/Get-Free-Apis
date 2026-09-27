@@ -15,6 +15,31 @@ export const HealthSchema = z.object({
   lastChecked: z.string(),
 });
 
+/**
+ * Hand-verified access facts from data/access.json: what it costs, whether and how
+ * you get a key, and what the free allowance really is. Upstream lists only say
+ * "apiKey" or "No", which cannot tell a free signup from a £2,250-a-year contract.
+ */
+export const AccessSchema = z.object({
+  pricing: z.enum(['free', 'free-tier', 'restricted', 'application', 'paid', 'discontinued']),
+  key: z.enum(['none', 'optional', 'free', 'application', 'paid', 'closed']),
+  /** Corrects upstream when it is wrong, e.g. AniList listed as OAuth for public data. */
+  auth: AuthSchema.optional(),
+  /** Replaces a documentation URL that has moved or died. */
+  url: z.string().url().optional(),
+  summary: z.string().min(1),
+  freeLimits: z.string().optional(),
+  keyUrl: z.string().url().optional(),
+  keySteps: z.array(z.string()).optional(),
+  keyUsage: z.string().optional(),
+  paidFrom: z.string().optional(),
+  discontinuedOn: z.string().optional(),
+  alternatives: z.array(z.string()).optional(),
+  sources: z.array(z.object({ label: z.string(), url: z.string().url() })).min(1),
+  verified: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+export type Access = z.infer<typeof AccessSchema>;
+
 export const ApiSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -27,7 +52,8 @@ export const ApiSchema = z.object({
   cors: CorsSchema,
   sources: z.array(z.string()).min(1),
   health: HealthSchema.optional(),
-  status: z.enum(['live', 'down', 'unchecked']),
+  status: z.enum(['live', 'down', 'unchecked', 'discontinued']),
+  access: AccessSchema.optional(),
 });
 export type Api = z.infer<typeof ApiSchema>;
 

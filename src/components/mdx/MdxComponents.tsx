@@ -131,7 +131,9 @@ export function ApiTable({ ids = [] }: { ids?: string[] }) {
                 </Link>
                 <span className="block text-xs text-muted">{api.description.slice(0, 70)}</span>
               </td>
-              <td className="px-4 py-2.5">{api.auth === 'none' ? 'No' : 'Yes'}</td>
+              <td className="px-4 py-2.5">
+                {api.access?.key === 'optional' ? 'Optional' : api.auth === 'none' ? 'No' : 'Yes'}
+              </td>
               <td className="px-4 py-2.5">
                 {api.cors === 'yes' ? 'Yes' : api.cors === 'no' ? 'No' : 'Unknown'}
               </td>
@@ -140,6 +142,8 @@ export function ApiTable({ ids = [] }: { ids?: string[] }) {
                   <span className="text-ok">Live</span>
                 ) : api.status === 'down' ? (
                   <span className="text-no">Failing</span>
+                ) : api.status === 'discontinued' ? (
+                  <span className="text-no">Shut down</span>
                 ) : (
                   <span className="text-muted">Unchecked</span>
                 )}

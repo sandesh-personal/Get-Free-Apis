@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getAllApis, stats } from '@/lib/apis';
 import { StatusDot } from '@/components/Badge';
+import { formatShutdown } from '@/lib/uptime';
 
 export const metadata: Metadata = {
   title: 'Free API Status — Live Uptime Checks',
@@ -11,7 +12,10 @@ export const metadata: Metadata = {
 };
 
 export default function StatusPage() {
-  const checked = getAllApis().filter((a) => a.health);
+  // Shut-down APIs are a verified fact rather than a probe result, so they are listed
+  // on their own and kept out of the uptime maths.
+  const discontinued = getAllApis().filter((a) => a.status === 'discontinued');
+  const checked = getAllApis().filter((a) => a.health && a.status !== 'discontinued');
   const live = checked.filter((a) => a.status === 'live');
   const down = checked.filter((a) => a.status === 'down');
 
@@ -43,9 +47,9 @@ export default function StatusPage() {
         <Stat label="Healthy share" value={`${uptime}%`} />
       </section>
 
-      {checked.length < stats.total && (
+      {checked.length + discontinued.length < stats.total && (
         <p className="mb-10 rounded-lg border border-border-subtle bg-surface p-4 text-sm leading-relaxed text-muted">
-          {(stats.total - checked.length).toLocaleString('en-GB')} of{' '}
+          {(stats.total - checked.length - discontinued.length).toLocaleString('en-GB')} of{' '}
           {stats.total.toLocaleString('en-GB')} listings are still awaiting their first check. We
           show them as unverified rather than implying a status we have not measured.
         </p>
@@ -55,6 +59,29 @@ export default function StatusPage() {
         <Table title="Fastest responses" apis={fastest} />
         <Table title="Slowest responses" apis={slowest} />
       </div>
+
+      {discontinued.length > 0 && (
+        <section className="mt-10">
+          <h2 className="mb-1 text-xl font-bold tracking-tight">Shut down by the provider</h2>
+          <p className="mb-4 text-sm text-muted">
+            Confirmed from the provider&apos;s own announcement, not inferred from a failed check. Each page
+            links to working alternatives.
+          </p>
+          <ul className="divide-y divide-[var(--border)] rounded-xl border border-border-subtle">
+            {discontinued.map((api) => (
+              <li key={api.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                <Link href={`/apis/${api.id}`} className="min-w-0 text-sm font-medium hover:text-accent">
+                  <span className="block truncate">{api.name}</span>
+                  <span className="block truncate text-xs font-normal text-muted">{api.category}</span>
+                </Link>
+                <span className="shrink-0 text-xs text-muted">
+                  {api.access?.discontinuedOn ? formatShutdown(api.access.discontinuedOn) : 'Shut down'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {down.length > 0 && (
         <section className="mt-10">

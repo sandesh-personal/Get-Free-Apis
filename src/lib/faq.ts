@@ -1,6 +1,6 @@
 import type { Faq } from '@/lib/blog';
 import type { Api, Category } from '@/lib/apis';
-import { getApisByCategory, stats } from '@/lib/apis';
+import { getApi, getApisByCategory, stats } from '@/lib/apis';
 import { site } from '@/lib/site';
 
 /**
@@ -24,10 +24,75 @@ const AUTH_LABEL: Record<Api['auth'], string> = {
   other: 'some form of authentication',
 };
 
+/**
+ * FAQ for APIs with hand-verified access facts. These are the most-searched pages on
+ * the site, and the questions follow the actual queries: "is it free", "api key",
+ * "how to get a key", and whether it still exists at all.
+ */
+function verifiedApiFaq(api: Api, access: NonNullable<Api['access']>): Faq[] {
+  const items: Faq[] = [];
+  const verified = `Checked on ${access.verified}.`;
+
+  if (api.status === 'discontinued') {
+    const alternatives = (access.alternatives ?? [])
+      .map((id) => getApi(id)?.name)
+      .filter(Boolean)
+      .join(', ');
+    items.push({
+      q: `Is the ${api.name} API still available?`,
+      a: `No. ${access.summary}${alternatives ? ` Working alternatives: ${alternatives}.` : ''} ${verified}`,
+    });
+  }
+
+  items.push({
+    q: `Is the ${api.name} API free?`,
+    a: `${access.summary}${access.paidFrom ? ` The cheapest paid plan: ${access.paidFrom}.` : ''} ${verified}`,
+  });
+
+  if (api.status !== 'discontinued') {
+    const keyAnswer: Record<NonNullable<Api['access']>['key'], string> = {
+      none: `No. ${api.name} answers requests with no key, token or sign-up.`,
+      optional: `Not strictly. ${api.name} works without a key, but a free key gets you a dedicated rate limit.`,
+      free: `Yes, and it is free: you get one by signing up.`,
+      application: `Yes, and you have to apply for it rather than sign up instantly.`,
+      paid: `Yes, and keys come only with a paid plan.`,
+      closed: `Yes, but ${api.name} is not issuing new keys right now.`,
+    };
+    items.push({
+      q: `Does ${api.name} need an API key?`,
+      a: `${keyAnswer[access.key]}${access.keyUsage ? ` Send it as ${access.keyUsage}.` : ''}`,
+    });
+  }
+
+  if (access.keySteps?.length && api.status !== 'discontinued') {
+    items.push({
+      q: `How do I get ${/^[aeiou]/i.test(api.name) ? 'an' : 'a'} ${api.name} API key?`,
+      a: access.keySteps.map((step, i) => `${i + 1}. ${step}`).join(' '),
+    });
+  }
+
+  if (access.freeLimits) {
+    items.push({ q: `What are the ${api.name} API rate limits?`, a: access.freeLimits });
+  }
+
+  return items;
+}
+
 /** Questions a person lands on an API detail page wanting answered. */
 export function apiFaq(api: Api): Faq[] {
   const health = api.health;
   const checked = health?.lastChecked ?? 'our last run';
+
+  if (api.access) {
+    const items = verifiedApiFaq(api, api.access);
+    if (api.status !== 'discontinued') {
+      items.push(corsFaq(api));
+      const status = statusFaq(api);
+      if (status) items.push(status);
+    }
+    return items;
+  }
+
   const items: Faq[] = [];
 
   items.push({
@@ -50,7 +115,16 @@ export function apiFaq(api: Api): Faq[] {
             : `${api.name} requires some form of authentication. Check the provider's documentation for which scheme it expects.`,
   });
 
-  items.push({
+  items.push(corsFaq(api));
+  const status = statusFaq(api);
+  if (status) items.push(status);
+  items.push(httpsFaq(api));
+
+  return items;
+}
+
+function corsFaq(api: Api): Faq {
+  return {
     q: `Can I call ${api.name} from browser JavaScript?`,
     a:
       api.cors === 'yes'
@@ -58,26 +132,29 @@ export function apiFaq(api: Api): Faq[] {
         : api.cors === 'no'
           ? `Not directly. ${api.name} did not return CORS headers when we checked, so the browser will block your page from reading the response even though the request itself succeeds. Call it from a server, or put a small proxy in front of it.`
           : `We could not confirm CORS support for ${api.name}. Test it from a browser before relying on it client-side; if the request succeeds in curl but fails in the console, CORS is the reason.`,
-  });
+  };
+}
 
-  if (health) {
-    items.push({
-      q: `Is ${api.name} still working?`,
-      a:
-        api.status === 'live'
-          ? `Yes, as of ${checked}. Our automated check reached ${api.name} and recorded a ${health.reliability}% reliability score with a median response time of ${health.latencyMs} ms. We re-check on a schedule, and this page updates with the result.`
-          : `Not at our last check on ${checked}. ${api.name} did not respond successfully, which is why it is marked as down here. This may be temporary; we re-check on a schedule and the badge above reflects the most recent run.`,
-    });
-  }
+function statusFaq(api: Api): Faq | null {
+  const health = api.health;
+  if (!health || api.status === 'discontinued') return null;
+  const checked = health.lastChecked;
+  return {
+    q: `Is ${api.name} still working?`,
+    a:
+      api.status === 'live'
+        ? `Yes, as of ${checked}. Our automated check reached ${api.name} and recorded a ${health.reliability}% reliability score with a median response time of ${health.latencyMs} ms. We re-check on a schedule, and this page updates with the result.`
+        : `Not at our last check on ${checked}. ${api.name} did not respond successfully, which is why it is marked as down here. This may be temporary; we re-check on a schedule and the badge above reflects the most recent run.`,
+  };
+}
 
-  items.push({
+function httpsFaq(api: Api): Faq {
+  return {
     q: `Is ${api.name} available over HTTPS?`,
     a: api.https
       ? `Yes. ${api.name} serves over HTTPS, so you can call it from a secure page without triggering a mixed-content block.`
       : `No. ${api.name} was only reachable over plain HTTP when we checked. Browsers block HTTP requests made from an HTTPS page, so this will fail in production unless you call it from a server instead.`,
-  });
-
-  return items;
+  };
 }
 
 /** Questions that make sense on a category listing. */
@@ -201,7 +278,7 @@ export function siteFaq(): Faq[] {
     },
     {
       q: 'Is it really free to use these APIs?',
-      a: `Every API listed has a free tier of some kind, and ${n(stats.noAuth)} need no key at all. "Free" still varies: some are free for any use, some only for non-commercial use, and some are free up to a request limit. We record what we can verify and link to the provider's own terms for the rest.`,
+      a: `Most do, and ${n(stats.noAuth)} need no key at all. "Free" still varies: some are free for any use, some only for non-commercial use, some only up to a request limit, and a few, such as OpenCorporates, are free only for approved public-benefit projects. For the most-searched APIs we check pricing and key terms by hand and say so on the page, including when an API has been shut down. For the rest, we link to the provider's own terms.`,
     },
     {
       q: 'How do you check that an API works?',

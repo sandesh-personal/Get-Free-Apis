@@ -1,13 +1,15 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { AccessPanel } from '@/components/AccessPanel';
 import { ApiCard } from '@/components/ApiCard';
 import { AuthBadge, CorsBadge, HttpsBadge } from '@/components/Badge';
 import { CodeTabs } from '@/components/CodeTabs';
 import { Faq } from '@/components/Faq';
 import { buildSnippets } from '@/lib/snippets';
 import { uptimeProof } from '@/lib/uptime';
-import { getAllApis, getApi, getCategory, getRelatedApis } from '@/lib/apis';
+import { getAllApis, getApi, getCategory, getRelatedApis, isFree } from '@/lib/apis';
+import { apiDescription, apiTitle, KEY_LABEL } from '@/lib/access';
 import { apiFaq } from '@/lib/faq';
 import { site } from '@/lib/site';
 
@@ -22,18 +24,17 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const api = getApi(slug);
   if (!api) return { title: 'API not found' };
 
-  const keyNote = api.auth === 'none' ? 'No API key required.' : 'Requires authentication.';
-  const titleSuffix = api.auth === 'none' ? ' [No Key]' : '';
-  const description = `${api.description.slice(0, 120)} ${keyNote} Free to use, with current status, CORS and HTTPS details.`;
+  const title = apiTitle(api);
+  const description = apiDescription(api);
 
   return {
-    title: `${api.name} API — Free ${api.category} API${titleSuffix}`,
-    description: description.slice(0, 158),
+    title,
+    description,
     alternates: { canonical: `/apis/${api.id}` },
     openGraph: {
       type: 'article',
-      title: `${api.name} API — Free ${api.category} API${titleSuffix}`,
-      description: description.slice(0, 158),
+      title,
+      description,
       url: `${site.url}/apis/${api.id}`,
     },
   };
@@ -48,6 +49,8 @@ export default async function ApiDetailPage({ params }: Props) {
   const related = getRelatedApis(api);
   const snippets = buildSnippets(api);
   const proof = uptimeProof(api);
+  const free = isFree(api);
+  const discontinued = api.status === 'discontinued';
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -57,7 +60,8 @@ export default async function ApiDetailPage({ params }: Props) {
     documentation: api.url,
     url: `${site.url}/apis/${api.id}`,
     provider: { '@type': 'Organization', name: api.name },
-    isAccessibleForFree: true,
+    // Only claimed when we can back it: keyless, or verified free. Unknown means omitted.
+    ...(free !== undefined && { isAccessibleForFree: free }),
     ...(category && { applicationCategory: category.name }),
   };
 
@@ -155,9 +159,24 @@ export default async function ApiDetailPage({ params }: Props) {
           )}
         </header>
 
+        <AccessPanel api={api} />
+
         {/* Facts */}
         <section className="mb-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Fact label="API key" value={api.auth === 'none' ? 'Not required' : api.auth === 'apiKey' ? 'Required' : api.auth === 'oauth' ? 'OAuth flow' : 'Unconfirmed'} />
+          <Fact
+            label="API key"
+            value={
+              api.access
+                ? KEY_LABEL[api.access.key]
+                : api.auth === 'none'
+                  ? 'Not required'
+                  : api.auth === 'apiKey'
+                    ? 'Required'
+                    : api.auth === 'oauth'
+                      ? 'OAuth flow'
+                      : 'Unconfirmed'
+            }
+          />
           <Fact label="HTTPS" value={api.https ? 'Supported' : 'Not supported'} />
           <Fact
             label="Browser calls"
@@ -166,14 +185,16 @@ export default async function ApiDetailPage({ params }: Props) {
           <Fact
             label="Status"
             value={
-              api.health
-                ? `${api.status === 'live' ? 'Live' : 'Failing'} · ${api.health.score}/100`
-                : 'Not yet checked'
+              discontinued
+                ? 'Shut down'
+                : api.health
+                  ? `${api.status === 'live' ? 'Live' : 'Failing'} · ${api.health.score}/100`
+                  : 'Not yet checked'
             }
           />
         </section>
 
-        {api.health && (
+        {api.health && !discontinued && (
           <section className="mb-10 rounded-xl border border-border-subtle bg-surface p-5">
             <h2 className="text-sm font-semibold">What our checks found</h2>
             <dl className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -197,7 +218,8 @@ export default async function ApiDetailPage({ params }: Props) {
           </section>
         )}
 
-        {/* Usage */}
+        {/* Usage. Pointless for an API that no longer exists; its alternatives are above. */}
+        {!discontinued && (
         <section className="mb-10">
           <h2 className="mb-2 text-xl font-bold tracking-tight">How to call it</h2>
           <p className="mb-4 max-w-2xl text-sm leading-relaxed text-muted">
@@ -219,6 +241,7 @@ export default async function ApiDetailPage({ params }: Props) {
             </p>
           )}
         </section>
+        )}
 
         {/* Provenance */}
         <section className="mb-10 rounded-xl border border-border-subtle p-5">

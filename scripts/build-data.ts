@@ -27,10 +27,13 @@ import {
   titleFromSlug,
 } from './lib/categories';
 import { canonicalKey, slugify, uniqueSlug } from './lib/normalise';
+import { isUp } from './lib/health';
 import {
+  AccessSchema,
   ApiSchema,
   CatalogueSchema,
   CategorySchema,
+  type Access,
   type Api,
   type Auth,
   type Category,
@@ -169,6 +172,7 @@ function mergeSameVendorDuplicates(entries: Merged[]): Merged[] {
 type HealthResult = {
   id: string;
   ok: boolean;
+  httpStatus?: number | null;
   latencyMs: number | null;
   cors: 'yes' | 'no' | 'unknown';
   checkedAt: string;
@@ -195,13 +199,14 @@ function applyHealth(api: Api, result: HealthResult | undefined): Api {
   if (!result) return api;
 
   const checkedAt = result.checkedAt.slice(0, 10);
-  const measuredScore = result.ok ? 100 : 0;
+  const up = isUp(result);
+  const measuredScore = up ? 100 : 0;
 
   return {
     ...api,
     // Our own CORS observation beats whatever the upstream lists guessed.
     cors: result.cors !== 'unknown' ? result.cors : api.cors,
-    status: result.ok ? 'live' : 'down',
+    status: up ? 'live' : 'down',
     health: {
       // Blend the upstream reliability history with what we just measured, when we have both.
       score: api.health ? Math.round((api.health.score + measuredScore) / 2) : measuredScore,
@@ -209,6 +214,39 @@ function applyHealth(api: Api, result: HealthResult | undefined): Api {
       latencyMs: result.latencyMs ?? api.health?.latencyMs ?? 0,
       lastChecked: checkedAt,
     },
+  };
+}
+
+/**
+ * Loads the hand-verified access facts. A malformed entry fails the build rather than
+ * shipping a wrong "free" claim, which is exactly what this file exists to prevent.
+ * Keys starting with "$" are notes for editors and are skipped.
+ */
+async function loadAccess(): Promise<Map<string, Access>> {
+  const raw = JSON.parse(await readFile(path.join(DATA_DIR, 'access.json'), 'utf8')) as Record<
+    string,
+    unknown
+  >;
+  return new Map(
+    Object.entries(raw)
+      .filter(([id]) => !id.startsWith('$'))
+      .map(([id, value]) => [id, AccessSchema.parse(value)]),
+  );
+}
+
+/**
+ * Applies verified corrections last, so they win over both upstream and our probes:
+ * a shut-down API whose docs URL now redirects to a marketing page still answers 200,
+ * and only a human can tell that apart from a working API.
+ */
+function applyAccess(api: Api, access: Access | undefined): Api {
+  if (!access) return api;
+  return {
+    ...api,
+    ...(access.auth && { auth: access.auth }),
+    ...(access.url && { url: access.url }),
+    ...(access.pricing === 'discontinued' && { status: 'discontinued' as const }),
+    access,
   };
 }
 
@@ -268,6 +306,7 @@ async function main(): Promise<void> {
   const takenSlugs = new Set<string>();
   const categoryNames = new Map<string, string>();
   const healthOverlay = await loadHealthOverlay();
+  const accessOverlay = await loadAccess();
   if (healthOverlay.size) {
     console.log(`  overlaying ${healthOverlay.size} results from our own checks`);
   }
@@ -309,8 +348,19 @@ async function main(): Promise<void> {
         status: entry.health ? (entry.health.score >= 50 ? 'live' : 'down') : 'unchecked',
       };
 
-      return applyHealth(api, healthOverlay.get(id));
+      return applyAccess(applyHealth(api, healthOverlay.get(id)), accessOverlay.get(id));
     });
+
+  // An access entry keyed to a slug that no longer exists would silently stop
+  // correcting anything, so a renamed or removed slug fails loudly instead.
+  const ids = new Set(apis.map((a) => a.id));
+  const orphaned = [...accessOverlay.keys()].filter((id) => !ids.has(id));
+  if (orphaned.length) throw new Error(`data/access.json has entries for unknown ids: ${orphaned.join(', ')}`);
+  for (const [id, access] of accessOverlay) {
+    const missing = (access.alternatives ?? []).filter((alt) => !ids.has(alt));
+    if (missing.length) throw new Error(`data/access.json: ${id} lists unknown alternatives: ${missing.join(', ')}`);
+  }
+  console.log(`  applied ${accessOverlay.size} hand-verified access entries`);
 
   // Validate before writing so a malformed upstream cannot poison a build.
   console.log('\nValidating...');

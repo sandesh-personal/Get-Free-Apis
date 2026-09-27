@@ -3,7 +3,28 @@ import categoryData from '@/../data/categories.json';
 
 export type Auth = 'none' | 'apiKey' | 'oauth' | 'other';
 export type Cors = 'yes' | 'no' | 'unknown';
-export type Status = 'live' | 'down' | 'unchecked';
+export type Status = 'live' | 'down' | 'unchecked' | 'discontinued';
+
+/**
+ * Hand-verified pricing and key facts from data/access.json. Only a few dozen of the
+ * most-searched APIs carry this; everything else falls back to the auth field.
+ */
+export type Access = {
+  pricing: 'free' | 'free-tier' | 'restricted' | 'application' | 'paid' | 'discontinued';
+  key: 'none' | 'optional' | 'free' | 'application' | 'paid' | 'closed';
+  auth?: Auth;
+  url?: string;
+  summary: string;
+  freeLimits?: string;
+  keyUrl?: string;
+  keySteps?: string[];
+  keyUsage?: string;
+  paidFrom?: string;
+  discontinuedOn?: string;
+  alternatives?: string[];
+  sources: { label: string; url: string }[];
+  verified: string;
+};
 
 export type Health = {
   score: number;
@@ -25,7 +46,20 @@ export type Api = {
   sources: string[];
   health?: Health;
   status: Status;
+  access?: Access;
 };
+
+/**
+ * Whether we can honestly call an API free. Keyless APIs are, and so are those whose
+ * verified pricing says so. Anything else is unknown or paid, and saying "free" in a
+ * title or in isAccessibleForFree would be the kind of claim this site exists to avoid.
+ */
+export function isFree(api: Api): boolean | undefined {
+  if (api.status === 'discontinued') return undefined;
+  if (api.access) return api.access.pricing === 'free' || api.access.pricing === 'free-tier';
+  if (api.auth === 'none') return true;
+  return undefined;
+}
 
 export type Category = {
   slug: string;
@@ -186,6 +220,8 @@ export function getRelatedApis(api: Api, limit = 6): Api[] {
 }
 
 function score(api: Api): number {
+  // Never recommend a shut-down API as "related"; it only appears if nothing else is left.
+  if (api.status === 'discontinued') return -1;
   let n = 0;
   if (api.health) n += api.health.score;
   if (api.auth === 'none') n += 40;
@@ -205,6 +241,7 @@ export const stats = {
    *  entries we have health data for at all, whatever that data says. */
   live: apis.filter((a) => a.status === 'live').length,
   down: apis.filter((a) => a.status === 'down').length,
+  discontinued: apis.filter((a) => a.status === 'discontinued').length,
   generatedAt: catalogue.generatedAt as string,
 };
 
@@ -296,7 +333,7 @@ export function getCollection(slug: string) {
 export function getCollectionApis(slug: string): Api[] {
   const collection = getCollection(slug);
   if (!collection) return [];
-  const matched = apis.filter(collection.filter);
+  const matched = apis.filter((a) => a.status !== 'discontinued' && collection.filter(a));
   if (slug === 'fastest') {
     return matched.sort(
       (a, b) => (a.health?.latencyMs ?? Infinity) - (b.health?.latencyMs ?? Infinity),

@@ -1,0 +1,444 @@
+{
+  "$readme": "Hand-verified access facts, applied by scripts/build-data.ts on every data build. Upstream lists only say apiKey or No, which cannot tell a free signup from a paid contract. Only add what you checked on the provider's own pages or by calling the API, and update `verified` when you re-check. Entries keyed to an id that no longer exists fail the build.",
+
+  "semantic-scholar": {
+    "pricing": "free",
+    "key": "optional",
+    "auth": "none",
+    "summary": "Free. Most endpoints answer without a key, but the keyless pool is shared by everyone and is usually saturated. In practice, request the free key.",
+    "freeLimits": "Without a key: 1,000 requests per second shared among all unauthenticated users. On 2026-09-27, 5 of our 6 keyless requests came back 429 Too Many Requests. With a key: 1 request per second to start, for you alone.",
+    "keyUrl": "https://www.semanticscholar.org/product/api#api-key-form",
+    "keySteps": [
+      "Open the Semantic Scholar API page and fill in the \"Request an API key\" form.",
+      "Describe your project and the endpoints you plan to use.",
+      "The key arrives by email. Send it in the x-api-key header."
+    ],
+    "keyUsage": "x-api-key: YOUR_KEY",
+    "sources": [
+      { "label": "Semantic Scholar API overview", "url": "https://www.semanticscholar.org/product/api" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "opencorporates": {
+    "pricing": "restricted",
+    "key": "application",
+    "url": "https://api.opencorporates.com/documentation/API-Reference",
+    "summary": "Not free for most uses. Every request needs an api_token. Free access goes only to approved public-benefit users: investigative journalists, NGOs, universities and anti-corruption researchers. Everyone else needs a paid plan.",
+    "paidFrom": "Essentials: £2,250 a year for up to 500 calls a month and 200 a day",
+    "keyUrl": "https://opencorporates.atlassian.net/servicedesk/customer/portal/4/group/16/create/36",
+    "keySteps": [
+      "Public-benefit users: apply through OpenCorporates' public-benefit request form.",
+      "Commercial users: choose a plan on the pricing page and pay to get a token.",
+      "Send the token as the api_token query parameter on every request."
+    ],
+    "keyUsage": "?api_token=YOUR_TOKEN",
+    "sources": [
+      { "label": "OpenCorporates pricing", "url": "https://opencorporates.com/pricing/" },
+      { "label": "OpenCorporates API reference", "url": "https://api.opencorporates.com/documentation/API-Reference" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "wordnik": {
+    "pricing": "free-tier",
+    "key": "free",
+    "summary": "Free on the Basic plan for nonprofit and research use. Commercial use gets a free trial, then needs a paid plan.",
+    "freeLimits": "Basic plan: 100 calls an hour, $0.",
+    "paidFrom": "Hobby: $10 a month for 1,000 calls an hour",
+    "keyUrl": "https://developer.wordnik.com/",
+    "keySteps": [
+      "Create a free Wordnik account.",
+      "Log in to the Wordnik developer site and request an API key.",
+      "Pass it as the api_key query parameter."
+    ],
+    "keyUsage": "?api_key=YOUR_KEY",
+    "sources": [
+      { "label": "Wordnik API pricing", "url": "https://developer.wordnik.com/pricing" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "collins": {
+    "pricing": "application",
+    "key": "application",
+    "summary": "No public free tier. You apply for a key through Collins' form, saying which dictionaries you need and whether use is commercial or non-commercial, and Collins sets the terms.",
+    "keyUrl": "https://www.collinsdictionary.com/us/collins-api",
+    "keySteps": [
+      "Fill in the Collins API application form.",
+      "Pick the dictionaries you need and choose commercial or non-commercial use.",
+      "Wait for Collins to reply with a key and its terms."
+    ],
+    "sources": [
+      { "label": "Collins API", "url": "https://www.collinsdictionary.com/us/collins-api" },
+      { "label": "Collins API: apply for a key", "url": "https://blog.collinsdictionary.com/collins-api-apply-for-a-key/" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "securitytrails": {
+    "pricing": "free-tier",
+    "key": "free",
+    "summary": "A free account comes with an API key and a small monthly allowance. SecurityTrails is now part of Recorded Future.",
+    "freeLimits": "A small monthly query allowance, long documented as 50 queries a month. Your account dashboard shows the current figure.",
+    "keySteps": [
+      "Sign up for a free SecurityTrails account.",
+      "Copy your key from the API section of your account.",
+      "Send it in the APIKEY header."
+    ],
+    "keyUsage": "APIKEY: YOUR_KEY",
+    "sources": [
+      { "label": "SecurityTrails API", "url": "https://securitytrails.com/corp/api" },
+      { "label": "Recorded Future support: SecurityTrails", "url": "https://support.recordedfuture.com/hc/en-us/articles/360053545614-SecurityTrails" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "fofa": {
+    "pricing": "free-tier",
+    "key": "free",
+    "summary": "Every registered FOFA account has an API key, but a free account returns limited results. F-points, earned by submitting unrecorded assets or bought, unlock bigger queries and exports.",
+    "keySteps": [
+      "Register an account at en.fofa.info.",
+      "Open your personal centre and copy the API key.",
+      "Since late 2023 the API needs only the key; the old email-plus-key format still works."
+    ],
+    "keyUsage": "?key=YOUR_KEY&qbase64=BASE64_QUERY",
+    "sources": [
+      { "label": "FOFA API documentation", "url": "https://en.fofa.info/api" },
+      { "label": "FOFA announcement: key-only API calls", "url": "https://x.com/fofabot/status/1737740004376674475" },
+      { "label": "FOFA: how to get free F-points", "url": "https://medium.com/@fofabot/how-to-get-free-f-point-from-fofa-908d9f43678e" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "binaryedge": {
+    "pricing": "discontinued",
+    "key": "closed",
+    "summary": "Shut down. Coalition, which bought BinaryEdge in 2020, switched the platform and API off at 23:59 GMT on 31 March 2025. Old keys no longer work and no new ones are issued. The documentation URL now redirects to a Coalition page, which is why it can still look alive.",
+    "discontinuedOn": "2025-03-31",
+    "alternatives": ["shodan", "censys", "fofa"],
+    "sources": [
+      { "label": "Coalition: BinaryEdge transition FAQ", "url": "https://help.coalitioninc.com/hc/en-us/articles/34383910057371-BinaryEdge-Transition-FAQ" },
+      { "label": "subfinder issue: binaryedge is dead", "url": "https://github.com/projectdiscovery/subfinder/issues/1579" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "greynoise": {
+    "pricing": "free-tier",
+    "key": "optional",
+    "url": "https://docs.greynoise.io/docs/using-the-greynoise-community-api",
+    "summary": "Free. The Community API answers a few lookups a day with no key at all, and unlimited Community lookups with the key from a free GreyNoise account.",
+    "freeLimits": "No key: 10 IP lookups a day. Free account key: unlimited Community API lookups. Our keyless call for 8.8.8.8 on 2026-09-27 returned data.",
+    "keySteps": [
+      "Create a free GreyNoise account.",
+      "Copy the API key from your account settings.",
+      "Send it in the key header."
+    ],
+    "keyUsage": "key: YOUR_KEY",
+    "sources": [
+      { "label": "Using the GreyNoise Community API", "url": "https://docs.greynoise.io/docs/using-the-greynoise-community-api" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "censys": {
+    "pricing": "free-tier",
+    "key": "free",
+    "url": "https://docs.censys.com/reference/get-started",
+    "summary": "A free Censys account can use the Platform API, but only its lookup endpoints: fetch a host, certificate or web property you already know. Search needs a paid plan, and the old API ID and secret no longer work for free users.",
+    "freeLimits": "Lookup endpoints only: hosts, certificates and web properties.",
+    "keySteps": [
+      "Create a free Censys Platform account.",
+      "Generate a Personal Access Token in your account settings.",
+      "Send it as a Bearer token. Legacy Search API IDs and secrets are disabled for free users."
+    ],
+    "keyUsage": "Authorization: Bearer YOUR_TOKEN",
+    "sources": [
+      { "label": "Censys: transition guide for free users", "url": "https://docs.censys.com/docs/transition-guides-for-free-solo-and-teams-subscribers" },
+      { "label": "Censys: get started with the APIs", "url": "https://docs.censys.com/reference/get-started" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "shodan": {
+    "pricing": "free-tier",
+    "key": "free",
+    "summary": "Every Shodan account gets an API key, but a free account has very few credits to spend. The one-time Membership is what most people buy to make the API useful.",
+    "freeLimits": "Searches without filters cost no query credits. Filtered searches and extra pages cost 1 credit per 100 results. Credits reset monthly.",
+    "paidFrom": "Membership: $49 one-time, with 100 query credits and 100 scan credits a month",
+    "keyUrl": "https://account.shodan.io/",
+    "keySteps": [
+      "Create a Shodan account.",
+      "Copy the API key shown on your account page.",
+      "Pass it as the key query parameter."
+    ],
+    "keyUsage": "?key=YOUR_KEY",
+    "sources": [
+      { "label": "Shodan: credit types explained", "url": "https://help.shodan.io/the-basics/credit-types-explained" },
+      { "label": "Shodan REST API documentation", "url": "https://developer.shodan.io/api" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "malwarebazaar": {
+    "pricing": "free",
+    "key": "free",
+    "summary": "Free, but every request now needs an Auth-Key from abuse.ch. Anyone can register for one.",
+    "keyUrl": "https://auth.abuse.ch/",
+    "keySteps": [
+      "Sign in at auth.abuse.ch.",
+      "Copy the Auth-Key from your profile.",
+      "Send it in the Auth-Key header to https://mb-api.abuse.ch/api/v1/."
+    ],
+    "keyUsage": "Auth-Key: YOUR_KEY",
+    "sources": [
+      { "label": "MalwareBazaar community API", "url": "https://bazaar.abuse.ch/api/" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "anilist": {
+    "pricing": "free",
+    "key": "none",
+    "auth": "none",
+    "url": "https://docs.anilist.co/",
+    "summary": "Free, and public data needs no key. Search anime, manga, characters, staff and studios with a plain GraphQL POST. OAuth is only for actions on a user's own account, such as updating their list.",
+    "freeLimits": "Documented as 90 requests a minute, with a one-minute timeout if you go over. On 2026-09-27 the API reported X-RateLimit-Limit: 30, so plan for 30.",
+    "keyUsage": "POST https://graphql.anilist.co",
+    "sources": [
+      { "label": "AniList API documentation", "url": "https://docs.anilist.co/" },
+      { "label": "AniList: rate limiting", "url": "https://docs.anilist.co/guide/rate-limiting" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "gnews": {
+    "pricing": "free-tier",
+    "key": "free",
+    "summary": "Free for development and testing only. Commercial projects need a paid plan, and GNews may close free accounts used commercially.",
+    "freeLimits": "100 requests a day, up to 10 articles per request, a 12-hour delay and 30 days of history.",
+    "paidFrom": "Essential: €49.99 a month, or €39.99 a month billed yearly",
+    "keySteps": [
+      "Register a free account at gnews.io.",
+      "Copy the API key from your dashboard.",
+      "Pass it as the apikey query parameter."
+    ],
+    "keyUsage": "?apikey=YOUR_KEY",
+    "sources": [
+      { "label": "GNews pricing", "url": "https://gnews.io/pricing" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "smithsonian-open-access": {
+    "pricing": "free",
+    "key": "free",
+    "summary": "Free. The key comes from api.data.gov, the US government's shared key service, and the same key works across many federal APIs.",
+    "freeLimits": "1,000 requests an hour with your own key. The shared DEMO_KEY allows 30 an hour and 50 a day per IP address.",
+    "keyUrl": "https://api.data.gov/signup/",
+    "keySteps": [
+      "Sign up at api.data.gov with your name and email.",
+      "The key is shown straight away and emailed to you.",
+      "Pass it as the api_key query parameter."
+    ],
+    "keyUsage": "?api_key=YOUR_KEY",
+    "sources": [
+      { "label": "api.data.gov rate limits", "url": "https://api.data.gov/docs/rate-limits/" },
+      { "label": "Smithsonian Open Access FAQ", "url": "https://www.si.edu/openaccess/faq" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "freesound": {
+    "pricing": "free",
+    "key": "free",
+    "summary": "Free. Create a Freesound account and request an API credential; its client secret works as a simple token for read-only calls.",
+    "freeLimits": "60 requests a minute and 2,000 a day. Uploading, describing, rating and commenting: 30 a minute and 500 a day.",
+    "keyUrl": "https://freesound.org/apiv2/apply",
+    "keySteps": [
+      "Create a Freesound account.",
+      "Request a credential at freesound.org/apiv2/apply.",
+      "Use the \"Client secret/Api key\" value as the token parameter."
+    ],
+    "keyUsage": "?token=YOUR_KEY",
+    "sources": [
+      { "label": "Freesound API overview", "url": "https://freesound.org/docs/api/overview.html" },
+      { "label": "Freesound API authentication", "url": "https://freesound.org/docs/api/authentication.html" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "pexels": {
+    "pricing": "free",
+    "key": "free",
+    "summary": "Free. You need a free account and key, and your use must follow Pexels' API guidelines, including crediting Pexels.",
+    "freeLimits": "200 requests an hour and 20,000 a month. Pexels will raise the limit for free if you show proper attribution.",
+    "keyUrl": "https://www.pexels.com/api/",
+    "keySteps": [
+      "Create a free Pexels account.",
+      "Request an API key from the Pexels API page.",
+      "Send it in the Authorization header."
+    ],
+    "keyUsage": "Authorization: YOUR_KEY",
+    "sources": [
+      { "label": "Pexels API documentation", "url": "https://www.pexels.com/api/documentation/" },
+      { "label": "Pexels: is the API free to use?", "url": "https://help.pexels.com/hc/en-us/articles/47677890260761-Is-the-Pexels-API-free-to-use" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "groq": {
+    "pricing": "free-tier",
+    "key": "free",
+    "summary": "Free plan with rate limits set per model. The paid Developer plan raises them and adds batch processing.",
+    "freeLimits": "Varies by model. For example, GPT-OSS and Qwen models allow 30 requests a minute, 1,000 a day and 8,000 tokens a minute on the free plan.",
+    "keyUrl": "https://console.groq.com/keys",
+    "keySteps": [
+      "Sign in to the Groq console.",
+      "Create a key under API Keys.",
+      "Send it as a Bearer token. The API is OpenAI-compatible."
+    ],
+    "keyUsage": "Authorization: Bearer YOUR_KEY",
+    "sources": [
+      { "label": "Groq rate limits", "url": "https://console.groq.com/docs/rate-limits" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "carto": {
+    "pricing": "free-tier",
+    "key": "free",
+    "summary": "CARTO's analytics platform is a paid product with a free trial. CARTO Basemaps, the map tiles most developers mean, need a free key: maps loaded without one now show an \"API key required\" watermark.",
+    "freeLimits": "Basemaps: free up to 5 million requests a month for non-commercial use and 1 million for commercial use. Keys registered before 23 September 2026 keep working unchanged until 30 November 2026.",
+    "paidFrom": "Basemaps Commercial: $500 a month or $5,000 a year, up to 10 million requests",
+    "keyUrl": "https://carto.com/basemaps/apikey/",
+    "keySteps": [
+      "Enter your email on CARTO's Basemaps API key page. No account is needed.",
+      "The key arrives by email within about a minute.",
+      "Existing CARTO customers email support-basemaps@carto.com with their account number instead."
+    ],
+    "sources": [
+      { "label": "CARTO Basemaps API key", "url": "https://carto.com/basemaps/apikey/" },
+      { "label": "CARTO Basemaps FAQ", "url": "https://docs.carto.com/faqs/carto-basemaps" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "spotify": {
+    "pricing": "restricted",
+    "key": "free",
+    "url": "https://developer.spotify.com/documentation/web-api",
+    "summary": "Still free to register, but much more restricted since February 2026. The app owner needs Spotify Premium, a development-mode app is capped at five users and one client ID, and several endpoint families were removed. Extended access is only for registered businesses with at least 250,000 monthly active users.",
+    "freeLimits": "Development mode: 5 users per app and at most 10 search results per page.",
+    "keyUrl": "https://developer.spotify.com/dashboard",
+    "keySteps": [
+      "Log in to the Spotify developer dashboard with an account that has Premium.",
+      "Create an app to get a client ID and client secret.",
+      "Exchange them for an access token with the client-credentials or authorisation-code flow."
+    ],
+    "keyUsage": "Authorization: Bearer ACCESS_TOKEN",
+    "sources": [
+      { "label": "Spotify: February 2026 Web API dev mode changes", "url": "https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide" },
+      { "label": "Spotify: updating the criteria for extended access", "url": "https://developer.spotify.com/blog/2025-04-15-updating-the-criteria-for-web-api-extended-access" },
+      { "label": "TechCrunch: Spotify requires Premium for developer mode", "url": "https://techcrunch.com/2026/02/06/spotify-changes-developer-mode-api-to-require-premium-accounts-limits-test-users/" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "cloudflare": {
+    "pricing": "free",
+    "key": "free",
+    "summary": "The API comes with every Cloudflare account, including the free plan. Create a scoped API token rather than using the old global API key.",
+    "freeLimits": "1,200 requests per five minutes per user, counted across the dashboard, API keys and API tokens.",
+    "keyUrl": "https://dash.cloudflare.com/profile/api-tokens",
+    "keySteps": [
+      "Sign in to the Cloudflare dashboard.",
+      "Go to My Profile, then API Tokens, and create a token from a template.",
+      "Send it as a Bearer token."
+    ],
+    "keyUsage": "Authorization: Bearer YOUR_TOKEN",
+    "sources": [
+      { "label": "Cloudflare API rate limits", "url": "https://developers.cloudflare.com/fundamentals/api/reference/limits/" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "uk-companies-house": {
+    "pricing": "free",
+    "key": "free",
+    "auth": "apiKey",
+    "summary": "Free UK government API for company records, officers and filing history. Reading public data needs only an API key; OAuth is only for filing on a company's behalf.",
+    "keyUrl": "https://developer.company-information.service.gov.uk/",
+    "keySteps": [
+      "Register on the Companies House developer hub.",
+      "Create an application and add an API key to it.",
+      "Send the key as the username in HTTP Basic auth, with an empty password."
+    ],
+    "keyUsage": "curl -u YOUR_KEY: https://api.company-information.service.gov.uk/company/00000006",
+    "sources": [
+      { "label": "Companies House API: authorisation", "url": "https://developer-specs.company-information.service.gov.uk/guides/authorisation" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "wetransfer": {
+    "pricing": "discontinued",
+    "key": "closed",
+    "summary": "Retired. WeTransfer stopped offering its Public API to new users in 2020 and disabled it in May 2022. There is no public replacement.",
+    "discontinuedOn": "2022-05",
+    "alternatives": ["file-io", "gofile", "mega-nz"],
+    "sources": [
+      { "label": "WeTransfer: we've retired our Public API", "url": "https://help.wetransfer.com/hc/en-us/articles/360038551772-We-ve-retired-our-Public-API" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "iex-cloud": {
+    "pricing": "discontinued",
+    "key": "closed",
+    "summary": "Shut down. IEX Group announced on 31 May 2024 that it would retire every IEX Cloud API product, and switched them all off on 31 August 2024.",
+    "discontinuedOn": "2024-08-31",
+    "alternatives": ["alpha-vantage", "finnhub", "twelve-data"],
+    "sources": [
+      { "label": "IEX Cloud historical reference", "url": "https://github.com/api-evangelist/iex-cloud" },
+      { "label": "IEX Cloud shutdown analysis", "url": "https://www.alphavantage.co/iexcloud_shutdown_analysis_and_migration/" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "iex": {
+    "pricing": "discontinued",
+    "key": "closed",
+    "summary": "No longer available. IEX's original free market-data API was replaced by IEX Cloud, and IEX Cloud itself shut down on 31 August 2024.",
+    "discontinuedOn": "2024-08-31",
+    "alternatives": ["alpha-vantage", "finnhub", "twelve-data"],
+    "sources": [
+      { "label": "IEX Cloud historical reference", "url": "https://github.com/api-evangelist/iex-cloud" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "nordigen": {
+    "pricing": "restricted",
+    "key": "closed",
+    "summary": "Closed to new users. GoCardless bought Nordigen and ran its free bank-data API as Bank Account Data, then disabled new signups in July 2025. Existing integrations may keep working, but you cannot start a new project on it.",
+    "alternatives": ["plaid"],
+    "sources": [
+      { "label": "GoCardless Bank Account Data: new signups disabled", "url": "https://bankaccountdata.gocardless.com/new-signups-disabled" }
+    ],
+    "verified": "2026-09-27"
+  },
+
+  "untappd": {
+    "pricing": "restricted",
+    "key": "closed",
+    "summary": "Not accepting new API applications, with no date set for reopening. Developers who already hold a key can keep using it.",
+    "sources": [
+      { "label": "Untappd API documentation", "url": "https://untappd.com/api/docs" },
+      { "label": "Untappd API developer group", "url": "https://groups.google.com/g/untappd-api-developer-group" }
+    ],
+    "verified": "2026-09-27"
+  }
+}

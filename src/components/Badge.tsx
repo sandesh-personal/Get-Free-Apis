@@ -142,7 +142,9 @@ export function ApiAttributes({
       <AttributeRow {...CORS_ROW[cors]} />
       {status && status !== 'unchecked' && (
         <AttributeRow
-          label={status === 'live' ? 'Responding' : 'Not responding'}
+          label={
+            status === 'live' ? 'Responding' : status === 'discontinued' ? 'Shut down' : 'Not responding'
+          }
           tone={status === 'live' ? 'ok' : 'no'}
         />
       )}
@@ -153,20 +155,25 @@ export function ApiAttributes({
 export function StatusDot({ status, health }: { status: Status; health?: { score: number } }) {
   if (status === 'unchecked') return null;
   const live = status === 'live';
+  const discontinued = status === 'discontinued';
   return (
     <span
       className="inline-flex items-center gap-1.5 text-xs font-medium"
       title={
         live
           ? `Responding normally${health ? `, health ${health.score}/100` : ''}`
-          : 'Failing our most recent checks'
+          : discontinued
+            ? 'The provider has shut this API down'
+            : 'Failing our most recent checks'
       }
     >
       <span
         aria-hidden
         className={`size-2 rounded-full ${live ? 'bg-ok' : 'bg-no'}`}
       />
-      <span className={live ? 'text-ok' : 'text-no'}>{live ? 'Live' : 'Down'}</span>
+      <span className={live ? 'text-ok' : 'text-no'}>
+        {live ? 'Live' : discontinued ? 'Shut down' : 'Down'}
+      </span>
     </span>
   );
 }
