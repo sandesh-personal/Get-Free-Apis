@@ -16,7 +16,8 @@ export function GET() {
     return new Response('Not found', { status: 404 });
   }
 
-  const body = `google.com, ${site.adsensePublisherId}, DIRECT, f08c47fec0942fa0\n`;
+  const publisherId = site.adsensePublisherId.replace(/^ca-/, '');
+  const body = `google.com, ${publisherId}, DIRECT, f08c47fec0942fa0\n`;
 
   return new Response(body, {
     headers: {

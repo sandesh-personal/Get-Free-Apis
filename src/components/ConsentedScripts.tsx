@@ -44,13 +44,17 @@ export function ConsentedScripts({
     if (consent !== 'accepted' || !adsensePublisherId) return;
     if (document.getElementById('adsense-loader')) return;
 
+    const client = adsensePublisherId.startsWith('ca-')
+      ? adsensePublisherId
+      : `ca-${adsensePublisherId}`;
+
     const script = document.createElement('script');
     script.id = 'adsense-loader';
     script.async = true;
     script.crossOrigin = 'anonymous';
     script.src =
       'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' +
-      encodeURIComponent(adsensePublisherId);
+      encodeURIComponent(client);
 
     document.head.appendChild(script);
   }, [consent, adsensePublisherId]);

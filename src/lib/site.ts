@@ -37,7 +37,7 @@ export const site = {
    * record is worse than shipping none at all, because Google reports it as a site with
    * no authorised sellers, so the route 404s until this is filled in.
    */
-  adsensePublisherId: null as string | null,
+  adsensePublisherId: 'pub-8190424610367988' as string | null,
 
   /**
    * GA4 Measurement ID (format `G-XXXXXXXXXX`), from a Web data stream in

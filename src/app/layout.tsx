@@ -82,6 +82,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Same reason: stamps <html data-theme> so a chosen theme never flashes. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 
+        {/* Google AdSense */}
+        {site.adsensePublisherId && (
+          <script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${site.adsensePublisherId.startsWith('ca-') ? site.adsensePublisherId : `ca-${site.adsensePublisherId}`}`}
+            crossOrigin="anonymous"
+            id="adsense-loader"
+          />
+        )}
+
         {/*
           Declared here rather than through `metadata.alternates.types`, because a
           page that sets its own `alternates` (every page with a canonical) replaces
