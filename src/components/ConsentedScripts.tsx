@@ -61,7 +61,7 @@ export function ConsentedScripts({
 
   useEffect(() => {
     if (consent !== 'accepted' || !gaMeasurementId) return;
-    if (document.getElementById('ga4-loader')) return;
+    if (document.querySelector('script[src*="googletagmanager.com"]') || document.getElementById('ga4-loader')) return;
 
     const script = document.createElement('script');
     script.id = 'ga4-loader';

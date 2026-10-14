@@ -76,22 +76,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-GB" className={inter.variable}>
       <head>
-        {/* Must run before paint so the banner does not flash for returning visitors. */}
-        <script dangerouslySetInnerHTML={{ __html: consentScript }} />
-
-        {/* Same reason: stamps <html data-theme> so a chosen theme never flashes. */}
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
-
         {/* Google tag (gtag.js) */}
         {site.gaMeasurementId && (
           <>
             <script
               async
               src={`https://www.googletagmanager.com/gtag/js?id=${site.gaMeasurementId}`}
-              id="ga4-loader"
             />
             <script
-              id="ga4-init"
               dangerouslySetInnerHTML={{
                 __html: `window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
@@ -102,6 +94,12 @@ gtag('config', '${site.gaMeasurementId}');`,
             />
           </>
         )}
+
+        {/* Must run before paint so the banner does not flash for returning visitors. */}
+        <script dangerouslySetInnerHTML={{ __html: consentScript }} />
+
+        {/* Same reason: stamps <html data-theme> so a chosen theme never flashes. */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 
         {/* Google AdSense */}
         {site.adsensePublisherId && (
