@@ -3,168 +3,180 @@
     "slug": "development",
     "name": "Development",
     "description": "Tooling for developers: source control, hosting, utilities and automation.",
-    "count": 276
+    "count": 325
   },
   {
     "slug": "geocoding",
     "name": "Geocoding",
     "description": "Address lookup, reverse geocoding, boundaries, maps and places data.",
-    "count": 169
+    "count": 179
   },
   {
     "slug": "uncategorised",
     "name": "Uncategorised",
     "description": "Entries that upstream sources publish without a category.",
-    "count": 153
+    "count": 149
   },
   {
     "slug": "games-and-comics",
     "name": "Games & Comics",
     "description": "Game catalogues, live stats, comics and trivia databases.",
-    "count": 143
+    "count": 147
   },
   {
     "slug": "government",
     "name": "Government",
     "description": "Official open data published by national and local government bodies.",
-    "count": 141
+    "count": 146
   },
   {
     "slug": "finance",
     "name": "Finance",
     "description": "Market data, company fundamentals, banking and payment services.",
-    "count": 123
+    "count": 141
   },
   {
     "slug": "cryptocurrency",
     "name": "Cryptocurrency",
     "description": "Prices, market data, on-chain activity and exchange information.",
-    "count": 109
-  },
-  {
-    "slug": "transportation",
-    "name": "Transportation",
-    "description": "Transit schedules, flights, shipping, routing and live vehicle data.",
-    "count": 101
+    "count": 117
   },
   {
     "slug": "ai",
     "name": "AI",
     "description": "Hosted models for language, vision, speech and inference, plus the metadata APIs that track model pricing and deprecation.",
-    "count": 87
+    "count": 107
+  },
+  {
+    "slug": "transportation",
+    "name": "Transportation",
+    "description": "Transit schedules, flights, shipping, routing and live vehicle data.",
+    "count": 103
   },
   {
     "slug": "open-data",
     "name": "Open Data",
     "description": "Free public APIs for open data, each one verified and kept up to date.",
-    "count": 80
+    "count": 92
   },
   {
     "slug": "security",
     "name": "Security",
     "description": "Threat intelligence, breach lookup, vulnerability feeds and scanning.",
-    "count": 80
+    "count": 84
   },
   {
     "slug": "social",
     "name": "Social",
     "description": "Social networks, messaging, community platforms and user profiles.",
-    "count": 72
+    "count": 76
   },
   {
     "slug": "video",
     "name": "Video",
     "description": "Video catalogues, streaming metadata, hosting and transcoding.",
-    "count": 69
+    "count": 74
   },
   {
     "slug": "sports-and-fitness",
     "name": "Sports & Fitness",
     "description": "Fixtures, live scores, standings, athletes and activity tracking.",
-    "count": 66
+    "count": 71
   },
   {
     "slug": "weather",
     "name": "Weather",
     "description": "Forecasts, current conditions, historical climate data and severe weather alerts.",
-    "count": 66
-  },
-  {
-    "slug": "science-and-math",
-    "name": "Science & Math",
-    "description": "Research datasets, astronomy, physics, chemistry and computation.",
-    "count": 57
-  },
-  {
-    "slug": "health",
-    "name": "Health",
-    "description": "Medical reference data, nutrition, public health statistics and fitness.",
-    "count": 51
+    "count": 68
   },
   {
     "slug": "documents-and-productivity",
     "name": "Documents & Productivity",
     "description": "Free public APIs for documents & productivity, each one verified and kept up to date.",
-    "count": 50
+    "count": 60
+  },
+  {
+    "slug": "science-and-math",
+    "name": "Science & Math",
+    "description": "Research datasets, astronomy, physics, chemistry and computation.",
+    "count": 60
+  },
+  {
+    "slug": "health",
+    "name": "Health",
+    "description": "Medical reference data, nutrition, public health statistics and fitness.",
+    "count": 52
   },
   {
     "slug": "test-data",
     "name": "Test Data",
     "description": "Mock endpoints, fake records and sandboxes for development and testing.",
-    "count": 48
+    "count": 50
   },
   {
     "slug": "business",
     "name": "Business",
     "description": "Company records, invoicing, CRM, analytics and productivity services.",
-    "count": 47
-  },
-  {
-    "slug": "music",
-    "name": "Music",
-    "description": "Track metadata, lyrics, audio features and streaming catalogues.",
-    "count": 44
-  },
-  {
-    "slug": "email",
-    "name": "Email",
-    "description": "Sending, validating, and disposable-inbox APIs for handling email programmatically.",
-    "count": 44
+    "count": 50
   },
   {
     "slug": "photography",
     "name": "Photography",
     "description": "Stock imagery, image hosting, processing and photo metadata.",
-    "count": 43
+    "count": 47
   },
   {
-    "slug": "news",
-    "name": "News",
-    "description": "Headlines, full article feeds and aggregated media coverage.",
-    "count": 41
+    "slug": "email",
+    "name": "Email",
+    "description": "Sending, validating, and disposable-inbox APIs for handling email programmatically.",
+    "count": 46
+  },
+  {
+    "slug": "music",
+    "name": "Music",
+    "description": "Track metadata, lyrics, audio features and streaming catalogues.",
+    "count": 45
   },
   {
     "slug": "food-and-drink",
     "name": "Food & Drink",
     "description": "Recipes, ingredients, nutrition facts, restaurants and beverages.",
+    "count": 44
+  },
+  {
+    "slug": "news",
+    "name": "News",
+    "description": "Headlines, full article feeds and aggregated media coverage.",
+    "count": 42
+  },
+  {
+    "slug": "jobs",
+    "name": "Jobs",
+    "description": "Free public APIs for jobs, each one verified and kept up to date.",
     "count": 41
   },
   {
     "slug": "currency-exchange",
     "name": "Currency Exchange",
     "description": "Live and historical foreign exchange rates and conversion.",
-    "count": 38
+    "count": 40
   },
   {
-    "slug": "jobs",
-    "name": "Jobs",
-    "description": "Free public APIs for jobs, each one verified and kept up to date.",
-    "count": 36
+    "slug": "books",
+    "name": "Books",
+    "description": "Book metadata, full texts, libraries and reading lists.",
+    "count": 35
   },
   {
     "slug": "anime",
     "name": "Anime",
     "description": "Anime, manga and related media catalogues, artwork and quotations.",
+    "count": 35
+  },
+  {
+    "slug": "personality",
+    "name": "Personality",
+    "description": "Free public APIs for personality, each one verified and kept up to date.",
     "count": 35
   },
   {
@@ -174,39 +186,39 @@
     "count": 35
   },
   {
-    "slug": "personality",
-    "name": "Personality",
-    "description": "Free public APIs for personality, each one verified and kept up to date.",
-    "count": 34
-  },
-  {
-    "slug": "books",
-    "name": "Books",
-    "description": "Book metadata, full texts, libraries and reading lists.",
-    "count": 33
-  },
-  {
     "slug": "entertainment",
     "name": "Entertainment",
     "description": "Free public APIs for entertainment, each one verified and kept up to date.",
-    "count": 32
+    "count": 33
   },
   {
     "slug": "environment",
     "name": "Environment",
     "description": "Free public APIs for environment, each one verified and kept up to date.",
-    "count": 29
+    "count": 32
   },
   {
     "slug": "art-and-design",
     "name": "Art & Design",
     "description": "Free public APIs for art & design, each one verified and kept up to date.",
-    "count": 27
+    "count": 31
   },
   {
     "slug": "shopping",
     "name": "Shopping",
     "description": "Free public APIs for shopping, each one verified and kept up to date.",
+    "count": 28
+  },
+  {
+    "slug": "calendar",
+    "name": "Calendar",
+    "description": "Free public APIs for calendar, each one verified and kept up to date.",
+    "count": 26
+  },
+  {
+    "slug": "data-validation",
+    "name": "Data Validation",
+    "description": "Free public APIs for data validation, each one verified and kept up to date.",
     "count": 25
   },
   {
@@ -216,27 +228,15 @@
     "count": 24
   },
   {
-    "slug": "calendar",
-    "name": "Calendar",
-    "description": "Free public APIs for calendar, each one verified and kept up to date.",
-    "count": 24
-  },
-  {
-    "slug": "data-validation",
-    "name": "Data Validation",
-    "description": "Free public APIs for data validation, each one verified and kept up to date.",
-    "count": 23
+    "slug": "text-analysis",
+    "name": "Text Analysis",
+    "description": "Free public APIs for text analysis, each one verified and kept up to date.",
+    "count": 22
   },
   {
     "slug": "anti-malware",
     "name": "Anti-Malware",
     "description": "Free public APIs for anti-malware, each one verified and kept up to date.",
-    "count": 21
-  },
-  {
-    "slug": "text-analysis",
-    "name": "Text Analysis",
-    "description": "Free public APIs for text analysis, each one verified and kept up to date.",
     "count": 21
   },
   {
@@ -249,19 +249,25 @@
     "slug": "vehicle",
     "name": "Vehicle",
     "description": "Free public APIs for vehicle, each one verified and kept up to date.",
-    "count": 18
+    "count": 20
   },
   {
     "slug": "blockchain",
     "name": "Blockchain",
     "description": "Free public APIs for blockchain, each one verified and kept up to date.",
-    "count": 16
+    "count": 17
   },
   {
     "slug": "dictionaries",
     "name": "Dictionaries",
     "description": "Free public APIs for dictionaries, each one verified and kept up to date.",
-    "count": 15
+    "count": 16
+  },
+  {
+    "slug": "mcp-servers",
+    "name": "MCP Servers",
+    "description": "Free public APIs for mcp servers, each one verified and kept up to date.",
+    "count": 14
   },
   {
     "slug": "tracking",
@@ -318,21 +324,15 @@
     "count": 4
   },
   {
-    "slug": "disasters",
-    "name": "Disasters",
-    "description": "Free public APIs for disasters, each one verified and kept up to date.",
-    "count": 3
-  },
-  {
     "slug": "events",
     "name": "Events",
     "description": "Free public APIs for events, each one verified and kept up to date.",
-    "count": 3
+    "count": 4
   },
   {
-    "slug": "mcp-servers",
-    "name": "MCP Servers",
-    "description": "Free public APIs for mcp servers, each one verified and kept up to date.",
+    "slug": "disasters",
+    "name": "Disasters",
+    "description": "Free public APIs for disasters, each one verified and kept up to date.",
     "count": 3
   },
   {

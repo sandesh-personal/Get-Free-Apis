@@ -8,14 +8,14 @@ export const site = {
    * redirect direction rather than the other way round.
    */
   url: 'https://www.getfreeapis.com',
-  tagline: '2,700+ Public APIs for Testing & Projects [No Key]',
+  tagline: '3,000+ Public APIs for Testing & Projects [No Key]',
 
   /**
    * The exact <title> for the homepage. Kept separate from `name` + `tagline`
    * because the brand is written "GetFreeAPIs" in the wordmark but spaced out in
    * the title, where the three words each carry search weight on their own.
    */
-  titleDefault: 'Get Free APIs – 2,700+ Public APIs for Testing & Projects [No Key]',
+  titleDefault: 'Get Free APIs – 3,000+ Public APIs for Testing & Projects [No Key]',
   description:
     'Browse thousands of free public APIs, filtered by whether they need an API key, support CORS or run over HTTPS. Every listing is checked automatically so dead links do not waste your time.',
   locale: 'en_GB',

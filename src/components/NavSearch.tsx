@@ -36,7 +36,7 @@ export function NavSearch({ className = '' }: { className?: string }) {
 
   return (
     <div ref={wrap} className={className}>
-      <SearchBox placeholder="Search 2,700+ free APIs" shortcutHint={hint ?? undefined} />
+      <SearchBox placeholder="Search 3,000+ free APIs" shortcutHint={hint ?? undefined} />
     </div>
   );
 }

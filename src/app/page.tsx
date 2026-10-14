@@ -48,7 +48,7 @@ export default function HomePage() {
 
             {/* The three filter terms are emphasised, but the wording is untouched. */}
             <p className="type-lead mt-3 text-pretty text-muted">
-              Search 2,700+ tested public APIs and mock data feeds for fast prototyping. Instant
+              Search 3,000+ tested public APIs and mock data feeds for fast prototyping. Instant
               filters for <strong className="font-medium text-foreground">no-auth endpoints</strong>,{' '}
               <strong className="font-medium text-foreground">browser-ready CORS support</strong>,
               and <strong className="font-medium text-foreground">active HTTPS</strong>.
