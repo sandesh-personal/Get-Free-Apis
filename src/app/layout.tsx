@@ -82,6 +82,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Same reason: stamps <html data-theme> so a chosen theme never flashes. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 
+        {/* Google tag (gtag.js) */}
+        {site.gaMeasurementId && (
+          <>
+            <script
+              async
+              src={`https://www.googletagmanager.com/gtag/js?id=${site.gaMeasurementId}`}
+              id="ga4-loader"
+            />
+            <script
+              id="ga4-init"
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+
+gtag('config', '${site.gaMeasurementId}');`,
+              }}
+            />
+          </>
+        )}
+
         {/* Google AdSense */}
         {site.adsensePublisherId && (
           <script

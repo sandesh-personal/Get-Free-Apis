@@ -41,9 +41,7 @@ export const site = {
 
   /**
    * GA4 Measurement ID (format `G-XXXXXXXXXX`), from a Web data stream in
-   * analytics.google.com. Loading is gated on consent the same way AdSense is —
-   * see ConsentedScripts — so this being set does not by itself mean anyone is
-   * being tracked; a visitor still has to accept the cookie banner first.
+   * analytics.google.com. Loaded in layout head for tracking and verification.
    */
   gaMeasurementId: 'G-SG0MKWN5WJ' as string | null,
 
